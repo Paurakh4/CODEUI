@@ -172,3 +172,29 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Text shimmer animation */
+@keyframes text-shimmer {
+  /* Animate the first (moving) layer only, keep the fallback color layer fixed */
+  from { background-position: 100% center, 0% center; }
+  to   { background-position: 0% center, 0% center; }
+}
+.text-shimmer-anim {
+  animation: text-shimmer var(--text-shimmer-duration, 2s) linear infinite;
+  will-change: background-position;
+  /* Ensure first (shimmer) layer moves while fallback layer stays fixed */
+  background-position: 100% center, 0% center;
+  background-size: 250% 100%, auto; /* fallback in case Tailwind arbitrary class isn't applied */
+  background-repeat: no-repeat;
+  -webkit-text-fill-color: transparent; /* Safari support */
+  -webkit-background-clip: text;
+  background-clip: text;
+  /* GPU hint to prevent flicker during animation */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .text-shimmer-anim {
+    animation: none !important;
+  }
+}

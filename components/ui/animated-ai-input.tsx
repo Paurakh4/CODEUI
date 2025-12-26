@@ -96,7 +96,7 @@ const OPENAI_ICON = (
 );
 
 interface AI_PromptProps {
-    onSend?: (message: string) => void;
+    onSend?: (message: string, model?: string) => void;
 }
 
 export function AI_Prompt({ onSend }: AI_PromptProps) {
@@ -109,14 +109,44 @@ export function AI_Prompt({ onSend }: AI_PromptProps) {
 
     const AI_MODELS = [
         "o3-mini",
+        "Gemini 3 Flash Preview",
         "Gemini 2.5 Flash",
         "Claude 3.5 Sonnet",
+        "Devstral",
         "GPT-4-1 Mini",
         "GPT-4-1",
     ];
 
     const MODEL_ICONS: Record<string, React.ReactNode> = {
         "o3-mini": OPENAI_ICON,
+        "Gemini 3 Flash Preview": (
+            <svg
+                height="1em"
+                className="w-4 h-4"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+            >
+                <title>Gemini</title>
+                <defs>
+                    <linearGradient
+                        id="lobe-icons-gemini-fill"
+                        x1="0%"
+                        x2="68.73%"
+                        y1="100%"
+                        y2="30.395%"
+                    >
+                        <stop offset="0%" stopColor="#1C7DFF" />
+                        <stop offset="52.021%" stopColor="#1C69FF" />
+                        <stop offset="100%" stopColor="#F0DCD6" />
+                    </linearGradient>
+                </defs>
+                <path
+                    d="M12 24A14.304 14.304 0 000 12 14.304 14.304 0 0012 0a14.305 14.305 0 0012 12 14.305 14.305 0 00-12 12"
+                    fill="url(#lobe-icons-gemini-fill)"
+                    fillRule="nonzero"
+                />
+            </svg>
+        ),
         "Gemini 2.5 Flash": (
             <svg
                 height="1em"
@@ -171,14 +201,21 @@ export function AI_Prompt({ onSend }: AI_PromptProps) {
                 </svg>
             </>
         ),
+        "Devstral": OPENAI_ICON,
         "GPT-4-1 Mini": OPENAI_ICON,
         "GPT-4-1": OPENAI_ICON,
     };
 
+    // Map display names to model ids understood by the backend
+    const MODEL_ID_MAP: Record<string, string> = {
+        Devstral: "mistralai/devstral-2512:free",
+    }
+
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === "Enter" && !e.shiftKey && value.trim()) {
             e.preventDefault();
-            onSend?.(value.trim());
+            const modelId = MODEL_ID_MAP[selectedModel]
+            onSend?.(value.trim(), modelId);
             setValue("");
             adjustHeight(true);
             // Here you can add message sending logic
@@ -303,7 +340,8 @@ export function AI_Prompt({ onSend }: AI_PromptProps) {
                                     disabled={!value.trim()}
                                     onClick={() => {
                                         if (!value.trim()) return;
-                                        onSend?.(value.trim());
+                                        const modelId = MODEL_ID_MAP[selectedModel]
+                                        onSend?.(value.trim(), modelId);
                                         setValue("");
                                         adjustHeight(true);
                                         // Here you can add message sending logic
