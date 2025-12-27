@@ -56,10 +56,12 @@ export function UserMenu() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
-            <AvatarImage
-              src={session.user?.image || ""}
-              alt={session.user?.name || "User"}
-            />
+            {session.user?.image && (
+              <AvatarImage
+                src={session.user.image}
+                alt={session.user?.name || "User"}
+              />
+            )}
             <AvatarFallback className="bg-primary text-primary-foreground">
               {initials}
             </AvatarFallback>

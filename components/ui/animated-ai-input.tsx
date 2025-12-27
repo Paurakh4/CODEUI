@@ -108,17 +108,15 @@ export function AI_Prompt({ onSend }: AI_PromptProps) {
     const [selectedModel, setSelectedModel] = useState("GPT-4-1 Mini");
 
     const AI_MODELS = [
-        "o3-mini",
         "Gemini 3 Flash Preview",
         "Gemini 2.5 Flash",
-        "Claude 3.5 Sonnet",
+        "Gemini 2.5 Flash Lite",
         "Devstral",
         "GPT-4-1 Mini",
         "GPT-4-1",
     ];
 
     const MODEL_ICONS: Record<string, React.ReactNode> = {
-        "o3-mini": OPENAI_ICON,
         "Gemini 3 Flash Preview": (
             <svg
                 height="1em"
@@ -175,31 +173,33 @@ export function AI_Prompt({ onSend }: AI_PromptProps) {
                 />
             </svg>
         ),
-        "Claude 3.5 Sonnet": (
-            <>
-                <svg
-                    fill="#000"
-                    fillRule="evenodd"
-                    className="w-4 h-4 dark:hidden block"
-                    viewBox="0 0 24 24"
-                    width="1em"
-                    xmlns="http://www.w3.org/2000/svg"
-                >
-                    <title>Anthropic Icon Light</title>
-                    <path d="M13.827 3.52h3.603L24 20h-3.603l-6.57-16.48zm-7.258 0h3.767L16.906 20h-3.674l-1.343-3.461H5.017l-1.344 3.46H0L6.57 3.522zm4.132 9.959L8.453 7.687 6.205 13.48H10.7z" />
-                </svg>
-                <svg
-                    fill="#fff"
-                    fillRule="evenodd"
-                    className="w-4 h-4 hidden dark:block"
-                    viewBox="0 0 24 24"
-                    width="1em"
-                    xmlns="http://www.w3.org/2000/svg"
-                >
-                    <title>Anthropic Icon Dark</title>
-                    <path d="M13.827 3.52h3.603L24 20h-3.603l-6.57-16.48zm-7.258 0h3.767L16.906 20h-3.674l-1.343-3.461H5.017l-1.344 3.46H0L6.57 3.522zm4.132 9.959L8.453 7.687 6.205 13.48H10.7z" />
-                </svg>
-            </>
+        "Gemini 2.5 Flash Lite": (
+            <svg
+                height="1em"
+                className="w-4 h-4"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+            >
+                <title>Gemini Lite</title>
+                <defs>
+                    <linearGradient
+                        id="lobe-icons-gemini-lite-fill"
+                        x1="0%"
+                        x2="68.73%"
+                        y1="100%"
+                        y2="30.395%"
+                    >
+                        <stop offset="0%" stopColor="#1C7DFF" />
+                        <stop offset="52.021%" stopColor="#1C69FF" />
+                        <stop offset="100%" stopColor="#F0DCD6" />
+                    </linearGradient>
+                </defs>
+                <path
+                    d="M12 24A14.304 14.304 0 000 12 14.304 14.304 0 0012 0a14.305 14.305 0 0012 12 14.305 14.305 0 00-12 12"
+                    fill="url(#lobe-icons-gemini-lite-fill)"
+                    fillRule="nonzero"
+                />
+            </svg>
         ),
         "Devstral": OPENAI_ICON,
         "GPT-4-1 Mini": OPENAI_ICON,
@@ -208,7 +208,12 @@ export function AI_Prompt({ onSend }: AI_PromptProps) {
 
     // Map display names to model ids understood by the backend
     const MODEL_ID_MAP: Record<string, string> = {
-        Devstral: "mistralai/devstral-2512:free",
+        "Gemini 3 Flash Preview": "google/gemini-3-flash-preview",
+        "Gemini 2.5 Flash": "google/gemini-2.5-flash-preview-09-2025",
+        "Gemini 2.5 Flash Lite": "google/gemini-2.5-flash-lite-preview-09-2025",
+        "Devstral": "mistralai/devstral-2512:free",
+        "GPT-4-1 Mini": "openai/gpt-4.1-mini",
+        "GPT-4-1": "openai/gpt-4.1",
     }
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

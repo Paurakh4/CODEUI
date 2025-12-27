@@ -40,30 +40,26 @@ export function PreviewFrame({
   
   const dimensions = deviceDimensions[deviceMode]
 
-  // Update iframe content when HTML changes
+  // Update iframe content when HTML changes - use srcdoc for reliable rendering
   useEffect(() => {
     const iframe = iframeRef.current
     if (!iframe) return
     
-    const doc = iframe.contentDocument || iframe.contentWindow?.document
-    if (!doc) return
-    
     setIsLoading(true)
     
-    // Write the HTML content to the iframe
-    doc.open()
-    doc.write(htmlContent)
-    doc.close()
-    
-    // Wait for content to load
-    const checkLoaded = () => {
+    // Handle load event
+    const handleLoad = () => {
       setIsLoading(false)
     }
     
-    if (doc.readyState === "complete") {
-      checkLoaded()
-    } else {
-      iframe.onload = checkLoaded
+    iframe.onload = handleLoad
+    
+    // Use srcdoc for reliable content rendering
+    // This ensures the entire document is parsed before rendering
+    iframe.srcdoc = htmlContent
+    
+    return () => {
+      iframe.onload = null
     }
   }, [htmlContent, key])
 
@@ -79,95 +75,116 @@ export function PreviewFrame({
     const iframe = iframeRef.current
     if (!iframe) return
     
-    const doc = iframe.contentDocument || iframe.contentWindow?.document
-    if (!doc) return
+    let cleanupFn: (() => void) | null = null
 
-    const handleClick = (e: MouseEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      const target = e.target as HTMLElement
-      if (target && onElementSelect) {
-        // Create a unique selector for the element
-        const path = getElementPath(target)
-        
-        // Get click position relative to the iframe container
-        const iframeRect = iframe.getBoundingClientRect()
-        const clickPosition = {
-          x: e.clientX + iframeRect.left,
-          y: e.clientY + iframeRect.top
+    const setupEventListeners = () => {
+      const doc = iframe.contentDocument || iframe.contentWindow?.document
+      if (!doc || !doc.body) return
+
+      const handleClick = (e: MouseEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const target = e.target as HTMLElement
+        if (target && onElementSelect) {
+          // Create a unique selector for the element
+          const path = getElementPath(target)
+          
+          // Get click position relative to the iframe container
+          const iframeRect = iframe.getBoundingClientRect()
+          const clickPosition = {
+            x: e.clientX + iframeRect.left,
+            y: e.clientY + iframeRect.top
+          }
+          
+          // Extract styles - use iframe's contentWindow for getComputedStyle
+          const iframeWindow = iframe.contentWindow
+          if (!iframeWindow) return
+          
+          const computed = iframeWindow.getComputedStyle(target)
+          const styles: Record<string, string | number> = {
+            width: computed.width,
+            height: computed.height,
+            marginTop: parseFloat(computed.marginTop),
+            marginRight: parseFloat(computed.marginRight),
+            marginBottom: parseFloat(computed.marginBottom),
+            marginLeft: parseFloat(computed.marginLeft),
+            paddingTop: parseFloat(computed.paddingTop),
+            paddingRight: parseFloat(computed.paddingRight),
+            paddingBottom: parseFloat(computed.paddingBottom),
+            paddingLeft: parseFloat(computed.paddingLeft),
+            fontFamily: computed.fontFamily,
+            fontSize: parseFloat(computed.fontSize),
+            fontWeight: parseFloat(computed.fontWeight),
+            textAlign: computed.textAlign,
+            color: rgbToHex(computed.color),
+            backgroundColor: rgbToHex(computed.backgroundColor),
+            opacity: parseFloat(computed.opacity),
+            borderRadius: parseFloat(computed.borderRadius),
+            borderStyle: computed.borderStyle,
+            borderWidth: parseFloat(computed.borderWidth),
+            borderColor: rgbToHex(computed.borderColor),
+          }
+
+          // Extract attributes
+          const properties = {
+            id: target.id,
+            className: target.className,
+            tagName: target.tagName.toLowerCase(),
+          }
+
+          onElementSelect({
+            selector: path,
+            type: target.tagName.toLowerCase(),
+            styles,
+            properties,
+            clickPosition
+          })
         }
-        
-        // Extract styles
-        const computed = window.getComputedStyle(target)
-        const styles: Record<string, string | number> = {
-          width: computed.width,
-          height: computed.height,
-          marginTop: parseFloat(computed.marginTop),
-          marginRight: parseFloat(computed.marginRight),
-          marginBottom: parseFloat(computed.marginBottom),
-          marginLeft: parseFloat(computed.marginLeft),
-          paddingTop: parseFloat(computed.paddingTop),
-          paddingRight: parseFloat(computed.paddingRight),
-          paddingBottom: parseFloat(computed.paddingBottom),
-          paddingLeft: parseFloat(computed.paddingLeft),
-          fontFamily: computed.fontFamily,
-          fontSize: parseFloat(computed.fontSize),
-          fontWeight: parseFloat(computed.fontWeight),
-          textAlign: computed.textAlign,
-          color: rgbToHex(computed.color),
-          backgroundColor: rgbToHex(computed.backgroundColor),
-          opacity: parseFloat(computed.opacity),
-          borderRadius: parseFloat(computed.borderRadius),
-          borderStyle: computed.borderStyle,
-          borderWidth: parseFloat(computed.borderWidth),
-          borderColor: rgbToHex(computed.borderColor),
+      }
+
+      const handleMouseOver = (e: MouseEvent) => {
+        const target = e.target as HTMLElement
+        if (target && target !== doc.body && target !== doc.documentElement) {
+          target.style.outline = "2px solid #3b82f6"
+          target.style.outlineOffset = "2px"
         }
+      }
 
-        // Extract attributes
-        const properties = {
-          id: target.id,
-          className: target.className,
-          tagName: target.tagName.toLowerCase(),
+      const handleMouseOut = (e: MouseEvent) => {
+        const target = e.target as HTMLElement
+        if (target) {
+          target.style.outline = ""
+          target.style.outlineOffset = ""
         }
-
-        onElementSelect({
-          selector: path,
-          type: target.tagName.toLowerCase(),
-          styles,
-          properties,
-          clickPosition
-        })
       }
-    }
 
-    const handleMouseOver = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (target && target !== doc.body && target !== doc.documentElement) {
-        target.style.outline = "2px solid #3b82f6"
-        target.style.outlineOffset = "2px"
-      }
-    }
-
-    const handleMouseOut = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (target) {
-        target.style.outline = ""
-        target.style.outlineOffset = ""
-      }
-    }
-
-    // Wait for content to be ready
-    const timer = setTimeout(() => {
       doc.addEventListener("click", handleClick)
       doc.addEventListener("mouseover", handleMouseOver)
       doc.addEventListener("mouseout", handleMouseOut)
-    }, 100)
+
+      cleanupFn = () => {
+        doc.removeEventListener("click", handleClick)
+        doc.removeEventListener("mouseover", handleMouseOver)
+        doc.removeEventListener("mouseout", handleMouseOut)
+      }
+    }
+
+    // Wait for iframe to load with srcdoc
+    const handleIframeLoad = () => {
+      // Small delay to ensure DOM is fully ready
+      setTimeout(setupEventListeners, 50)
+    }
+
+    iframe.addEventListener("load", handleIframeLoad)
+    
+    // If already loaded, set up immediately
+    if (iframe.contentDocument?.readyState === "complete") {
+      setTimeout(setupEventListeners, 50)
+    }
 
     return () => {
-      clearTimeout(timer)
-      doc.removeEventListener("click", handleClick)
-      doc.removeEventListener("mouseover", handleMouseOver)
-      doc.removeEventListener("mouseout", handleMouseOut)
+      iframe.removeEventListener("load", handleIframeLoad)
+      if (cleanupFn) cleanupFn()
     }
   }, [isDesignMode, htmlContent, onElementSelect, key])
 

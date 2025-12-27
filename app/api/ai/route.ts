@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { getCombinedSystemPrompt } from "@/lib/prompts/frontend-design"
 
 // AI Models available through OpenRouter
 export const AI_MODELS = {
@@ -42,32 +43,8 @@ export const AI_MODELS = {
 
 type ModelId = keyof typeof AI_MODELS
 
-const SYSTEM_PROMPT = `You are CodeUI, an expert AI assistant specialized in generating beautiful, modern, and responsive single-page HTML websites. You use Tailwind CSS for styling (loaded via CDN) and vanilla JavaScript for interactivity.
-
-CRITICAL RULES:
-1. Generate ONLY valid HTML code wrapped in a complete HTML document structure
-2. ALWAYS include the Tailwind CSS CDN: <script src="https://cdn.tailwindcss.com"></script>
-3. Create visually stunning, modern designs with gradients, shadows, and smooth animations
-4. Use semantic HTML5 elements (header, nav, main, section, footer)
-5. Ensure mobile responsiveness using Tailwind's responsive prefixes (sm:, md:, lg:, xl:)
-6. Include hover effects and smooth transitions for interactive elements
-7. Use a cohesive color scheme based on Tailwind's color palette
-8. Add meaningful content - avoid Lorem Ipsum when possible
-9. Include JavaScript for interactivity when appropriate (inline in <script> tags)
-
-OUTPUT FORMAT:
-- Return ONLY the complete HTML document, starting with <!DOCTYPE html>
-- Do NOT include any markdown code blocks, explanations, or comments outside the HTML
-- The output should be directly renderable in a browser
-
-When modifying existing code, use the SEARCH/REPLACE format:
-<<<<<<< SEARCH
-[exact content to find]
-=======
-[new content to replace with]
->>>>>>> REPLACE
-
-For new projects, generate a complete HTML document.`
+// System prompt is now securely loaded from server-only module
+// This prevents the prompt from being exposed to client bundles
 
 interface Message {
   role: "user" | "assistant" | "system"
@@ -92,8 +69,6 @@ export async function POST(req: NextRequest) {
       // Check rate limit for anonymous users
       const rateLimitKey = `rate_limit:${ip}`
       // In production, implement proper rate limiting with Redis
-      // For now, we'll allow requests but log the IP
-      console.log(`Anonymous request from IP: ${ip}`)
     }
 
     const body: RequestBody = await req.json()
@@ -116,23 +91,38 @@ export async function POST(req: NextRequest) {
     }
 
     // Build messages array
+    // The system prompt is securely loaded from a server-only module
+    const systemPrompt = getCombinedSystemPrompt()
+    
     const messages: Message[] = [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: systemPrompt },
     ]
 
     if (isFollowUp && currentHtml) {
       messages.push({
         role: "user",
-        content: `Here is my current HTML code:\n\n${currentHtml}\n\nPlease modify it based on this request: ${prompt}`,
+        content: `Here is my current HTML code:
+
+${currentHtml}
+
+Please modify it based on this request: ${prompt}`,
       })
     } else {
       messages.push({
         role: "user",
-        content: `Create a beautiful, modern single-page website for: ${prompt}`,
+        content: prompt,
       })
     }
 
     // Make streaming request to OpenRouter
+    const requestBody = {
+      model,
+      messages,
+      stream: true,
+      max_tokens: 16000,
+      temperature: 0.7,
+    }
+    
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -141,13 +131,7 @@ export async function POST(req: NextRequest) {
         "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
         "X-Title": "CodeUI",
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        stream: true,
-        max_tokens: 16000,
-        temperature: 0.7,
-      }),
+      body: JSON.stringify(requestBody),
     })
 
     if (!response.ok) {
