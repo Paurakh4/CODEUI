@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Check, ChevronDown, Sparkles, Zap, Brain } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -12,83 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
-
-export interface AIModel {
-  id: string
-  name: string
-  provider: string
-  description?: string
-  contextLength: number
-  supportsReasoning?: boolean
-  isFast?: boolean
-  isNew?: boolean
-}
-
-const AI_MODELS: AIModel[] = [
-  {
-    id: "deepseek/deepseek-chat",
-    name: "DeepSeek V3",
-    provider: "DeepSeek",
-    description: "Powerful general-purpose model",
-    contextLength: 64000,
-    isFast: true,
-  },
-  {
-    id: "deepseek/deepseek-r1",
-    name: "DeepSeek R1",
-    provider: "DeepSeek",
-    description: "Advanced reasoning model",
-    contextLength: 64000,
-    supportsReasoning: true,
-  },
-  {
-    id: "qwen/qwen3-coder-480b-instruct",
-    name: "Qwen3 Coder 480B",
-    provider: "Qwen",
-    description: "Specialized for coding tasks",
-    contextLength: 32000,
-    isNew: true,
-  },
-  {
-    id: "moonshot/kimi-k2-instruct",
-    name: "Kimi K2",
-    provider: "Moonshot",
-    description: "Great for creative content",
-    contextLength: 128000,
-  },
-  {
-    id: "moonshot/kimi-k2-thinking",
-    name: "Kimi K2 Thinking",
-    provider: "Moonshot",
-    description: "Reasoning-enhanced Kimi",
-    contextLength: 128000,
-    supportsReasoning: true,
-  },
-  {
-    id: "zhipu/glm-4.6",
-    name: "GLM 4.6",
-    provider: "Zhipu",
-    description: "Balanced performance",
-    contextLength: 128000,
-  },
-  {
-    id: "mistralai/devstral-2512:free",
-    name: "Devstral",
-    provider: "Mistral",
-    description: "Devstral 2512 (free)",
-    contextLength: 64000,
-    isFast: true,
-  },
-  {
-    id: "google/gemini-3-flash-preview",
-    name: "Gemini 3 Flash Preview",
-    provider: "Google",
-    description: "Latest Gemini model preview",
-    contextLength: 2000000,
-    isFast: true,
-    isNew: true,
-  },
-]
+import { ALL_MODELS, type AIModel } from "@/lib/ai-models"
 
 interface ModelSelectorProps {
   selectedModel: string
@@ -102,8 +26,39 @@ export function ModelSelector({
   disabled = false,
 }: ModelSelectorProps) {
   const [open, setOpen] = useState(false)
+  const [enabledModels, setEnabledModels] = useState<AIModel[]>(ALL_MODELS)
+  const [isLoading, setIsLoading] = useState(true)
 
-  const currentModel = AI_MODELS.find((m) => m.id === selectedModel) || AI_MODELS[0]
+  // Fetch enabled models from API on mount
+  useEffect(() => {
+    setIsLoading(true)
+    fetch('/api/ai/models')
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`)
+        }
+        return res.json()
+      })
+      .then(data => {
+        console.log('Fetched enabled models:', data)
+        if (data.models && Array.isArray(data.models) && data.models.length > 0) {
+          setEnabledModels(data.models)
+        } else {
+          console.warn('No models returned from API, using all models')
+          setEnabledModels(ALL_MODELS)
+        }
+      })
+      .catch(err => {
+        console.error('Failed to fetch enabled models:', err)
+        // Fallback to all models if API fails
+        setEnabledModels(ALL_MODELS)
+      })
+      .finally(() => {
+        setIsLoading(false)
+      })
+  }, [])
+
+  const currentModel = enabledModels.find((m) => m.id === selectedModel) || enabledModels[0]
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -111,14 +66,16 @@ export function ModelSelector({
         <Button
           variant="outline"
           size="sm"
-          disabled={disabled}
+          disabled={disabled || isLoading}
           className={cn(
             "h-8 gap-2 bg-zinc-900 border-zinc-800 hover:bg-zinc-800",
             "text-zinc-300 hover:text-zinc-100"
           )}
         >
           <ModelIcon model={currentModel} />
-          <span className="max-w-[120px] truncate">{currentModel.name}</span>
+          <span className="max-w-[120px] truncate">
+            {isLoading ? "Loading..." : currentModel.name}
+          </span>
           <ChevronDown className="w-3 h-3 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
@@ -131,7 +88,7 @@ export function ModelSelector({
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="bg-zinc-800" />
         
-        {AI_MODELS.map((model) => (
+        {enabledModels.map((model) => (
           <DropdownMenuItem
             key={model.id}
             onClick={() => {
@@ -193,4 +150,5 @@ function ModelIcon({ model }: { model: AIModel }) {
   return <Sparkles className="w-4 h-4 text-blue-400" />
 }
 
-export { AI_MODELS }
+// Re-export AIModel type for backward compatibility
+export type { AIModel }

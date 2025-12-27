@@ -1,45 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { getCombinedSystemPrompt } from "@/lib/prompts/frontend-design"
+import { getModelsRecord, isModelEnabled, getDefaultModelId } from "@/lib/ai-models"
 
-// AI Models available through OpenRouter
-export const AI_MODELS = {
-  "deepseek/deepseek-chat": {
-    name: "DeepSeek V3",
-    contextLength: 64000,
-    supportsReasoning: false,
-  },
-  "deepseek/deepseek-r1": {
-    name: "DeepSeek R1 (Reasoning)",
-    contextLength: 64000,
-    supportsReasoning: true,
-  },
-  "qwen/qwen3-coder-480b-instruct": {
-    name: "Qwen3 Coder 480B",
-    contextLength: 32000,
-    supportsReasoning: false,
-  },
-  "moonshot/kimi-k2-instruct": {
-    name: "Kimi K2",
-    contextLength: 128000,
-    supportsReasoning: false,
-  },
-  "zhipu/glm-4.6": {
-    name: "GLM 4.6",
-    contextLength: 128000,
-    supportsReasoning: false,
-  },
-  "mistralai/devstral-2512:free": {
-    name: "Devstral",
-    contextLength: 64000,
-    supportsReasoning: false,
-  },
-  "google/gemini-3-flash-preview": {
-    name: "Gemini 3 Flash Preview",
-    contextLength: 2000000,
-    supportsReasoning: false,
-  },
-} as const
+// Get enabled AI models from configuration
+// This is dynamically loaded based on ENABLED_AI_MODELS environment variable
+export const AI_MODELS = getModelsRecord()
 
 type ModelId = keyof typeof AI_MODELS
 
@@ -72,11 +38,19 @@ export async function POST(req: NextRequest) {
     }
 
     const body: RequestBody = await req.json()
-    const { prompt, currentHtml, model = "deepseek/deepseek-chat", isFollowUp = false } = body
+    const { prompt, currentHtml, model = getDefaultModelId(), isFollowUp = false } = body
 
     if (!prompt || typeof prompt !== "string") {
       return NextResponse.json(
         { error: "Prompt is required" },
+        { status: 400 }
+      )
+    }
+
+    // Validate model is enabled
+    if (!isModelEnabled(model)) {
+      return NextResponse.json(
+        { error: `Model "${model}" is not enabled or does not exist` },
         { status: 400 }
       )
     }

@@ -105,127 +105,48 @@ export function AI_Prompt({ onSend }: AI_PromptProps) {
         minHeight: 48,
         maxHeight: 200,
     });
-    const [selectedModel, setSelectedModel] = useState("GPT-4-1 Mini");
+    
+    // State for models
+    const [selectedModelId, setSelectedModelId] = useState("deepseek/deepseek-chat");
+    const [availableModels, setAvailableModels] = useState<Array<{id: string, name: string}>>([]);
+    const [isLoadingModels, setIsLoadingModels] = useState(true);
 
-    const AI_MODELS = [
-        "Gemini 3 Flash Preview",
-        "Gemini 2.5 Flash",
-        "Gemini 2.5 Flash Lite",
-        "Devstral",
-        "GPT-4-1 Mini",
-        "GPT-4-1",
-    ];
-
-    const MODEL_ICONS: Record<string, React.ReactNode> = {
-        "Gemini 3 Flash Preview": (
-            <svg
-                height="1em"
-                className="w-4 h-4"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-            >
-                <title>Gemini</title>
-                <defs>
-                    <linearGradient
-                        id="lobe-icons-gemini-fill"
-                        x1="0%"
-                        x2="68.73%"
-                        y1="100%"
-                        y2="30.395%"
-                    >
-                        <stop offset="0%" stopColor="#1C7DFF" />
-                        <stop offset="52.021%" stopColor="#1C69FF" />
-                        <stop offset="100%" stopColor="#F0DCD6" />
-                    </linearGradient>
-                </defs>
-                <path
-                    d="M12 24A14.304 14.304 0 000 12 14.304 14.304 0 0012 0a14.305 14.305 0 0012 12 14.305 14.305 0 00-12 12"
-                    fill="url(#lobe-icons-gemini-fill)"
-                    fillRule="nonzero"
-                />
-            </svg>
-        ),
-        "Gemini 2.5 Flash": (
-            <svg
-                height="1em"
-                className="w-4 h-4"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-            >
-                <title>Gemini</title>
-                <defs>
-                    <linearGradient
-                        id="lobe-icons-gemini-fill"
-                        x1="0%"
-                        x2="68.73%"
-                        y1="100%"
-                        y2="30.395%"
-                    >
-                        <stop offset="0%" stopColor="#1C7DFF" />
-                        <stop offset="52.021%" stopColor="#1C69FF" />
-                        <stop offset="100%" stopColor="#F0DCD6" />
-                    </linearGradient>
-                </defs>
-                <path
-                    d="M12 24A14.304 14.304 0 000 12 14.304 14.304 0 0012 0a14.305 14.305 0 0012 12 14.305 14.305 0 00-12 12"
-                    fill="url(#lobe-icons-gemini-fill)"
-                    fillRule="nonzero"
-                />
-            </svg>
-        ),
-        "Gemini 2.5 Flash Lite": (
-            <svg
-                height="1em"
-                className="w-4 h-4"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-            >
-                <title>Gemini Lite</title>
-                <defs>
-                    <linearGradient
-                        id="lobe-icons-gemini-lite-fill"
-                        x1="0%"
-                        x2="68.73%"
-                        y1="100%"
-                        y2="30.395%"
-                    >
-                        <stop offset="0%" stopColor="#1C7DFF" />
-                        <stop offset="52.021%" stopColor="#1C69FF" />
-                        <stop offset="100%" stopColor="#F0DCD6" />
-                    </linearGradient>
-                </defs>
-                <path
-                    d="M12 24A14.304 14.304 0 000 12 14.304 14.304 0 0012 0a14.305 14.305 0 0012 12 14.305 14.305 0 00-12 12"
-                    fill="url(#lobe-icons-gemini-lite-fill)"
-                    fillRule="nonzero"
-                />
-            </svg>
-        ),
-        "Devstral": OPENAI_ICON,
-        "GPT-4-1 Mini": OPENAI_ICON,
-        "GPT-4-1": OPENAI_ICON,
-    };
-
-    // Map display names to model ids understood by the backend
-    const MODEL_ID_MAP: Record<string, string> = {
-        "Gemini 3 Flash Preview": "google/gemini-3-flash-preview",
-        "Gemini 2.5 Flash": "google/gemini-2.5-flash-preview-09-2025",
-        "Gemini 2.5 Flash Lite": "google/gemini-2.5-flash-lite-preview-09-2025",
-        "Devstral": "mistralai/devstral-2512:free",
-        "GPT-4-1 Mini": "openai/gpt-4.1-mini",
-        "GPT-4-1": "openai/gpt-4.1",
-    }
+    // Fetch available models on mount
+    useEffect(() => {
+        fetch('/api/ai/models')
+            .then(res => res.json())
+            .then(data => {
+                if (data.models && Array.isArray(data.models)) {
+                    setAvailableModels(data.models.map((m: any) => ({ id: m.id, name: m.name })));
+                    // Set first model as default if current selection is not available
+                    if (data.models.length > 0) {
+                        setSelectedModelId(data.models[0].id);
+                    }
+                }
+            })
+            .catch(err => {
+                console.error('Failed to fetch models:', err);
+                // Fallback to default models
+                setAvailableModels([
+                    { id: "deepseek/deepseek-chat", name: "DeepSeek V3" },
+                    { id: "deepseek/deepseek-r1", name: "DeepSeek R1" },
+                ]);
+            })
+            .finally(() => {
+                setIsLoadingModels(false);
+            });
+    }, []);
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === "Enter" && !e.shiftKey && value.trim()) {
             e.preventDefault();
-            const modelId = MODEL_ID_MAP[selectedModel]
-            onSend?.(value.trim(), modelId);
+            onSend?.(value.trim(), selectedModelId);
             setValue("");
             adjustHeight(true);
-            // Here you can add message sending logic
         }
     };
+    
+    const selectedModel = availableModels.find(m => m.id === selectedModelId) || availableModels[0];
 
     return (
         <div className="w-full">
@@ -261,10 +182,11 @@ export function AI_Prompt({ onSend }: AI_PromptProps) {
                                             <Button
                                                 variant="ghost"
                                                 className="flex items-center gap-1 h-7 pl-1 pr-1.5 text-xs rounded-md dark:text-white hover:bg-black/10 dark:hover:bg-white/10 focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-blue-500"
+                                                disabled={isLoadingModels}
                                             >
                                                 <AnimatePresence mode="wait">
                                                     <motion.div
-                                                        key={selectedModel}
+                                                        key={selectedModelId}
                                                         initial={{
                                                             opacity: 0,
                                                             y: -5,
@@ -282,12 +204,8 @@ export function AI_Prompt({ onSend }: AI_PromptProps) {
                                                         }}
                                                         className="flex items-center gap-1"
                                                     >
-                                                        {
-                                                            MODEL_ICONS[
-                                                                selectedModel
-                                                            ]
-                                                        }
-                                                        {selectedModel}
+                                                        <Bot className="w-4 h-4 opacity-70" />
+                                                        {isLoadingModels ? "Loading..." : (selectedModel?.name || "Select Model")}
                                                         <ChevronDown className="w-3 h-3 opacity-50" />
                                                     </motion.div>
                                                 </AnimatePresence>
@@ -300,22 +218,19 @@ export function AI_Prompt({ onSend }: AI_PromptProps) {
                                                 "bg-gradient-to-b from-white via-white to-neutral-100 dark:from-neutral-950 dark:via-neutral-900 dark:to-neutral-800"
                                             )}
                                         >
-                                            {AI_MODELS.map((model) => (
+                                            {availableModels.map((model) => (
                                                 <DropdownMenuItem
-                                                    key={model}
+                                                    key={model.id}
                                                     onSelect={() =>
-                                                        setSelectedModel(model)
+                                                        setSelectedModelId(model.id)
                                                     }
                                                     className="flex items-center justify-between gap-2"
                                                 >
                                                     <div className="flex items-center gap-2">
-                                                        {MODEL_ICONS[model] || (
-                                                            <Bot className="w-4 h-4 opacity-50" />
-                                                        )}
-                                                        <span>{model}</span>
+                                                        <Bot className="w-4 h-4 opacity-50" />
+                                                        <span>{model.name}</span>
                                                     </div>
-                                                    {selectedModel ===
-                                                        model && (
+                                                    {selectedModelId === model.id && (
                                                         <Check className="w-4 h-4 text-blue-500" />
                                                     )}
                                                 </DropdownMenuItem>
@@ -345,11 +260,9 @@ export function AI_Prompt({ onSend }: AI_PromptProps) {
                                     disabled={!value.trim()}
                                     onClick={() => {
                                         if (!value.trim()) return;
-                                        const modelId = MODEL_ID_MAP[selectedModel]
-                                        onSend?.(value.trim(), modelId);
+                                        onSend?.(value.trim(), selectedModelId);
                                         setValue("");
                                         adjustHeight(true);
-                                        // Here you can add message sending logic
                                     }}
                                 >
                                     <ArrowRight
