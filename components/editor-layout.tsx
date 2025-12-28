@@ -8,7 +8,7 @@ import { CodeEditor } from "@/components/code-editor"
 import { StylePanel, type SelectedElement, type StyleProperty } from "@/components/style-panel"
 import { TextShimmer } from "@/components/ui/text-shimmer";
 import { ChevronDown, ChevronLeft, X, ChevronUp } from "lucide-react"
-import { SolarBoltLineDuotone } from "@/components/solar-bolt-line-duotone"
+import { SolarCodeSquareLinear } from "@/components/solar-code-square-linear"
 import { useSession } from "next-auth/react"
 import { useAuthDialog } from "@/components/auth-dialog-provider"
 import { useAIChat, applySearchReplace } from "@/hooks/use-ai-chat"
@@ -442,8 +442,8 @@ export function EditorLayoutNew() {
         <div className="flex-1 overflow-auto px-4 py-4">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-2xl flex items-center justify-center mb-4">
-                <SolarBoltLineDuotone className="w-8 h-8 text-purple-400" />
+              <div className="mb-2 flex items-center justify-center">
+                <SolarCodeSquareLinear className="w-8 h-8 text-purple-400" />
               </div>
               <h3 className="text-lg font-semibold text-zinc-200 mb-2">
                 Start Building
