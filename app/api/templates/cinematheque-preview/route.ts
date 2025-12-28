@@ -9,7 +9,7 @@ export async function GET() {
     process.cwd(),
     "lib",
     "templates",
-    "cinematheque-preview.html"
+    "default-canvas-preview.html"
   )
 
   const html = await readFile(filePath, "utf8")

@@ -21,7 +21,7 @@ export function UserMenu() {
 
   if (status === "loading") {
     return (
-      <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
+      <div className="h-6 w-6 animate-pulse rounded-full bg-muted" />
     );
   }
 
@@ -32,9 +32,9 @@ export function UserMenu() {
           variant="outline"
           size="sm"
           onClick={() => setShowSignInDialog(true)}
-          className="gap-2"
+          className="gap-2 h-6"
         >
-          <User className="h-4 w-4" />
+          <User className="h-3.5 w-3.5" />
           Sign In
         </Button>
         <SignInDialog 
@@ -54,8 +54,8 @@ export function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-          <Avatar className="h-8 w-8">
+        <Button variant="ghost" className="relative h-6 w-6 rounded-full">
+          <Avatar className="h-6 w-6">
             {session.user?.image && (
               <AvatarImage
                 src={session.user.image}

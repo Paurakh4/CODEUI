@@ -10,6 +10,7 @@ export const FRONTEND_DESIGN_SYSTEM_PROMPT = `
 4. YOU MUST choose a bold aesthetic direction (brutalist, retro-futuristic, art deco, maximalist, etc.)
 5. YOU MUST include CSS animations and micro-interactions
 6. YOU MUST use a distinctive color palette - NOT generic blue/purple tech colors
+7. YOU MUST build a fully responsive UI (works on small screens to large screens; use responsive layout patterns and breakpoints appropriately)
 
 ---
 

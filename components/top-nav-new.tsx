@@ -92,17 +92,17 @@ export function TopNav({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="h-12 flex items-center px-3 bg-[#0a0a0a] border-b border-zinc-800">
+      <div className="h-10 flex items-center px-3 bg-[#0a0a0a]">
         {/* Left Section */}
-        <div className="flex items-center gap-2 flex-1">
+        <div className="flex items-center gap-1.5 flex-1">
           {/* Sidebar Toggle */}
           <Tooltip>
             <TooltipTrigger asChild>
               <button
-                className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-200 transition-colors"
+                className="p-1.5 h-6 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-200 transition-colors"
                 onClick={onToggleSidebar}
               >
-                <PanelLeft className="w-4 h-4" />
+                <PanelLeft className="w-3.5 h-3.5" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
@@ -121,14 +121,14 @@ export function TopNav({
                     <button
                       onClick={() => onViewModeChange?.(tab.id)}
                       className={`
-                        flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all
+                        flex items-center gap-1 px-2 py-1.5 h-6 rounded-md text-xs font-medium transition-all
                         ${isActive
                           ? "bg-zinc-800 text-zinc-100 shadow-sm"
                           : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
                         }
                       `}
                     >
-                      <Icon className="w-4 h-4" />
+                      <Icon className="w-3.5 h-3.5" />
                       <span className="hidden sm:inline">{tab.label}</span>
                     </button>
                   </TooltipTrigger>
@@ -146,11 +146,11 @@ export function TopNav({
               <TooltipTrigger asChild>
                 <button
                   onClick={onSave}
-                  className={`p-1.5 hover:bg-zinc-800 rounded-md transition-colors ${
+                  className={`p-1.5 h-6 hover:bg-zinc-800 rounded-md transition-colors ${
                     hasUnsavedChanges ? "text-orange-400" : "text-zinc-500 hover:text-zinc-300"
                   }`}
                 >
-                  <Save className="w-4 h-4" />
+                  <Save className="w-3.5 h-3.5" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
@@ -162,9 +162,9 @@ export function TopNav({
               <TooltipTrigger asChild>
                 <button
                   onClick={onUndo}
-                  className="p-1.5 hover:bg-zinc-800 rounded-md text-zinc-500 hover:text-zinc-300 transition-colors"
+                  className="p-1.5 h-6 hover:bg-zinc-800 rounded-md text-zinc-500 hover:text-zinc-300 transition-colors"
                 >
-                  <Undo className="w-4 h-4" />
+                  <Undo className="w-3.5 h-3.5" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom">Undo (⌘Z)</TooltipContent>
@@ -174,9 +174,9 @@ export function TopNav({
               <TooltipTrigger asChild>
                 <button
                   onClick={onRedo}
-                  className="p-1.5 hover:bg-zinc-800 rounded-md text-zinc-500 hover:text-zinc-300 transition-colors"
+                  className="p-1.5 h-6 hover:bg-zinc-800 rounded-md text-zinc-500 hover:text-zinc-300 transition-colors"
                 >
-                  <Redo className="w-4 h-4" />
+                  <Redo className="w-3.5 h-3.5" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom">Redo (⌘⇧Z)</TooltipContent>
@@ -187,7 +187,7 @@ export function TopNav({
         </div>
 
         {/* Right Section */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {/* Device Viewport Switcher */}
           <div className="hidden md:flex items-center bg-zinc-900 rounded-lg p-0.5 border border-zinc-800">
             {viewModes.map((mode) => {
@@ -199,14 +199,14 @@ export function TopNav({
                     <button
                       onClick={() => onDeviceModeChange?.(mode.id)}
                       className={`
-                        p-1.5 rounded-md transition-all
+                        p-1.5 h-6 rounded-md transition-all
                         ${isActive
                           ? "bg-zinc-800 text-zinc-100 shadow-sm"
                           : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
                         }
                       `}
                     >
-                      <Icon className="w-4 h-4" />
+                      <Icon className="w-3.5 h-3.5" />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">{mode.label}</TooltipContent>
@@ -220,12 +220,12 @@ export function TopNav({
             <TooltipTrigger asChild>
               <button
                 onClick={handleCopy}
-                className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-zinc-300 transition-colors"
+                className="p-1.5 h-6 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-zinc-300 transition-colors"
               >
                 {copied ? (
-                  <Check className="w-4 h-4 text-green-400" />
+                  <Check className="w-3.5 h-3.5 text-green-400" />
                 ) : (
-                  <Copy className="w-4 h-4" />
+                  <Copy className="w-3.5 h-3.5" />
                 )}
               </button>
             </TooltipTrigger>
@@ -239,9 +239,10 @@ export function TopNav({
             variant="outline"
             size="sm"
             onClick={onExport}
-            className="h-8 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border-zinc-700"
+            className="h-6 hover:bg-zinc-700 text-xs border-zinc-800"
+            style={{ backgroundColor: '#18181B', borderColor: '#27272A' }}
           >
-            <Download className="w-3.5 h-3.5 mr-1.5" />
+            <Download className="w-3.5 h-3.5 mr-1" />
             Export
           </Button>
 
@@ -250,9 +251,9 @@ export function TopNav({
             <TooltipTrigger asChild>
               <button
                 onClick={handleOpenInNewTab}
-                className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-zinc-300 transition-colors"
+                className="p-1.5 h-6 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-zinc-300 transition-colors"
               >
-                <ExternalLink className="w-4 h-4" />
+                <ExternalLink className="w-3.5 h-3.5" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom">Open in new tab</TooltipContent>

@@ -405,13 +405,13 @@ export function EditorLayoutNew() {
       <div
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-[380px]",
-          "flex flex-col bg-[#0a0a0a] border-r border-zinc-800",
+          "flex flex-col bg-[#0a0a0a]",
           "transition-transform duration-200 ease-out",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Sidebar Header */}
-        <div className="h-12 px-4 flex items-center justify-between border-b border-zinc-800">
+        <div className="h-10 px-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               className="group p-1 rounded-md flex items-center justify-center relative"
@@ -532,7 +532,7 @@ export function EditorLayoutNew() {
 
 
         {/* Chat Input */}
-        <div className="p-4 border-t border-zinc-800">
+        <div className="p-4">
           <AI_Prompt onSend={handleSend} />
         </div>
       </div>

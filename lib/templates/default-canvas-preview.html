@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TERMINAL_INTERFACE_V1</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Bebas+Neue&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-green: #00ff41;
+            --dark-bg: #0a0a0a;
+            --terminal-gray: #1a1a1a;
+        }
+
+        body {
+            background-color: var(--dark-bg);
+            color: var(--neon-green);
+            font-family: 'Space Mono', monospace;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        .ascii-art {
+            white-space: pre;
+            line-height: 1.1;
+            font-size: 8px;
+            animation: flicker 0.1s infinite secondary;
+        }
+
+        @keyframes flicker {
+            0% { opacity: 0.97; }
+            50% { opacity: 1; }
+            100% { opacity: 0.98; }
+        }
+
+        .crt-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .scanline {
+            width: 100%;
+            height: 100px;
+            z-index: 51;
+            background: linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgba(0, 255, 65, 0.1) 50%, rgba(0, 0, 0, 0) 100%);
+            opacity: 0.1;
+            position: absolute;
+            bottom: 100%;
+            animation: scanline 6s linear infinite;
+        }
+
+        @keyframes scanline {
+            0% { bottom: 100%; }
+            100% { bottom: -100px; }
+        }
+
+        .glitch-text:hover {
+            animation: glitch 0.3s cubic-bezier(.25,.46,.45,.94) both infinite;
+        }
+
+        @keyframes glitch {
+            0% { transform: translate(0); }
+            20% { transform: translate(-2px, 2px); }
+            40% { transform: translate(-2px, -2px); }
+            60% { transform: translate(2px, 2px); }
+            80% { transform: translate(2px, -2px); }
+            100% { transform: translate(0); }
+        }
+
+        .pixel-border {
+            border: 2px solid var(--neon-green);
+            box-shadow: 4px 4px 0px var(--neon-green);
+            transition: all 0.2s;
+        }
+
+        .pixel-border:hover {
+            box-shadow: 0px 0px 0px var(--neon-green);
+            transform: translate(4px, 4px);
+        }
+
+        .terminal-window {
+            background: var(--terminal-gray);
+            border: 1px solid var(--neon-green);
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #000;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: var(--neon-green);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col p-4 md:p-8">
+    <div class="crt-overlay"></div>
+    <div class="scanline"></div>
+
+    <!-- NAVIGATION HEADER -->
+    <header class="flex justify-between items-start mb-8 z-10">
+        <div class="text-xs space-y-1">
+            <p>[ SYSTEM: ACTIVE ]</p>
+            <p>[ UPTIME: <span id="uptime">00:00:00</span> ]</p>
+            <p>[ LOC: 40.7128° N, 74.0060° W ]</p>
+        </div>
+        <nav class="hidden md:flex gap-6 text-sm">
+            <a href="#" class="hover:bg-[#00ff41] hover:text-black px-2 transition-colors">/root</a>
+            <a href="#" class="hover:bg-[#00ff41] hover:text-black px-2 transition-colors">/archive</a>
+            <a href="#" class="hover:bg-[#00ff41] hover:text-black px-2 transition-colors">/logs</a>
+            <a href="#" class="hover:bg-[#00ff41] hover:text-black px-2 transition-colors">/exit</a>
+        </nav>
+        <div class="text-right text-xs">
+            <p>USER: GUEST_01</p>
+            <p>AUTH: UNRESTRICTED</p>
+        </div>
+    </header>
+
+    <!-- MAIN WELCOME SECTION -->
+    <main class="flex-grow flex flex-col lg:flex-row items-center justify-center gap-12 z-10">
+        
+        <!-- LEFT COLUMN: ASCII ART -->
+        <div class="hidden lg:block">
+            <div class="ascii-art text-[#00ff41] opacity-80 hover:opacity-100 transition-opacity">
+                 ________________________________________________
+                /                                                \
+               |    _________________________________________     |
+               |   |                                         |    |
+               |   |  C:\> INITIALIZING...                   |    |
+               |   |  C:\> LOADING ASCII_CORE...             |    |
+               |   |  C:\> SUCCESS.                          |    |
+               |   |                                         |    |
+               |   |          _    ____   ____ ___ ___       |    |
+               |   |         / \  / ___| / ___|_ _|_ _|      |    |
+               |   |        / _ \ \___ \| |    | | | |       |    |
+               |   |       / ___ \ ___) | |___ | | | |       |    |
+               |   |      /_/   \_\____/ \____|___|___|      |    |
+               |   |                                         |    |
+               |   |_________________________________________|    |
+               |                                                  |
+                \________________________________________________/
+                       \__________________________________/
+                    ___________________________________________
+                 _-'    .-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.  `-_
+              _-'      .-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.    `-_
+           _-'____________________________________________________`-_
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN: CONTENT -->
+        <div class="max-w-2xl space-y-8">
+            <div class="space-y-4">
+                <h1 class="text-6xl md:text-8xl font-bold tracking-tighter glitch-text uppercase" style="font-family: 'Bebas Neue'">
+                    Synthetic<br/>Reality
+                </h1>
+                <p class="text-lg md:text-xl leading-relaxed max-w-lg">
+                    A high-fidelity digital environment constructed via <span class="bg-[#00ff41] text-black px-1">low-fidelity primitives</span>. Welcome to the grid.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button class="pixel-border bg-transparent p-4 text-left group">
+                    <span class="block text-xs opacity-50 mb-1">COMMAND_01</span>
+                    <span class="block text-xl font-bold italic">ENTER_VOID()</span>
+                </button>
+                <button class="pixel-border bg-[#00ff41] text-black p-4 text-left group">
+                    <span class="block text-xs opacity-70 mb-1">COMMAND_02</span>
+                    <span class="block text-xl font-bold italic">DECRYPT_DATA</span>
+                </button>
+            </div>
+
+            <!-- TERMINAL LOG -->
+            <div class="terminal-window p-4 text-xs h-32 overflow-y-auto custom-scrollbar font-mono">
+                <div id="terminal-content">
+                    <p class="text-white/40 italic">[LOG 12.04.22] Connection established...</p>
+                    <p>> Handshake protocol verified.</p>
+                    <p>> Loading visual modules...</p>
+                    <p class="text-yellow-400">> Warning: Aesthetics set to MAX_BRUTALISM.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER DECORATION -->
+    <footer class="mt-8 flex flex-col md:flex-row justify-between items-end border-t border-[#00ff41]/30 pt-4 z-10">
+        <div class="text-[10px] uppercase tracking-widest opacity-50">
+            Designation: PROTOCOL_ALPHA // Phase: 04
+        </div>
+        <div class="flex gap-4 mt-4 md:mt-0">
+            <div class="h-4 w-4 bg-[#00ff41] animate-pulse"></div>
+            <div class="h-4 w-4 bg-[#00ff41]/60"></div>
+            <div class="h-4 w-4 bg-[#00ff41]/30"></div>
+            <div class="h-4 w-4 border border-[#00ff41]"></div>
+        </div>
+    </footer>
+
+    <script>
+        // Uptime Counter
+        let seconds = 0;
+        const uptimeEl = document.getElementById('uptime');
+        setInterval(() => {
+            seconds++;
+            const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+            const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+            const s = (seconds % 60).toString().padStart(2, '0');
+            uptimeEl.innerText = `${h}:${m}:${s}`;
+        }, 1000);
+
+        // Terminal Auto-scrolling logs
+        const logs = [
+            "Syncing neural pathways...",
+            "Buffer overflow prevented.",
+            "Fetching metadata from sector 7G...",
+            "Rendering ASCII shaders...",
+            "Decrypting aesthetic layers...",
+            "Establishing secure tunnel...",
+            "User GUEST_01 identified.",
+            "Welcome to the machine."
+        ];
+        const terminalContent = document.getElementById('terminal-content');
+        let logIndex = 0;
+
+        setInterval(() => {
+            const p = document.createElement('p');
+            p.innerText = `> ${logs[logIndex]}`;
+            terminalContent.appendChild(p);
+            terminalContent.scrollTop = terminalContent.scrollHeight;
+            logIndex = (logIndex + 1) % logs.length;
+        }, 3000);
+
+        // Mouse interaction for that CRT feel
+        document.addEventListener('mousemove', (e) => {
+            const x = e.clientX / window.innerWidth;
+            const y = e.clientY / window.innerHeight;
+            document.body.style.backgroundColor = `rgb(${10 + x * 5}, ${10 + y * 5}, ${10})`;
+        });
+    </script>
+</body>
+</html>

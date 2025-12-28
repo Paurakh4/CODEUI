@@ -35,33 +35,25 @@ const ALL_MODELS: AIModel[] = [
     supportsReasoning: true,
   },
   {
-    id: "qwen/qwen3-coder-480b-instruct",
-    name: "Qwen3 Coder 480B",
-    provider: "Qwen",
-    description: "Specialized for coding tasks",
-    contextLength: 32000,
-    isNew: true,
-  },
-  {
-    id: "moonshot/kimi-k2-instruct",
+    id: "moonshotai/kimi-k2:free",
     name: "Kimi K2",
-    provider: "Moonshot",
-    description: "Great for creative content",
+    provider: "Moonshot AI",
+    description: "Free Kimi K2 model",
     contextLength: 128000,
   },
   {
-    id: "moonshot/kimi-k2-thinking",
+    id: "moonshotai/kimi-k2-thinking",
     name: "Kimi K2 Thinking",
-    provider: "Moonshot",
+    provider: "Moonshot AI",
     description: "Reasoning-enhanced Kimi",
     contextLength: 128000,
     supportsReasoning: true,
   },
   {
-    id: "zhipu/glm-4.6",
-    name: "GLM 4.6",
+    id: "z-ai/glm-4.7",
+    name: "GLM 4.7",
     provider: "Zhipu",
-    description: "Balanced performance",
+    description: "GLM 4.7",
     contextLength: 128000,
   },
   {
@@ -74,7 +66,7 @@ const ALL_MODELS: AIModel[] = [
   },
   {
     id: "google/gemini-3-flash-preview",
-    name: "Gemini 3 Flash Preview",
+    name: "CODEUI GOD MODE",
     provider: "Google",
     description: "Latest Gemini model preview",
     contextLength: 2000000,
@@ -86,7 +78,7 @@ const ALL_MODELS: AIModel[] = [
 /**
  * Get enabled model IDs from environment variable
  * Format: Comma-separated list of model IDs
- * Example: "deepseek/deepseek-chat,deepseek/deepseek-r1,moonshot/kimi-k2-thinking"
+ * Example: "deepseek/deepseek-chat,deepseek/deepseek-r1,moonshotai/kimi-k2-thinking"
  */
 function getEnabledModelIds(): string[] {
   // Check if running on server (environment variable available)
