@@ -27,6 +27,15 @@ const ALL_MODELS: AIModel[] = [
     isFast: true,
   },
   {
+    id: "anthropic/claude-haiku-4.5",
+    name: "Claude Haiku 4.5",
+    provider: "Anthropic",
+    description: "Lightweight Claude for fast, low-cost tasks",
+    contextLength: 200000,
+    isFast: true,
+    isNew: true,
+  },
+  {
     id: "deepseek/deepseek-r1",
     name: "DeepSeek R1",
     provider: "DeepSeek",
