@@ -1,9 +1,7 @@
-import { EditorLayoutNew } from "@/components/editor-layout"
+"use client"
+
+import { LandingPage } from "@/components/landing-page"
 
 export default function Home() {
-  return (
-    <div className="dark">
-      <EditorLayoutNew />
-    </div>
-  )
+  return <LandingPage />
 }

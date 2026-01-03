@@ -1,17 +1,18 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { TopNav } from "@/components/top-nav-new"
 import { AI_Prompt } from "@/components/ui/animated-ai-input"
 import { PreviewFrame, type SelectedElementInfo } from "@/components/preview-frame"
 import { CodeEditor } from "@/components/code-editor"
-import { StylePanel, type SelectedElement, type StyleProperty } from "@/components/style-panel"
+import { StylePanel, type SelectedElement, type StyleProperty, type StyleChange } from "@/components/style-panel"
 import { TextShimmer } from "@/components/ui/text-shimmer";
 import { ChevronDown, ChevronLeft, X, ChevronUp } from "lucide-react"
 import { SolarCodeSquareLinear } from "@/components/solar-code-square-linear"
 import { useSession } from "next-auth/react"
 import { useAuthDialog } from "@/components/auth-dialog-provider"
 import { useAIChat, applySearchReplace } from "@/hooks/use-ai-chat"
+import { useStyleHistory } from "@/hooks/use-style-history"
 import { cn } from "@/lib/utils"
 
 type ViewMode = "preview" | "design" | "code"
@@ -63,7 +64,12 @@ const EXAMPLE_PROMPTS = [
   "A music streaming app landing with playlist preview and feature highlights",
 ]
 
-export function EditorLayoutNew() {
+interface EditorLayoutNewProps {
+  initialPrompt?: string
+  initialModel?: string
+}
+
+export function EditorLayoutNew({ initialPrompt, initialModel }: EditorLayoutNewProps) {
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>("preview")
@@ -81,6 +87,14 @@ export function EditorLayoutNew() {
   // Chat State
   const [messages, setMessages] = useState<Message[]>([])
   const [thinkingExpanded, setThinkingExpanded] = useState(true)
+  const hasProcessedInitialPrompt = useRef(false)
+
+  // Style History for undo/redo
+  const [styleHistoryState, styleHistoryActions] = useStyleHistory(30)
+  
+  // Track pending style updates for smooth animations
+  const pendingStyleUpdate = useRef<{ property: string; value: StyleProperty } | null>(null)
+  const lastAppliedHtml = useRef<string>("")
   
   // Auth
   const { data: session } = useSession()
@@ -225,6 +239,14 @@ export function EditorLayoutNew() {
     return randomPrompt
   }, [])
 
+  // Handle initial prompt from landing page
+  useEffect(() => {
+    if (initialPrompt && !hasProcessedInitialPrompt.current) {
+      hasProcessedInitialPrompt.current = true
+      handleSend(initialPrompt, initialModel)
+    }
+  }, []) // Only run once on mount
+
   // Handle code editor changes
   const handleCodeChange = useCallback((value: string) => {
     setHtmlContent(value)
@@ -291,31 +313,139 @@ export function EditorLayoutNew() {
   const handleClosePanel = useCallback(() => {
     setSelectedElement(null)
     setPanelPosition(null)
-  }, [])
+    // Clear style history when closing panel
+    styleHistoryActions.clear()
+  }, [styleHistoryActions])
 
-  const handleStyleChange = useCallback((property: string, value: StyleProperty) => {
+  // Apply style to DOM and update HTML
+  const applyStyleToDOM = useCallback((
+    selector: string, 
+    property: string, 
+    value: StyleProperty,
+    recordHistory: boolean = true
+  ) => {
+    try {
+      const parser = new DOMParser()
+      const doc = parser.parseFromString(htmlContent, "text/html")
+      const element = doc.querySelector(selector)
+      
+      if (element) {
+        const htmlElement = element as HTMLElement
+        const oldValue = htmlElement.style[property as any] || ''
+        
+        // Apply the style
+        htmlElement.style[property as any] = value.toString()
+        
+        const newHtml = doc.documentElement.outerHTML
+        setHtmlContent(newHtml)
+        lastAppliedHtml.current = newHtml
+        setHasUnsavedChanges(true)
+        
+        // Record in history if needed
+        if (recordHistory) {
+          const styleChange: StyleChange = {
+            id: Date.now().toString(),
+            selector,
+            property,
+            oldValue,
+            newValue: value,
+            timestamp: Date.now(),
+          }
+          styleHistoryActions.pushChange(styleChange)
+        }
+        
+        return true
+      }
+    } catch (e) {
+      console.error("Failed to update style", e)
+    }
+    return false
+  }, [htmlContent, styleHistoryActions])
+
+  const handleStyleChange = useCallback((property: string, value: StyleProperty, validated?: boolean) => {
     if (!selectedElement) return
 
-    // Update local state immediately
+    // Update local state immediately for responsive UI
     setSelectedElement(prev => prev ? ({
       ...prev,
       styles: { ...prev.styles, [property]: value }
     }) : null)
 
+    // Apply to DOM
+    applyStyleToDOM(selectedElement.id, property, value, validated === true)
+  }, [selectedElement, applyStyleToDOM])
+
+  // Undo handler
+  const handleUndo = useCallback(() => {
+    const undoneChanges = styleHistoryActions.undo()
+    if (!undoneChanges || undoneChanges.length === 0) return
+    
+    // Apply the old values
     try {
       const parser = new DOMParser()
-      const doc = parser.parseFromString(htmlContent, "text/html")
-      const element = doc.querySelector(selectedElement.id)
+      let doc = parser.parseFromString(htmlContent, "text/html")
       
-      if (element) {
-        (element as HTMLElement).style[property as any] = value.toString()
-        setHtmlContent(doc.documentElement.outerHTML)
-        setHasUnsavedChanges(true)
+      for (const change of undoneChanges) {
+        const element = doc.querySelector(change.selector)
+        if (element) {
+          (element as HTMLElement).style[change.property as any] = change.oldValue.toString()
+        }
+      }
+      
+      const newHtml = doc.documentElement.outerHTML
+      setHtmlContent(newHtml)
+      setHasUnsavedChanges(true)
+      
+      // Update selected element styles
+      if (selectedElement) {
+        const updatedStyles = { ...selectedElement.styles }
+        for (const change of undoneChanges) {
+          if (change.selector === selectedElement.id) {
+            updatedStyles[change.property] = change.oldValue
+          }
+        }
+        setSelectedElement(prev => prev ? { ...prev, styles: updatedStyles } : null)
       }
     } catch (e) {
-      console.error("Failed to update style", e)
+      console.error("Failed to undo", e)
     }
-  }, [htmlContent, selectedElement])
+  }, [styleHistoryActions, htmlContent, selectedElement])
+
+  // Redo handler
+  const handleRedo = useCallback(() => {
+    const redoneChanges = styleHistoryActions.redo()
+    if (!redoneChanges || redoneChanges.length === 0) return
+    
+    // Apply the new values
+    try {
+      const parser = new DOMParser()
+      let doc = parser.parseFromString(htmlContent, "text/html")
+      
+      for (const change of redoneChanges) {
+        const element = doc.querySelector(change.selector)
+        if (element) {
+          (element as HTMLElement).style[change.property as any] = change.newValue.toString()
+        }
+      }
+      
+      const newHtml = doc.documentElement.outerHTML
+      setHtmlContent(newHtml)
+      setHasUnsavedChanges(true)
+      
+      // Update selected element styles
+      if (selectedElement) {
+        const updatedStyles = { ...selectedElement.styles }
+        for (const change of redoneChanges) {
+          if (change.selector === selectedElement.id) {
+            updatedStyles[change.property] = change.newValue
+          }
+        }
+        setSelectedElement(prev => prev ? { ...prev, styles: updatedStyles } : null)
+      }
+    } catch (e) {
+      console.error("Failed to redo", e)
+    }
+  }, [styleHistoryActions, htmlContent, selectedElement])
 
   const handleElementChange = useCallback((element: SelectedElement) => {
     if (!selectedElement) return
@@ -374,6 +504,10 @@ export function EditorLayoutNew() {
                   onStyleChange={handleStyleChange}
                   onElementChange={handleElementChange}
                   onClose={handleClosePanel}
+                  onUndo={handleUndo}
+                  onRedo={handleRedo}
+                  canUndo={styleHistoryActions.canUndo}
+                  canRedo={styleHistoryActions.canRedo}
                 />
               </div>
             )}

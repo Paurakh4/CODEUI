@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react"
 import { cn } from "@/lib/utils"
+import { validateStyleValue, type ValidationResult } from "@/lib/style-validators"
 import { 
   ChevronDown, 
   X, 
@@ -17,7 +18,11 @@ import {
   Square,
   Sparkles,
   Link2,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Undo2,
+  Redo2,
+  AlertCircle,
+  Check
 } from "lucide-react"
 
 // ============================================================================
@@ -25,6 +30,15 @@ import {
 // ============================================================================
 
 export type StyleProperty = string | number
+
+export interface StyleChange {
+  id: string
+  selector: string
+  property: string
+  oldValue: string | number
+  newValue: string | number
+  timestamp: number
+}
 
 export interface SelectedElement {
   id: string
@@ -44,12 +58,16 @@ export interface SelectedElement {
 
 interface StylePanelProps {
   selectedElement: SelectedElement
-  onStyleChange: (property: string, value: StyleProperty) => void
+  onStyleChange: (property: string, value: StyleProperty, validated?: boolean) => void
   onElementChange: (element: SelectedElement) => void
   onClose: () => void
   className?: string
   initialPosition?: { x: number; y: number }
   onPositionChange?: (position: { x: number; y: number }) => void
+  onUndo?: () => void
+  onRedo?: () => void
+  canUndo?: boolean
+  canRedo?: boolean
 }
 
 interface DropdownOption {
@@ -94,11 +112,18 @@ function useSectionState(storageKey: string = 'style-panel-sections') {
   return { expandedSections, toggleSection, isExpanded }
 }
 
+// Enhanced debounce with immediate option
 function useDebounce<T extends (...args: any[]) => void>(
   callback: T,
-  delay: number = 300
-): T {
+  delay: number = 150
+): { debounced: T; immediate: T; cancel: () => void } {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const callbackRef = useRef(callback)
+
+  // Keep callback ref up to date
+  useEffect(() => {
+    callbackRef.current = callback
+  }, [callback])
 
   useEffect(() => {
     return () => {
@@ -106,10 +131,26 @@ function useDebounce<T extends (...args: any[]) => void>(
     }
   }, [])
 
-  return useCallback((...args: Parameters<T>) => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current)
-    timeoutRef.current = setTimeout(() => callback(...args), delay)
-  }, [callback, delay]) as T
+  const cancel = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
+  }, [])
+
+  const debounced = useCallback((...args: Parameters<T>) => {
+    cancel()
+    timeoutRef.current = setTimeout(() => {
+      callbackRef.current(...args)
+    }, delay)
+  }, [cancel, delay]) as T
+
+  const immediate = useCallback((...args: Parameters<T>) => {
+    cancel()
+    callbackRef.current(...args)
+  }, [cancel]) as T
+
+  return { debounced, immediate, cancel }
 }
 
 // ============================================================================
@@ -163,14 +204,6 @@ interface SectionProps {
 function Section({ name, title, icon, isExpanded, onToggle, children }: SectionProps) {
   return (
     <div className="relative">
-      {/* Ink bleed accent on expanded sections */}
-      <div className={cn(
-        "absolute left-0 top-0 bottom-0 w-[3px] rounded-r-full transition-all duration-500 ease-out",
-        isExpanded 
-          ? "bg-gradient-to-b from-amber-500 via-orange-500 to-rose-500 opacity-100" 
-          : "opacity-0"
-      )} />
-      
       <SectionHeader title={title} icon={icon} isExpanded={isExpanded} onToggle={onToggle} />
       
       <div className={cn(
@@ -192,23 +225,77 @@ interface StyledInputProps {
   label: string
   value: string | number
   onChange: (value: string) => void
+  onImmediateChange?: (value: string) => void
   placeholder?: string
   unit?: string
   compact?: boolean
+  property?: string // For validation
+  showValidation?: boolean
 }
 
-function StyledInput({ label, value, onChange, placeholder, unit, compact }: StyledInputProps) {
+function StyledInput({ label, value, onChange, onImmediateChange, placeholder, unit, compact, property, showValidation = true }: StyledInputProps) {
   const [localValue, setLocalValue] = useState(value?.toString() || '')
   const [isFocused, setIsFocused] = useState(false)
+  const [validation, setValidation] = useState<ValidationResult | null>(null)
+  const [showFeedback, setShowFeedback] = useState(false)
+  const feedbackTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     setLocalValue(value?.toString() || '')
+    // Clear validation when external value changes
+    setValidation(null)
   }, [value])
+
+  // Clear feedback timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current)
+    }
+  }, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value
     setLocalValue(newValue)
-    onChange(newValue)
+    
+    // Validate if property is provided
+    if (property && showValidation && newValue) {
+      const result = validateStyleValue(property, newValue)
+      setValidation(result)
+      
+      // Show feedback briefly
+      setShowFeedback(true)
+      if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current)
+      feedbackTimeoutRef.current = setTimeout(() => setShowFeedback(false), 2000)
+      
+      // Only propagate valid values
+      if (result.isValid) {
+        onChange(result.sanitizedValue.toString())
+      }
+    } else {
+      onChange(newValue)
+    }
+  }
+
+  const handleBlur = () => {
+    setIsFocused(false)
+    // On blur, apply the sanitized value if valid
+    if (property && localValue && validation?.isValid && onImmediateChange) {
+      onImmediateChange(validation.sanitizedValue.toString())
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && onImmediateChange && validation?.isValid) {
+      onImmediateChange(validation.sanitizedValue.toString())
+      ;(e.target as HTMLInputElement).blur()
+    }
+  }
+
+  const getBorderColor = () => {
+    if (!showValidation || !validation || !localValue) return ''
+    if (!validation.isValid) return 'border-red-500/50'
+    if (validation.warning) return 'border-amber-500/50'
+    return 'border-emerald-500/30'
   }
 
   return (
@@ -216,31 +303,66 @@ function StyledInput({ label, value, onChange, placeholder, unit, compact }: Sty
       <label className="text-[10px] font-semibold tracking-widest text-stone-500 uppercase">
         {label}
       </label>
-      <div className={cn(
-        "relative group rounded-lg transition-all duration-300",
-        isFocused 
-          ? "ring-2 ring-amber-500/30 ring-offset-1 ring-offset-stone-900" 
-          : "hover:ring-1 hover:ring-stone-600"
-      )}>
-        <input
-          type="text"
-          value={localValue}
-          onChange={handleChange}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          placeholder={placeholder}
-          className={cn(
-            "w-full h-9 px-3 text-[13px] font-medium",
-            "bg-stone-800/60 text-stone-200 placeholder:text-stone-600",
-            "border border-stone-700/50 rounded-lg",
-            "focus:outline-none focus:bg-stone-800",
-            "transition-all duration-300"
+      <div className="relative">
+        <div className={cn(
+          "relative group rounded-lg transition-all duration-300",
+          isFocused 
+            ? "ring-2 ring-amber-500/30 ring-offset-1 ring-offset-stone-900" 
+            : "hover:ring-1 hover:ring-stone-600"
+        )}>
+          <input
+            type="text"
+            value={localValue}
+            onChange={handleChange}
+            onFocus={() => setIsFocused(true)}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            className={cn(
+              "w-full h-9 px-3 text-[13px] font-medium",
+              "bg-stone-800/60 text-stone-200 placeholder:text-stone-600",
+              "border rounded-lg",
+              "focus:outline-none focus:bg-stone-800",
+              "transition-all duration-300",
+              getBorderColor() || "border-stone-700/50"
+            )}
+          />
+          {unit && (
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-stone-600">
+              {unit}
+            </span>
           )}
-        />
-        {unit && (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-stone-600">
-            {unit}
-          </span>
+          
+          {/* Validation indicator */}
+          {showValidation && validation && localValue && showFeedback && (
+            <div className={cn(
+              "absolute right-2 top-1/2 -translate-y-1/2 transition-opacity duration-200",
+              unit && "right-8"
+            )}>
+              {validation.isValid ? (
+                validation.warning ? (
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                ) : (
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                )
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+              )}
+            </div>
+          )}
+        </div>
+        
+        {/* Error/Warning message */}
+        {showValidation && validation && showFeedback && (validation.error || validation.warning) && (
+          <div className={cn(
+            "absolute left-0 right-0 top-full mt-1 px-2 py-1 text-[10px] rounded-md z-10",
+            "animate-in fade-in slide-in-from-top-1 duration-200",
+            validation.error 
+              ? "bg-red-500/10 text-red-400 border border-red-500/20" 
+              : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+          )}>
+            {validation.error || validation.warning}
+          </div>
         )}
       </div>
     </div>
@@ -251,65 +373,137 @@ interface ColorInputProps {
   label: string
   value: string
   onChange: (value: string) => void
+  onImmediateChange?: (value: string) => void
+  property?: string
 }
 
-function ColorInput({ label, value, onChange }: ColorInputProps) {
+function ColorInput({ label, value, onChange, onImmediateChange, property }: ColorInputProps) {
   const [localValue, setLocalValue] = useState(value || '')
   const [isFocused, setIsFocused] = useState(false)
+  const [validation, setValidation] = useState<ValidationResult | null>(null)
+  const [showFeedback, setShowFeedback] = useState(false)
+  const feedbackTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     setLocalValue(value || '')
+    setValidation(null)
   }, [value])
 
+  useEffect(() => {
+    return () => {
+      if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current)
+    }
+  }, [])
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setLocalValue(e.target.value)
-    onChange(e.target.value)
+    const newValue = e.target.value
+    setLocalValue(newValue)
+    
+    if (property && newValue) {
+      const result = validateStyleValue(property, newValue)
+      setValidation(result)
+      
+      setShowFeedback(true)
+      if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current)
+      feedbackTimeoutRef.current = setTimeout(() => setShowFeedback(false), 2000)
+      
+      if (result.isValid) {
+        onChange(result.sanitizedValue.toString())
+      }
+    } else {
+      onChange(newValue)
+    }
+  }
+
+  const handleColorPickerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value
+    setLocalValue(newValue)
+    onChange(newValue)
+    // Immediate apply for color picker
+    if (onImmediateChange) {
+      onImmediateChange(newValue)
+    }
+  }
+
+  const handleBlur = () => {
+    setIsFocused(false)
+    if (onImmediateChange && validation?.isValid) {
+      onImmediateChange(validation.sanitizedValue.toString())
+    }
   }
 
   const displayColor = localValue === 'transparent' ? '#00000000' : localValue || '#000000'
+
+  const getBorderColor = () => {
+    if (!validation || !localValue) return 'border-stone-700/50'
+    if (!validation.isValid) return 'border-red-500/50'
+    if (validation.warning) return 'border-amber-500/50'
+    return 'border-stone-700/50'
+  }
 
   return (
     <div className="flex flex-col gap-1.5">
       <label className="text-[10px] font-semibold tracking-widest text-stone-500 uppercase">
         {label}
       </label>
-      <div className={cn(
-        "flex items-center gap-2 p-1.5 rounded-lg transition-all duration-300",
-        "bg-stone-800/60 border border-stone-700/50",
-        isFocused && "ring-2 ring-amber-500/30 ring-offset-1 ring-offset-stone-900"
-      )}>
-        <div className="relative w-7 h-7 rounded-md overflow-hidden shadow-inner">
-          <div 
-            className="absolute inset-0"
-            style={{ 
-              backgroundImage: `linear-gradient(45deg, #27272a 25%, transparent 25%), 
-                               linear-gradient(-45deg, #27272a 25%, transparent 25%), 
-                               linear-gradient(45deg, transparent 75%, #27272a 75%), 
-                               linear-gradient(-45deg, transparent 75%, #27272a 75%)`,
-              backgroundSize: '8px 8px',
-              backgroundPosition: '0 0, 0 4px, 4px -4px, -4px 0px'
-            }}
-          />
+      <div className="relative">
+        <div className={cn(
+          "flex items-center gap-2 p-1.5 rounded-lg transition-all duration-300",
+          "bg-stone-800/60 border",
+          getBorderColor(),
+          isFocused && "ring-2 ring-amber-500/30 ring-offset-1 ring-offset-stone-900"
+        )}>
+          <div className="relative w-7 h-7 rounded-md overflow-hidden shadow-inner">
+            <div 
+              className="absolute inset-0"
+              style={{ 
+                backgroundImage: `linear-gradient(45deg, #27272a 25%, transparent 25%), 
+                                 linear-gradient(-45deg, #27272a 25%, transparent 25%), 
+                                 linear-gradient(45deg, transparent 75%, #27272a 75%), 
+                                 linear-gradient(-45deg, transparent 75%, #27272a 75%)`,
+                backgroundSize: '8px 8px',
+                backgroundPosition: '0 0, 0 4px, 4px -4px, -4px 0px'
+              }}
+            />
+            <input
+              type="color"
+              value={displayColor.startsWith('#') ? displayColor.slice(0, 7) : '#000000'}
+              onChange={handleColorPickerChange}
+              className="absolute inset-0 w-full h-full cursor-pointer opacity-0"
+            />
+            <div 
+              className="absolute inset-0 pointer-events-none rounded-md ring-1 ring-inset ring-white/10"
+              style={{ backgroundColor: displayColor }}
+            />
+          </div>
           <input
-            type="color"
-            value={displayColor.startsWith('#') ? displayColor.slice(0, 7) : '#000000'}
+            type="text"
+            value={localValue}
             onChange={handleChange}
-            className="absolute inset-0 w-full h-full cursor-pointer opacity-0"
+            onFocus={() => setIsFocused(true)}
+            onBlur={handleBlur}
+            placeholder="#000000"
+            className="flex-1 h-7 px-2 text-xs font-mono text-stone-300 bg-transparent focus:outline-none"
           />
-          <div 
-            className="absolute inset-0 pointer-events-none rounded-md ring-1 ring-inset ring-white/10"
-            style={{ backgroundColor: displayColor }}
-          />
+          
+          {/* Validation indicator */}
+          {validation && localValue && showFeedback && (
+            <div className="transition-opacity duration-200">
+              {validation.isValid ? (
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+              )}
+            </div>
+          )}
         </div>
-        <input
-          type="text"
-          value={localValue}
-          onChange={handleChange}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          placeholder="#000000"
-          className="flex-1 h-7 px-2 text-xs font-mono text-stone-300 bg-transparent focus:outline-none"
-        />
+        
+        {/* Error message */}
+        {validation && showFeedback && validation.error && (
+          <div className="absolute left-0 right-0 top-full mt-1 px-2 py-1 text-[10px] rounded-md z-10 bg-red-500/10 text-red-400 border border-red-500/20 animate-in fade-in slide-in-from-top-1 duration-200">
+            {validation.error}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -355,15 +549,29 @@ interface StyledSliderProps {
   label: string
   value: number
   onChange: (value: number) => void
+  onChangeComplete?: (value: number) => void
   min?: number
   max?: number
   step?: number
   unit?: string
 }
 
-function StyledSlider({ label, value, onChange, min = 0, max = 100, step = 1, unit = '' }: StyledSliderProps) {
+function StyledSlider({ label, value, onChange, onChangeComplete, min = 0, max = 100, step = 1, unit = '' }: StyledSliderProps) {
   const numValue = typeof value === 'number' ? value : parseFloat(value) || 0
   const percentage = ((numValue - min) / (max - min)) * 100
+  const [isDragging, setIsDragging] = useState(false)
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = parseFloat(e.target.value)
+    onChange(newValue)
+  }
+
+  const handleMouseUp = () => {
+    if (isDragging && onChangeComplete) {
+      onChangeComplete(numValue)
+    }
+    setIsDragging(false)
+  }
 
   return (
     <div className="flex flex-col gap-2">
@@ -371,19 +579,30 @@ function StyledSlider({ label, value, onChange, min = 0, max = 100, step = 1, un
         <label className="text-[10px] font-semibold tracking-widest text-stone-500 uppercase">
           {label}
         </label>
-        <span className="text-xs font-bold text-amber-400/80 tabular-nums">
-          {numValue}{unit}
+        <span className={cn(
+          "text-xs font-bold tabular-nums transition-colors duration-200",
+          isDragging ? "text-amber-300" : "text-amber-400/80"
+        )}>
+          {numValue.toFixed(step < 1 ? 2 : 0)}{unit}
         </span>
       </div>
       <div className="relative h-2 rounded-full bg-stone-800 overflow-hidden">
         <div 
-          className="absolute left-0 top-0 h-full rounded-full bg-gradient-to-r from-amber-500/80 to-orange-500/80 transition-all duration-150"
+          className={cn(
+            "absolute left-0 top-0 h-full rounded-full transition-all",
+            isDragging ? "bg-gradient-to-r from-amber-400 to-orange-400 duration-75" : "bg-gradient-to-r from-amber-500/80 to-orange-500/80 duration-150"
+          )}
           style={{ width: `${percentage}%` }}
         />
         <input
           type="range"
           value={numValue}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
+          onChange={handleChange}
+          onMouseDown={() => setIsDragging(true)}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onTouchStart={() => setIsDragging(true)}
+          onTouchEnd={handleMouseUp}
           min={min}
           max={max}
           step={step}
@@ -566,6 +785,10 @@ export function StylePanel({
   className,
   initialPosition,
   onPositionChange,
+  onUndo,
+  onRedo,
+  canUndo = false,
+  canRedo = false,
 }: StylePanelProps) {
   const { toggleSection, isExpanded } = useSectionState()
   const [position, setPosition] = useState(initialPosition || { x: 0, y: 0 })
@@ -573,8 +796,30 @@ export function StylePanel({
   const dragStartRef = useRef<{ x: number; y: number; posX: number; posY: number } | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   
-  const debouncedStyleChange = useDebounce(onStyleChange, 300)
-  const debouncedElementChange = useDebounce(onElementChange, 300)
+  // Debounced handlers for different update frequencies
+  const styleChangeHandlers = useDebounce(onStyleChange, 100)
+  const elementChangeHandlers = useDebounce(onElementChange, 200)
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) {
+          onRedo?.()
+        } else {
+          onUndo?.()
+        }
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'y') {
+        e.preventDefault()
+        onRedo?.()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onUndo, onRedo])
 
   // Drag handlers
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -617,19 +862,25 @@ export function StylePanel({
     }
   }, [isDragging, onPositionChange])
 
+  // Style change handler with debouncing
   const handleStyleChange = useCallback((property: string, value: StyleProperty) => {
-    debouncedStyleChange(property, value)
-  }, [debouncedStyleChange])
+    styleChangeHandlers.debounced(property, value)
+  }, [styleChangeHandlers])
+
+  // Immediate style change (for sliders on mouse up, etc.)
+  const handleImmediateStyleChange = useCallback((property: string, value: StyleProperty) => {
+    styleChangeHandlers.immediate(property, value, true)
+  }, [styleChangeHandlers])
 
   const handlePropertyChange = useCallback((key: string, value: string) => {
-    debouncedElementChange({
+    elementChangeHandlers.debounced({
       ...selectedElement,
       properties: {
         ...selectedElement.properties,
         [key]: value,
       },
     })
-  }, [selectedElement, debouncedElementChange])
+  }, [selectedElement, elementChangeHandlers])
 
   const visibleSections = useMemo(() => {
     const type = selectedElement.type.toLowerCase()
@@ -683,16 +934,48 @@ export function StylePanel({
             <span className="text-[9px] text-stone-600 font-medium">drag to move</span>
           </div>
           
-          <button
-            onClick={onClose}
-            className={cn(
-              "p-1.5 rounded-md transition-all duration-200",
-              "text-stone-500 hover:text-stone-300",
-              "hover:bg-stone-800/60 active:scale-95"
-            )}
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex items-center gap-1">
+            {/* Undo/Redo buttons */}
+            <button
+              onClick={onUndo}
+              disabled={!canUndo}
+              title="Undo (⌘Z)"
+              className={cn(
+                "p-1.5 rounded-md transition-all duration-200",
+                canUndo 
+                  ? "text-stone-400 hover:text-stone-200 hover:bg-stone-800/60 active:scale-95" 
+                  : "text-stone-700 cursor-not-allowed"
+              )}
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={onRedo}
+              disabled={!canRedo}
+              title="Redo (⌘⇧Z)"
+              className={cn(
+                "p-1.5 rounded-md transition-all duration-200",
+                canRedo 
+                  ? "text-stone-400 hover:text-stone-200 hover:bg-stone-800/60 active:scale-95" 
+                  : "text-stone-700 cursor-not-allowed"
+              )}
+            >
+              <Redo2 className="w-3.5 h-3.5" />
+            </button>
+            
+            <div className="w-px h-4 bg-stone-700/50 mx-1" />
+            
+            <button
+              onClick={onClose}
+              className={cn(
+                "p-1.5 rounded-md transition-all duration-200",
+                "text-stone-500 hover:text-stone-300",
+                "hover:bg-stone-800/60 active:scale-95"
+              )}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -712,13 +995,17 @@ export function StylePanel({
                 label="Width"
                 value={selectedElement.styles.width?.toString() || ''}
                 onChange={(v) => handleStyleChange('width', v)}
+                onImmediateChange={(v) => handleImmediateStyleChange('width', v)}
                 placeholder="auto"
+                property="width"
               />
               <StyledInput
                 label="Height"
                 value={selectedElement.styles.height?.toString() || ''}
                 onChange={(v) => handleStyleChange('height', v)}
+                onImmediateChange={(v) => handleImmediateStyleChange('height', v)}
                 placeholder="auto"
+                property="height"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -726,13 +1013,17 @@ export function StylePanel({
                 label="Min Width"
                 value={selectedElement.styles.minWidth?.toString() || ''}
                 onChange={(v) => handleStyleChange('minWidth', v)}
+                onImmediateChange={(v) => handleImmediateStyleChange('minWidth', v)}
                 placeholder="none"
+                property="minWidth"
               />
               <StyledInput
                 label="Max Width"
                 value={selectedElement.styles.maxWidth?.toString() || ''}
                 onChange={(v) => handleStyleChange('maxWidth', v)}
+                onImmediateChange={(v) => handleImmediateStyleChange('maxWidth', v)}
                 placeholder="none"
+                property="maxWidth"
               />
             </div>
           </Section>
@@ -750,19 +1041,19 @@ export function StylePanel({
             <div className="space-y-3">
               <p className="text-[10px] font-bold tracking-widest text-amber-500/60 uppercase">Margin</p>
               <div className="grid grid-cols-4 gap-2">
-                <StyledInput label="Top" value={selectedElement.styles.marginTop?.toString() || ''} onChange={(v) => handleStyleChange('marginTop', v)} compact />
-                <StyledInput label="Right" value={selectedElement.styles.marginRight?.toString() || ''} onChange={(v) => handleStyleChange('marginRight', v)} compact />
-                <StyledInput label="Bottom" value={selectedElement.styles.marginBottom?.toString() || ''} onChange={(v) => handleStyleChange('marginBottom', v)} compact />
-                <StyledInput label="Left" value={selectedElement.styles.marginLeft?.toString() || ''} onChange={(v) => handleStyleChange('marginLeft', v)} compact />
+                <StyledInput label="Top" value={selectedElement.styles.marginTop?.toString() || ''} onChange={(v) => handleStyleChange('marginTop', v)} onImmediateChange={(v) => handleImmediateStyleChange('marginTop', v)} property="marginTop" compact />
+                <StyledInput label="Right" value={selectedElement.styles.marginRight?.toString() || ''} onChange={(v) => handleStyleChange('marginRight', v)} onImmediateChange={(v) => handleImmediateStyleChange('marginRight', v)} property="marginRight" compact />
+                <StyledInput label="Bottom" value={selectedElement.styles.marginBottom?.toString() || ''} onChange={(v) => handleStyleChange('marginBottom', v)} onImmediateChange={(v) => handleImmediateStyleChange('marginBottom', v)} property="marginBottom" compact />
+                <StyledInput label="Left" value={selectedElement.styles.marginLeft?.toString() || ''} onChange={(v) => handleStyleChange('marginLeft', v)} onImmediateChange={(v) => handleImmediateStyleChange('marginLeft', v)} property="marginLeft" compact />
               </div>
             </div>
             <div className="space-y-3">
               <p className="text-[10px] font-bold tracking-widest text-amber-500/60 uppercase">Padding</p>
               <div className="grid grid-cols-4 gap-2">
-                <StyledInput label="Top" value={selectedElement.styles.paddingTop?.toString() || ''} onChange={(v) => handleStyleChange('paddingTop', v)} compact />
-                <StyledInput label="Right" value={selectedElement.styles.paddingRight?.toString() || ''} onChange={(v) => handleStyleChange('paddingRight', v)} compact />
-                <StyledInput label="Bottom" value={selectedElement.styles.paddingBottom?.toString() || ''} onChange={(v) => handleStyleChange('paddingBottom', v)} compact />
-                <StyledInput label="Left" value={selectedElement.styles.paddingLeft?.toString() || ''} onChange={(v) => handleStyleChange('paddingLeft', v)} compact />
+                <StyledInput label="Top" value={selectedElement.styles.paddingTop?.toString() || ''} onChange={(v) => handleStyleChange('paddingTop', v)} onImmediateChange={(v) => handleImmediateStyleChange('paddingTop', v)} property="paddingTop" compact />
+                <StyledInput label="Right" value={selectedElement.styles.paddingRight?.toString() || ''} onChange={(v) => handleStyleChange('paddingRight', v)} onImmediateChange={(v) => handleImmediateStyleChange('paddingRight', v)} property="paddingRight" compact />
+                <StyledInput label="Bottom" value={selectedElement.styles.paddingBottom?.toString() || ''} onChange={(v) => handleStyleChange('paddingBottom', v)} onImmediateChange={(v) => handleImmediateStyleChange('paddingBottom', v)} property="paddingBottom" compact />
+                <StyledInput label="Left" value={selectedElement.styles.paddingLeft?.toString() || ''} onChange={(v) => handleStyleChange('paddingLeft', v)} onImmediateChange={(v) => handleImmediateStyleChange('paddingLeft', v)} property="paddingLeft" compact />
               </div>
             </div>
           </Section>
@@ -781,33 +1072,33 @@ export function StylePanel({
               <StyledDropdown
                 label="Display"
                 value={selectedElement.styles.display?.toString() || ''}
-                onChange={(v) => handleStyleChange('display', v)}
+                onChange={(v) => handleImmediateStyleChange('display', v)}
                 options={DISPLAY_OPTIONS}
               />
               <StyledDropdown
                 label="Position"
                 value={selectedElement.styles.position?.toString() || ''}
-                onChange={(v) => handleStyleChange('position', v)}
+                onChange={(v) => handleImmediateStyleChange('position', v)}
                 options={POSITION_OPTIONS}
               />
             </div>
             <StyledDropdown
               label="Flex Direction"
               value={selectedElement.styles.flexDirection?.toString() || ''}
-              onChange={(v) => handleStyleChange('flexDirection', v)}
+              onChange={(v) => handleImmediateStyleChange('flexDirection', v)}
               options={FLEX_DIRECTION_OPTIONS}
             />
             <div className="grid grid-cols-2 gap-3">
               <StyledDropdown
                 label="Justify"
                 value={selectedElement.styles.justifyContent?.toString() || ''}
-                onChange={(v) => handleStyleChange('justifyContent', v)}
+                onChange={(v) => handleImmediateStyleChange('justifyContent', v)}
                 options={JUSTIFY_OPTIONS}
               />
               <StyledDropdown
                 label="Align"
                 value={selectedElement.styles.alignItems?.toString() || ''}
-                onChange={(v) => handleStyleChange('alignItems', v)}
+                onChange={(v) => handleImmediateStyleChange('alignItems', v)}
                 options={ALIGN_OPTIONS}
               />
             </div>
@@ -815,7 +1106,9 @@ export function StylePanel({
               label="Gap"
               value={selectedElement.styles.gap?.toString() || ''}
               onChange={(v) => handleStyleChange('gap', v)}
+              onImmediateChange={(v) => handleImmediateStyleChange('gap', v)}
               placeholder="0"
+              property="gap"
             />
           </Section>
         )}
@@ -840,13 +1133,17 @@ export function StylePanel({
                 label="Size"
                 value={selectedElement.styles.fontSize?.toString() || ''}
                 onChange={(v) => handleStyleChange('fontSize', v)}
+                onImmediateChange={(v) => handleImmediateStyleChange('fontSize', v)}
                 placeholder="16px"
+                property="fontSize"
               />
               <StyledInput
                 label="Weight"
                 value={selectedElement.styles.fontWeight?.toString() || ''}
                 onChange={(v) => handleStyleChange('fontWeight', v)}
+                onImmediateChange={(v) => handleImmediateStyleChange('fontWeight', v)}
                 placeholder="400"
+                property="fontWeight"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -854,19 +1151,23 @@ export function StylePanel({
                 label="Line Height"
                 value={selectedElement.styles.lineHeight?.toString() || ''}
                 onChange={(v) => handleStyleChange('lineHeight', v)}
+                onImmediateChange={(v) => handleImmediateStyleChange('lineHeight', v)}
                 placeholder="1.5"
+                property="lineHeight"
               />
               <StyledInput
                 label="Letter Spacing"
                 value={selectedElement.styles.letterSpacing?.toString() || ''}
                 onChange={(v) => handleStyleChange('letterSpacing', v)}
+                onImmediateChange={(v) => handleImmediateStyleChange('letterSpacing', v)}
                 placeholder="normal"
+                property="letterSpacing"
               />
             </div>
             <AlignmentButtons
               label="Text Align"
               value={selectedElement.styles.textAlign?.toString() || ''}
-              onChange={(v) => handleStyleChange('textAlign', v)}
+              onChange={(v) => handleImmediateStyleChange('textAlign', v)}
             />
           </Section>
         )}
@@ -884,11 +1185,15 @@ export function StylePanel({
               label="Text Color"
               value={selectedElement.styles.color?.toString() || ''}
               onChange={(v) => handleStyleChange('color', v)}
+              onImmediateChange={(v) => handleImmediateStyleChange('color', v)}
+              property="color"
             />
             <ColorInput
               label="Background"
               value={selectedElement.styles.backgroundColor?.toString() || ''}
               onChange={(v) => handleStyleChange('backgroundColor', v)}
+              onImmediateChange={(v) => handleImmediateStyleChange('backgroundColor', v)}
+              property="backgroundColor"
             />
           </Section>
         )}
@@ -907,19 +1212,25 @@ export function StylePanel({
                 label="Width"
                 value={selectedElement.styles.borderWidth?.toString() || ''}
                 onChange={(v) => handleStyleChange('borderWidth', v)}
+                onImmediateChange={(v) => handleImmediateStyleChange('borderWidth', v)}
                 placeholder="0"
+                property="borderWidth"
               />
               <StyledInput
                 label="Radius"
                 value={selectedElement.styles.borderRadius?.toString() || ''}
                 onChange={(v) => handleStyleChange('borderRadius', v)}
+                onImmediateChange={(v) => handleImmediateStyleChange('borderRadius', v)}
                 placeholder="0"
+                property="borderRadius"
               />
             </div>
             <ColorInput
               label="Border Color"
               value={selectedElement.styles.borderColor?.toString() || ''}
               onChange={(v) => handleStyleChange('borderColor', v)}
+              onImmediateChange={(v) => handleImmediateStyleChange('borderColor', v)}
+              property="borderColor"
             />
           </Section>
         )}
@@ -937,6 +1248,7 @@ export function StylePanel({
               label="Opacity"
               value={parseFloat(selectedElement.styles.opacity?.toString() || '1') * 100}
               onChange={(v) => handleStyleChange('opacity', (v / 100).toString())}
+              onChangeComplete={(v) => handleImmediateStyleChange('opacity', (v / 100).toString())}
               min={0}
               max={100}
               unit="%"
@@ -944,7 +1256,7 @@ export function StylePanel({
             <StyledDropdown
               label="Overflow"
               value={selectedElement.styles.overflow?.toString() || ''}
-              onChange={(v) => handleStyleChange('overflow', v)}
+              onChange={(v) => handleImmediateStyleChange('overflow', v)}
               options={OVERFLOW_OPTIONS}
             />
             <StyledTextArea

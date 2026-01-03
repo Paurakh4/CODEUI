@@ -18,7 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="antialiased overflow-hidden overscroll-none">
+      <body className="antialiased">
         <AuthSessionProvider>
           <ThemeProvider
             attribute="class"
