@@ -23,6 +23,7 @@ import {
 import { useState, useRef, useCallback, useEffect } from "react"
 import { UserMenu } from "@/components/user-menu"
 import { FeedbackModal } from "@/components/feedback-modal"
+import { PricingModal } from "@/components/pricing-modal"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
@@ -45,6 +46,7 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
   const [isLoadingModels, setIsLoadingModels] = useState(true)
   const [promptValue, setPromptValue] = useState("")
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
+  const [isPricingOpen, setIsPricingOpen] = useState(false)
   
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -288,13 +290,17 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
                     <div className="h-full bg-amber-500 w-[95%] rounded-full"></div>
                 </div>
                 <p className="text-[10px] text-zinc-500 mt-2">
-                    You're using 95% of your free credits.
-                </p>
-                <Button variant="link" className="h-auto p-0 text-[10px] text-amber-500 hover:text-amber-400 font-medium mt-1">
-                    Upgrade for more →
-                </Button>
-            </div>
-        </div>
+                     You're using 95% of your free credits.
+                 </p>
+                 <Button 
+                   variant="link" 
+                   onClick={() => setIsPricingOpen(true)}
+                   className="h-auto p-0 text-[10px] text-amber-500 hover:text-amber-400 font-medium mt-1"
+                 >
+                     Upgrade for more →
+                 </Button>
+             </div>
+         </div>
       </aside>
 
       {/* Main Content */}
@@ -313,7 +319,14 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
         )}
         {/* Top Navigation */}
         <header className="absolute top-0 right-0 p-4 z-20 flex items-center gap-3">
-            <Button variant="ghost" size="sm" className="text-zinc-400 hover:text-white hover:bg-zinc-900 h-8 text-xs">Upgrade</Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setIsPricingOpen(true)}
+              className="text-zinc-400 hover:text-white hover:bg-zinc-900 h-8 text-xs"
+            >
+              Upgrade
+            </Button>
             <Button 
               variant="ghost" 
               size="sm" 
@@ -474,6 +487,10 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
       <FeedbackModal 
         isOpen={isFeedbackOpen} 
         onClose={() => setIsFeedbackOpen(false)} 
+      />
+      <PricingModal
+        isOpen={isPricingOpen}
+        onClose={() => setIsPricingOpen(false)}
       />
     </div>
   )
