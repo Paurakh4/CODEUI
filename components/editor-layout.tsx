@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { TopNav } from "@/components/top-nav-new"
 import { AI_Prompt } from "@/components/ui/animated-ai-input"
 import { PreviewFrame, type SelectedElementInfo } from "@/components/preview-frame"
@@ -67,9 +68,11 @@ const EXAMPLE_PROMPTS = [
 interface EditorLayoutNewProps {
   initialPrompt?: string
   initialModel?: string
+  onBack?: () => void
 }
 
-export function EditorLayoutNew({ initialPrompt, initialModel }: EditorLayoutNewProps) {
+export function EditorLayoutNew({ initialPrompt, initialModel, onBack }: EditorLayoutNewProps) {
+  const router = useRouter()
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>("preview")
@@ -549,7 +552,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel }: EditorLayoutNew
           <div className="flex items-center gap-3">
             <button
               className="group p-1 rounded-md flex items-center justify-center relative"
-              onClick={() => window.location.href = "/"}
+              onClick={() => {
+                if (onBack) {
+                  onBack()
+                } else {
+                  router.push("/dashboard")
+                }
+              }}
             >
               <img
                 src="/Codeui.svg"

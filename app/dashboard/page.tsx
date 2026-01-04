@@ -19,6 +19,7 @@ export default function DashboardPage() {
         <EditorLayoutNew 
           initialPrompt={initialData.prompt} 
           initialModel={initialData.model} 
+          onBack={() => setHasStarted(false)}
         />
       </div>
     )

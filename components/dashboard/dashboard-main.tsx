@@ -22,8 +22,10 @@ import {
 } from "lucide-react"
 import { useState, useRef, useCallback, useEffect } from "react"
 import { UserMenu } from "@/components/user-menu"
+import { FeedbackModal } from "@/components/feedback-modal"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,6 +44,7 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
   const [availableModels, setAvailableModels] = useState<Array<{id: string, name: string}>>([])
   const [isLoadingModels, setIsLoadingModels] = useState(true)
   const [promptValue, setPromptValue] = useState("")
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
   
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -217,10 +220,10 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
         <div className="p-4 flex items-center justify-between whitespace-nowrap">
           <div className="flex items-center gap-2 px-2 py-1.5 hover:bg-zinc-900 rounded-md cursor-pointer transition-colors overflow-hidden">
             <div className="w-5 h-5 bg-white text-black rounded flex-shrink-0 flex items-center justify-center text-xs font-bold">
-              CodeUI
+              C
             </div>
             <span className="text-sm font-medium truncate">Personal</span>
-            <span className="text-[10px] bg-white/10 text-zinc-400 px-1.5 py-0.5 rounded ml-1">Free</span>
+            <span className="text-[10px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-1.5 py-0.5 rounded font-medium ml-1">Free</span>
           </div>
           <Button 
             variant="ghost" 
@@ -275,8 +278,22 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
         </ScrollArea>
         
         {/* Sidebar Footer */}
-        <div className="p-4 border-t border-white/10">
-            {/* Could put something here if needed */}
+        <div className="p-4 border-t border-white/10 space-y-4">
+            <div className="bg-zinc-900/50 rounded-xl p-3 border border-white/5">
+                <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-zinc-400">Credits</span>
+                    <span className="text-xs font-bold text-zinc-200">475 / 500</span>
+                </div>
+                <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-amber-500 w-[95%] rounded-full"></div>
+                </div>
+                <p className="text-[10px] text-zinc-500 mt-2">
+                    You're using 95% of your free credits.
+                </p>
+                <Button variant="link" className="h-auto p-0 text-[10px] text-amber-500 hover:text-amber-400 font-medium mt-1">
+                    Upgrade for more →
+                </Button>
+            </div>
         </div>
       </aside>
 
@@ -297,12 +314,20 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
         {/* Top Navigation */}
         <header className="absolute top-0 right-0 p-4 z-20 flex items-center gap-3">
             <Button variant="ghost" size="sm" className="text-zinc-400 hover:text-white hover:bg-zinc-900 h-8 text-xs">Upgrade</Button>
-            <Button variant="ghost" size="sm" className="text-zinc-400 hover:text-white hover:bg-zinc-900 h-8 text-xs">Feedback</Button>
-            <div className="flex items-center gap-1.5 bg-zinc-900 rounded-full px-2 py-1 border border-white/5">
-                <div className="w-3 h-3 rounded-full border border-zinc-500 flex items-center justify-center">
-                    <div className="w-1.5 h-1.5 rounded-full bg-zinc-500"></div>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setIsFeedbackOpen(true)}
+              className="text-zinc-400 hover:text-white hover:bg-zinc-900 h-8 text-xs"
+            >
+              Feedback
+            </Button>
+            <div className="flex items-center gap-2 bg-zinc-900/50 hover:bg-zinc-900 rounded-full px-3 py-1 border border-white/10 transition-colors cursor-pointer group">
+                <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500/20 group-hover:scale-110 transition-transform" />
+                <div className="flex items-center gap-1">
+                    <span className="text-xs font-bold text-zinc-100">475</span>
+                    <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-tight">Credits</span>
                 </div>
-                <span className="text-xs font-mono text-zinc-300">4.75</span>
             </div>
             <UserMenu />
         </header>
@@ -445,6 +470,11 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
           </div>
         )}
       </main>
+
+      <FeedbackModal 
+        isOpen={isFeedbackOpen} 
+        onClose={() => setIsFeedbackOpen(false)} 
+      />
     </div>
   )
 }
@@ -484,14 +514,21 @@ function ProjectCard({ project }: { project: any }) {
               <AvatarImage src="/placeholder-user.jpg" />
               <AvatarFallback>U</AvatarFallback>
             </Avatar>
-            <span className="text-zinc-400">{project.views}</span>
+            <span className="text-zinc-400">{project.views} views</span>
             <span>•</span>
             <div className="flex items-center gap-0.5">
               <Heart className="w-3 h-3" />
               <span>{project.likes}</span>
             </div>
           </div>
-          <span className="text-zinc-600">{project.credits}</span>
+          <span className={cn(
+            "px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider",
+            project.credits === "Free" 
+              ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20" 
+              : "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+          )}>
+            {project.credits}
+          </span>
         </div>
       </div>
     </div>
