@@ -19,13 +19,13 @@
 - [x] Task: Conductor - User Manual Verification 'Core Protocol & Backend Setup' (Protocol in workflow.md)
 
 ## Phase 2: Frontend Parsing & State Management
-- [ ] Task: Implement Flexible Regex Helper
+- [x] Task: Implement Flexible Regex Helper [3e8abb3]
     - [ ] Create `lib/utils/regex-helper.ts`:
         - [ ] Implement `escapeRegExp`.
         - [ ] Implement `createFlexibleHtmlRegex` to handle whitespace/newline variations.
         - [ ] Add unit tests for `createFlexibleHtmlRegex` with various edge cases.
         - [ ] **Verification:** Add a "Test Suite of Common AI Hallucinations" (extra spaces, missing tags) to validate robustness.
-- [ ] Task: Implement Streaming Parser Logic
+- [x] Task: Implement Streaming Parser Logic [bfcd46a]
     - [ ] Create `lib/parsers/stream-parser.ts`:
         - [ ] Implement a class/function to buffer the stream.
         - [ ] Detect `UPDATE_FILE_START` to switch context.
@@ -33,7 +33,7 @@
         - [ ] Upon `DIVIDER`, lock the `SEARCH` target.
         - [ ] Accumulate `REPLACE` block content.
         - [ ] On `REPLACE_END`, trigger the patch application.
-- [ ] Task: Integrate State Locking
+- [x] Task: Integrate State Locking [544a9a3]
     - [ ] Update `stores/editor-store.tsx` (or equivalent):
         - [ ] Add `isApplyingPatch` state.
         - [ ] Update Editor component to be `read-only` when `isApplyingPatch` is true.
