@@ -39,24 +39,24 @@
         - [ ] Update Editor component to be `read-only` when `isApplyingPatch` is true.
 - [x] Task: Conductor - User Manual Verification 'Frontend Parsing & State Management' (Protocol in workflow.md)
 
-## Phase 3: Patch Application & Fallback Mechanism
-- [ ] Task: Implement Patch Application Logic
+## Phase 3: Patch Application & Fallback Mechanism [checkpoint: 0479cda]
+- [x] Task: Implement Patch Application Logic [12e4f9d]
     - [ ] In `lib/parsers/stream-parser.ts` (or `hooks/use-ai-chat.ts`):
         - [ ] Use `createFlexibleHtmlRegex` to find the match in the current file content.
         - [ ] Apply the replacement.
         - [ ] Handle "Deletion" cases (empty replace block).
         - [ ] Return a success/failure status.
-- [ ] Task: Implement Fallback Logic
+- [x] Task: Implement Fallback Logic [0479cda]
     - [ ] Update `app/api/ai/route.ts` (or where the AI response is handled) / `hooks/use-ai-chat.ts`:
         - [ ] Monitor the parser's success status.
         - [ ] If a patch fails:
             - [ ] Abort the current stream.
             - [ ] Trigger a "Retrying with full context..." toast/notification.
             - [ ] Trigger a new, separate API call requesting the **FULL** file content for the failed file.
-- [ ] Task: Conductor - User Manual Verification 'Patch Application & Fallback Mechanism' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Patch Application & Fallback Mechanism' (Protocol in workflow.md)
 
-## Phase 4: Integration & Verification
-- [ ] Task: Connect Frontend to Backend
+## Phase 4: Integration & Verification [checkpoint: 0479cda]
+- [x] Task: Connect Frontend to Backend [0479cda]
     - [ ] Update `hooks/use-ai-chat.ts` to use the new `reprompt-system` prompt for follow-up messages.
     - [ ] Pass the constructed "Smart Context" in the API request body.
-- [ ] Task: Conductor - User Manual Verification 'Integration & Verification' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Integration & Verification' (Protocol in workflow.md)
