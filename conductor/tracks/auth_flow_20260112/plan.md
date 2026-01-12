@@ -4,7 +4,7 @@
 - [x] Task: Configure NextAuth.js with Google Provider. [0031445]
     - [ ] Subtask: Create `auth.ts` (or `app/api/auth/[...nextauth]/route.ts`) configuration file.
     - [ ] Subtask: Set up environment variables for Google Client ID and Secret.
-- [ ] Task: Create Session Provider Wrapper.
+- [x] Task: Create Session Provider Wrapper. [b8e5271]
     - [ ] Subtask: Create a client-side `SessionProvider` component to wrap the application.
     - [ ] Subtask: Update `app/layout.tsx` to include the provider.
 - [ ] Task: Conductor - User Manual Verification 'Configuration & Setup' (Protocol in workflow.md)
