@@ -21,7 +21,9 @@ interface SendMessageOptions {
 }
 
 export function useAIChat(options: UseAIChatOptions = {}) {
-  const { onContentUpdate, onThinkingUpdate, onComplete, onPatch, onFileUpdate, onError } = options
+  // Use refs for callbacks to avoid stale closure issues during async streaming
+  const optionsRef = useRef(options)
+  optionsRef.current = options
   
   const [isGenerating, setIsGenerating] = useState(false)
   const [content, setContent] = useState("")
@@ -34,9 +36,9 @@ export function useAIChat(options: UseAIChatOptions = {}) {
 
   if (!parserRef.current) {
     parserRef.current = new StreamParser({
-      onFileUpdate: (path) => onFileUpdate?.(path),
+      onFileUpdate: (path) => optionsRef.current.onFileUpdate?.(path),
       onPatch: (path, search, replace) => {
-        const success = onPatch?.(path, search, replace)
+        const success = optionsRef.current.onPatch?.(path, search, replace)
         if (success === false) {
           failedFilesRef.current.add(path)
         }
@@ -46,7 +48,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
 
   const sendMessage = useCallback(
     async ({ prompt, currentHtml, selectedElement, model, isFollowUp }: SendMessageOptions) => {
-      // Cancel any existing request
+      // ...
       if (abortControllerRef.current) {
         abortControllerRef.current.abort()
       }
@@ -110,13 +112,13 @@ export function useAIChat(options: UseAIChatOptions = {}) {
                 if (data.type === "content") {
                   fullContent += data.data
                   setContent(fullContent)
-                  onContentUpdate?.(fullContent)
+                  optionsRef.current.onContentUpdate?.(fullContent)
                   // Detect patches in real-time
                   parserRef.current?.parse(fullContent)
                 } else if (data.type === "thinking") {
                   fullThinking += data.data
                   setThinking(fullThinking)
-                  onThinkingUpdate?.(fullThinking)
+                  optionsRef.current.onThinkingUpdate?.(fullThinking)
                 }
               } catch {
                 // Skip invalid JSON
@@ -129,7 +131,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
         const extractedHtml = extractHtml(fullContent)
         const failedFiles = Array.from(failedFilesRef.current)
         
-        onComplete?.({ 
+        optionsRef.current.onComplete?.({ 
           rawContent: fullContent, 
           extractedHtml, 
           failedFiles: failedFiles.length > 0 ? failedFiles : undefined 
@@ -144,14 +146,14 @@ export function useAIChat(options: UseAIChatOptions = {}) {
         
         const error = err instanceof Error ? err : new Error("Unknown error")
         setError(error)
-        onError?.(error)
+        optionsRef.current.onError?.(error)
         throw error
       } finally {
         setIsGenerating(false)
         abortControllerRef.current = null
       }
     },
-    [onContentUpdate, onThinkingUpdate, onComplete, onPatch, onFileUpdate, onError]
+    []
   )
 
   const cancel = useCallback(() => {

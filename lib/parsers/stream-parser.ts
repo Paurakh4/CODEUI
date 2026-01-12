@@ -30,7 +30,7 @@ export class StreamParser {
   /**
    * Applies a patch to a content string.
    */
-  public applyPatch(currentContent: string, searchBlock: string, replaceBlock: string): PatchResult {
+  public applyPatch(currentContent: string, searchBlock: string, replaceBlock: string, filePath?: string | null): PatchResult {
     // Handle empty search block (append to start or handle as error depending on protocol)
     if (searchBlock.trim() === '') {
         return {
@@ -51,10 +51,11 @@ export class StreamParser {
         };
     }
 
+    const fileInfo = filePath || this.currentFilePath || 'unknown file';
     return {
         success: false,
         content: currentContent,
-        error: `Could not find match for SEARCH block in ${this.currentFilePath}`
+        error: `Could not find match for SEARCH block in ${fileInfo}`
     };
   }
 

@@ -86,6 +86,12 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack }: EditorL
   // Project State
   const [projectName, setProjectName] = useState("untitled-project")
   const [htmlContent, setHtmlContent] = useState(LOADING_HTML)
+  const htmlContentRef = useRef(htmlContent)
+
+  useEffect(() => {
+    htmlContentRef.current = htmlContent
+  }, [htmlContent])
+
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null)
   const [panelPosition, setPanelPosition] = useState<{ x: number; y: number } | null>(null)
@@ -154,24 +160,18 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack }: EditorL
       })
     },
     onPatch: (filePath, search, replace) => {
-      let patchApplied = false;
-      // Lock editor during patch
-      // Actually, useAIChat handles streaming, so we should lock for the duration of the stream
-      // but let's be safe and use setApplyingPatch here if needed.
+      // Use the ref for synchronous access to current HTML
+      const parser = new StreamParser({});
+      const result = parser.applyPatch(htmlContentRef.current, search, replace, filePath);
       
-      setHtmlContent((currentHtml) => {
-        const parser = new StreamParser({});
-        const result = parser.applyPatch(currentHtml, search, replace);
-        
-        if (result.success) {
-          patchApplied = true;
-          return result.content;
-        } else {
-          console.warn(`Patch failed for ${filePath}: ${result.error}`);
-          return currentHtml;
-        }
-      });
-      return patchApplied;
+      if (result.success) {
+        htmlContentRef.current = result.content;
+        setHtmlContent(result.content);
+        return true;
+      } else {
+        console.warn(`Patch failed for ${filePath}: ${result.error}`);
+        return false;
+      }
     },
     onComplete: ({ rawContent, extractedHtml, failedFiles }) => {
       const isFollowUp = hasGeneratedOnce
