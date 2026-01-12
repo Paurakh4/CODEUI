@@ -5,6 +5,7 @@ import Editor, { OnMount, BeforeMount, Monaco } from "@monaco-editor/react"
 import type { editor, IPosition } from "monaco-editor"
 import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useEditor } from "@/stores/editor-store"
 
 interface CodeEditorProps {
   value: string
@@ -21,6 +22,7 @@ export function CodeEditor({
   readOnly = false,
   className,
 }: CodeEditorProps) {
+  const { state } = useEditor()
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
 
   const handleBeforeMount: BeforeMount = useCallback((monaco) => {
@@ -134,7 +136,7 @@ export function CodeEditor({
           </div>
         }
         options={{
-          readOnly,
+          readOnly: readOnly || state.isApplyingPatch,
           minimap: { enabled: true, scale: 1 },
           fontSize: 13,
           fontFamily: "'Geist Mono', 'JetBrains Mono', 'Fira Code', monospace",

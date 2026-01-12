@@ -82,6 +82,7 @@ export interface EditorState {
   // Editor State
   hasUnsavedChanges: boolean
   selectedElement: string | null
+  isApplyingPatch: boolean
   
   // Version History
   versions: Version[]
@@ -108,8 +109,10 @@ const initialState: EditorState = {
   
   hasUnsavedChanges: false,
   selectedElement: null,
+  isApplyingPatch: false,
   
-  versions: [],
+  // Version History
+
   currentVersionId: null,
   
   selectedModel: "deepseek/deepseek-chat",
@@ -131,6 +134,7 @@ type EditorAction =
   | { type: "SET_GENERATING"; payload: boolean }
   | { type: "SET_UNSAVED_CHANGES"; payload: boolean }
   | { type: "SET_SELECTED_ELEMENT"; payload: string | null }
+  | { type: "SET_APPLYING_PATCH"; payload: boolean }
   | { type: "CREATE_VERSION"; payload: { description?: string } }
   | { type: "RESTORE_VERSION"; payload: string }
   | { type: "SET_MODEL"; payload: string }
@@ -190,6 +194,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case "SET_SELECTED_ELEMENT":
       return { ...state, selectedElement: action.payload }
+    
+    case "SET_APPLYING_PATCH":
+      return { ...state, isApplyingPatch: action.payload }
     
     case "CREATE_VERSION": {
       const newVersion: Version = {
@@ -261,6 +268,7 @@ interface EditorContextValue {
   addMessage: (message: Omit<Message, "id" | "timestamp">) => string
   updateMessage: (id: string, updates: Partial<Message>) => void
   setGenerating: (generating: boolean) => void
+  setApplyingPatch: (applying: boolean) => void
   createVersion: (description?: string) => void
   restoreVersion: (versionId: string) => void
 }
@@ -330,6 +338,10 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const setGenerating = useCallback((generating: boolean) => {
     dispatch({ type: "SET_GENERATING", payload: generating })
   }, [])
+
+  const setApplyingPatch = useCallback((applying: boolean) => {
+    dispatch({ type: "SET_APPLYING_PATCH", payload: applying })
+  }, [])
   
   const createVersion = useCallback((description?: string) => {
     dispatch({ type: "CREATE_VERSION", payload: { description } })
@@ -349,6 +361,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     addMessage,
     updateMessage,
     setGenerating,
+    setApplyingPatch,
     createVersion,
     restoreVersion,
   }
