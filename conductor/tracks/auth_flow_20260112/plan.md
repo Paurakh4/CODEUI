@@ -13,7 +13,7 @@
 - [x] Task: Create Sign-In Dialog Component. [c5d5ade]
     - [ ] Subtask: specific implementation of `components/sign-in-dialog.tsx` using `shadcn/ui` Dialog.
     - [ ] Subtask: Add "Sign in with Google" button with icon.
-- [ ] Task: Update User Menu / Sidebar.
+- [x] Task: Update User Menu / Sidebar. [061fd30]
     - [ ] Subtask: Modify `components/sidebar.tsx` or `components/user-menu.tsx` to show user avatar/name when logged in, or a "Sign In" button when logged out.
 - [ ] Task: Conductor - User Manual Verification 'UI Implementation' (Protocol in workflow.md)
 
