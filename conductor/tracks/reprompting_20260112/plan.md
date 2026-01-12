@@ -3,7 +3,7 @@
 ## Phase 1: Core Protocol & Backend Setup
 - [x] Task: Define Protocol Constants [ac059c5]
     - [ ] Create `lib/constants.ts` (or update existing) with `SEARCH_START`, `DIVIDER`, `REPLACE_END`, etc.
-- [ ] Task: Implement Context Construction Logic
+- [x] Task: Implement Context Construction Logic [36fd44a]
     - [ ] Create `lib/utils/token-counter.ts`:
         - [ ] Implement `estimateTokenCount` helper to manage context limits.
     - [ ] Create/Update `lib/context-builder.ts`:
@@ -11,7 +11,7 @@
         - [ ] Implement logic to find and include related files (Priority 2).
         - [ ] Implement logic to inject selected element HTML (Priority 3).
         - [ ] Implement token-aware truncation/summarization (Priority 4) using `estimateTokenCount`.
-- [ ] Task: Create System Prompts
+- [x] Task: Create System Prompts [7964d07]
     - [ ] Create `lib/prompts/reprompt-system.ts`:
         - [ ] Define the `FOLLOW_UP_SYSTEM_PROMPT` emphasizing the `SEARCH`/`REPLACE` protocol.
         - [ ] Add specific instructions for Deletions (empty replace block).
