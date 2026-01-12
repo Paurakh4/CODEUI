@@ -1,4 +1,4 @@
-import { escapeRegExp } from '../utils/regex-helper';
+import { createFlexibleHtmlRegex, escapeRegExp } from '../utils/regex-helper';
 import {
   SEARCH_START,
   DIVIDER,
@@ -6,6 +6,12 @@ import {
   UPDATE_FILE_START,
   UPDATE_FILE_END,
 } from '../constants';
+
+export interface PatchResult {
+  success: boolean;
+  content: string;
+  error?: string;
+}
 
 export interface StreamParserOptions {
   onFileUpdate?: (filePath: string) => void;
@@ -19,6 +25,37 @@ export class StreamParser {
 
   constructor(options: StreamParserOptions) {
     this.options = options;
+  }
+
+  /**
+   * Applies a patch to a content string.
+   */
+  public applyPatch(currentContent: string, searchBlock: string, replaceBlock: string): PatchResult {
+    // Handle empty search block (append to start or handle as error depending on protocol)
+    if (searchBlock.trim() === '') {
+        return {
+            success: true,
+            content: `${replaceBlock}\n${currentContent}`
+        };
+    }
+
+    const regex = createFlexibleHtmlRegex(searchBlock);
+    const match = currentContent.match(regex);
+
+    if (match) {
+        // We replace the FIRST match. If there are multiple, AI should have been more specific.
+        const newContent = currentContent.replace(regex, replaceBlock);
+        return {
+            success: true,
+            content: newContent
+        };
+    }
+
+    return {
+        success: false,
+        content: currentContent,
+        error: `Could not find match for SEARCH block in ${this.currentFilePath}`
+    };
   }
 
   /**
