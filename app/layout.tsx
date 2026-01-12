@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
 import { AuthSessionProvider } from '@/components/session-provider'
 import { AuthDialogProvider } from '@/components/auth-dialog-provider'
+import { EditorProvider } from '@/stores/editor-store'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -27,7 +28,9 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             <AuthDialogProvider>
-              {children}
+              <EditorProvider>
+                {children}
+              </EditorProvider>
             </AuthDialogProvider>
           </ThemeProvider>
         </AuthSessionProvider>
