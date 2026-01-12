@@ -36,6 +36,6 @@ describe('SignInDialog', () => {
   it('calls signIn with google when button clicked', () => {
     render(<SignInDialog open={true} onOpenChange={vi.fn()} />);
     fireEvent.click(screen.getByText('Continue with Google'));
-    expect(nextAuthReact.signIn).toHaveBeenCalledWith('google', { callbackUrl: '/' });
+    expect(nextAuthReact.signIn).toHaveBeenCalledWith('google', { callbackUrl: '/dashboard' });
   });
 });
