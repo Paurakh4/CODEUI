@@ -10,7 +10,7 @@
 - [ ] Task: Conductor - User Manual Verification 'Configuration & Setup' (Protocol in workflow.md)
 
 ## Phase 2: UI Implementation
-- [ ] Task: Create Sign-In Dialog Component.
+- [x] Task: Create Sign-In Dialog Component. [c5d5ade]
     - [ ] Subtask: specific implementation of `components/sign-in-dialog.tsx` using `shadcn/ui` Dialog.
     - [ ] Subtask: Add "Sign in with Google" button with icon.
 - [ ] Task: Update User Menu / Sidebar.
