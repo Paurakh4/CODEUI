@@ -1,6 +1,6 @@
 # Implementation Plan - Reprompting & Partial UI Updates
 
-## Phase 1: Core Protocol & Backend Setup
+## Phase 1: Core Protocol & Backend Setup [checkpoint: e778555]
 - [x] Task: Define Protocol Constants [ac059c5]
     - [ ] Create `lib/constants.ts` (or update existing) with `SEARCH_START`, `DIVIDER`, `REPLACE_END`, etc.
 - [x] Task: Implement Context Construction Logic [36fd44a]
@@ -16,7 +16,7 @@
         - [ ] Define the `FOLLOW_UP_SYSTEM_PROMPT` emphasizing the `SEARCH`/`REPLACE` protocol.
         - [ ] Add specific instructions for Deletions (empty replace block).
         - [ ] Add Web Component awareness instructions.
-- [ ] Task: Conductor - User Manual Verification 'Core Protocol & Backend Setup' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Core Protocol & Backend Setup' (Protocol in workflow.md)
 
 ## Phase 2: Frontend Parsing & State Management
 - [ ] Task: Implement Flexible Regex Helper
