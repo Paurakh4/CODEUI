@@ -1,6 +1,6 @@
 # Plan: User Authentication Flow
 
-## Phase 1: Configuration & Setup
+## Phase 1: Configuration & Setup [checkpoint: 5c110aa]
 - [x] Task: Configure NextAuth.js with Google Provider. [0031445]
     - [ ] Subtask: Create `auth.ts` (or `app/api/auth/[...nextauth]/route.ts`) configuration file.
     - [ ] Subtask: Set up environment variables for Google Client ID and Secret.
