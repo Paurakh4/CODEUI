@@ -141,12 +141,12 @@ describe('Auth Configuration', () => {
           // Public route
           expect(authorized({ auth: null, request: { nextUrl: { pathname: '/' } } })).toBe(true);
           
-          // Protected route, no auth
-          const response = authorized({ auth: null, request: { nextUrl: { pathname: '/api/projects' } } });
-          expect(response).not.toBe(true); 
+          // Protected route (dashboard), no auth
+          const response = authorized({ auth: null, request: { nextUrl: { pathname: '/dashboard' } } });
+          expect(response).toBe(false); 
           
-          // Protected route, with auth
-          expect(authorized({ auth: { user: {} }, request: { nextUrl: { pathname: '/api/projects' } } })).toBe(true);
+          // Protected route (dashboard), with auth
+          expect(authorized({ auth: { user: {} }, request: { nextUrl: { pathname: '/dashboard' } } })).toBe(true);
       });
   });
 });
