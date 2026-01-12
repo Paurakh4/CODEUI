@@ -20,6 +20,6 @@
 ## Phase 3: Route Protection & Logic
 - [x] Task: Implement Middleware for Route Protection. [2331157]
     - [ ] Subtask: Create `middleware.ts` to protect specific routes (e.g., `/dashboard`).
-- [ ] Task: Integrate Auth Logic into Editor.
+- [x] Task: Integrate Auth Logic into Editor. [e6ffc19]
     - [ ] Subtask: Ensure chat functionality checks for authentication if required.
 - [ ] Task: Conductor - User Manual Verification 'Route Protection & Logic' (Protocol in workflow.md)
