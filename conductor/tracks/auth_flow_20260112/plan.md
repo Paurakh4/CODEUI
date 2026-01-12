@@ -9,7 +9,7 @@
     - [ ] Subtask: Update `app/layout.tsx` to include the provider.
 - [ ] Task: Conductor - User Manual Verification 'Configuration & Setup' (Protocol in workflow.md)
 
-## Phase 2: UI Implementation
+## Phase 2: UI Implementation [checkpoint: 9bd2e00]
 - [x] Task: Create Sign-In Dialog Component. [c5d5ade]
     - [ ] Subtask: specific implementation of `components/sign-in-dialog.tsx` using `shadcn/ui` Dialog.
     - [ ] Subtask: Add "Sign in with Google" button with icon.
