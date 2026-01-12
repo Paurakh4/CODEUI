@@ -5,6 +5,7 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { AuthSessionProvider } from '@/components/session-provider'
 import { AuthDialogProvider } from '@/components/auth-dialog-provider'
 import { EditorProvider } from '@/stores/editor-store'
+import { Toaster } from '@/components/ui/toaster'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -30,6 +31,7 @@ export default function RootLayout({
             <AuthDialogProvider>
               <EditorProvider>
                 {children}
+                <Toaster />
               </EditorProvider>
             </AuthDialogProvider>
           </ThemeProvider>

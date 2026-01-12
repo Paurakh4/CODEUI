@@ -2,7 +2,7 @@
  * Escapes special regex characters in a string.
  */
 export const escapeRegExp = (string: string): string => {
-  return string.replace(/[.*+?^${}()|[\\]/g, '\\$&');
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
 /**

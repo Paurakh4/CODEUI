@@ -15,6 +15,7 @@ import { useAuthDialog } from "@/components/auth-dialog-provider"
 import { useAIChat, applySearchReplace } from "@/hooks/use-ai-chat"
 import { useStyleHistory } from "@/hooks/use-style-history"
 import { useEditor } from "@/stores/editor-store"
+import { useToast } from "@/hooks/use-toast"
 import { StreamParser } from "@/lib/parsers/stream-parser"
 import { cn } from "@/lib/utils"
 
@@ -76,6 +77,7 @@ interface EditorLayoutNewProps {
 export function EditorLayoutNew({ initialPrompt, initialModel, onBack }: EditorLayoutNewProps) {
   const router = useRouter()
   const { setApplyingPatch } = useEditor()
+  const { toast } = useToast()
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>("preview")
@@ -170,6 +172,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack }: EditorL
         return true;
       } else {
         console.warn(`Patch failed for ${filePath}: ${result.error}`);
+        toast({
+          title: "Surgical Update Failed",
+          description: `Could not apply change to ${filePath}. Falling back to full update.`,
+          variant: "destructive",
+        });
         return false;
       }
     },
@@ -607,9 +614,10 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack }: EditorL
           </div>
         )
       case "code":
+        const isSurgical = draftAiOutput.includes("<<<<<<< SEARCH") || draftAiOutput.includes("<<<<<<< UPDATE_FILE");
         return (
           <CodeEditor
-            value={isGenerating ? (draftAiOutput || htmlContent) : htmlContent}
+            value={isGenerating && !isSurgical ? (draftAiOutput || htmlContent) : htmlContent}
             onChange={handleCodeChange}
             readOnly={isGenerating}
             className="h-full"
