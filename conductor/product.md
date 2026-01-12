@@ -19,6 +19,7 @@ CodeUI acts as an intelligent intermediary in the development process. By integr
 *   **AI-Powered Chat Interface:** A sidebar dedicated to AI interactions for generating and refining code.
 *   **Integrated Code Editor:** A robust editing environment powered by Monaco Editor.
 *   **Live Preview:** Instant visualization of generated UI components.
+*   **Surgical Reprompting:** Advanced partial update mechanism using a custom SEARCH/REPLACE protocol, allowing precise AI edits without full-file rewrites.
 *   **Modern Stack:** Built on Next.js 16, React 19, and Tailwind CSS 4 for high performance and maintainability.
 *   **Portable Exports:** Generate code that can be easily dropped into any React/Next.js project.
 *   **Secure Authentication:** Google-based sign-in via NextAuth.js to manage user sessions and protect resources.

@@ -20,3 +20,7 @@
 ## Testing
 - **Unit & Integration:** Vitest
 - **Component Testing:** React Testing Library
+
+## Architectural Patterns
+- **Surgical Updates:** Custom SEARCH/REPLACE protocol for partial AI-driven code modifications.
+- **Token-Aware Context:** Priority-based prompt construction with character-count estimation.
