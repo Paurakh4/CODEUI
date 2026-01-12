@@ -15,6 +15,7 @@ import { useAuthDialog } from "@/components/auth-dialog-provider"
 import { useAIChat, applySearchReplace } from "@/hooks/use-ai-chat"
 import { useStyleHistory } from "@/hooks/use-style-history"
 import { useEditor } from "@/stores/editor-store"
+import { StreamParser } from "@/lib/parsers/stream-parser"
 import { cn } from "@/lib/utils"
 
 type ViewMode = "preview" | "design" | "code"
