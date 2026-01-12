@@ -18,7 +18,7 @@
         - [ ] Add Web Component awareness instructions.
 - [x] Task: Conductor - User Manual Verification 'Core Protocol & Backend Setup' (Protocol in workflow.md)
 
-## Phase 2: Frontend Parsing & State Management
+## Phase 2: Frontend Parsing & State Management [checkpoint: c1cd884]
 - [x] Task: Implement Flexible Regex Helper [3e8abb3]
     - [ ] Create `lib/utils/regex-helper.ts`:
         - [ ] Implement `escapeRegExp`.
@@ -37,7 +37,7 @@
     - [ ] Update `stores/editor-store.tsx` (or equivalent):
         - [ ] Add `isApplyingPatch` state.
         - [ ] Update Editor component to be `read-only` when `isApplyingPatch` is true.
-- [ ] Task: Conductor - User Manual Verification 'Frontend Parsing & State Management' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Frontend Parsing & State Management' (Protocol in workflow.md)
 
 ## Phase 3: Patch Application & Fallback Mechanism
 - [ ] Task: Implement Patch Application Logic
