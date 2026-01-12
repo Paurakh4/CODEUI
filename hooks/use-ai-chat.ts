@@ -1,23 +1,27 @@
 "use client"
 
 import { useState, useCallback, useRef } from "react"
+import { StreamParser } from "@/lib/parsers/stream-parser"
 
 interface UseAIChatOptions {
   onContentUpdate?: (content: string) => void
   onThinkingUpdate?: (thinking: string) => void
-  onComplete?: (result: { rawContent: string; extractedHtml: string }) => void
+  onComplete?: (result: { rawContent: string; extractedHtml: string; failedFiles?: string[] }) => void
+  onPatch?: (filePath: string, searchBlock: string, replaceBlock: string) => boolean | void
+  onFileUpdate?: (filePath: string) => void
   onError?: (error: Error) => void
 }
 
 interface SendMessageOptions {
   prompt: string
   currentHtml?: string
+  selectedElement?: string
   model?: string
   isFollowUp?: boolean
 }
 
 export function useAIChat(options: UseAIChatOptions = {}) {
-  const { onContentUpdate, onThinkingUpdate, onComplete, onError } = options
+  const { onContentUpdate, onThinkingUpdate, onComplete, onPatch, onFileUpdate, onError } = options
   
   const [isGenerating, setIsGenerating] = useState(false)
   const [content, setContent] = useState("")
@@ -25,8 +29,23 @@ export function useAIChat(options: UseAIChatOptions = {}) {
   const [error, setError] = useState<Error | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
+  const failedFilesRef = useRef<Set<string>>(new Set())
+  const parserRef = useRef<StreamParser | null>(null)
+
+  if (!parserRef.current) {
+    parserRef.current = new StreamParser({
+      onFileUpdate: (path) => onFileUpdate?.(path),
+      onPatch: (path, search, replace) => {
+        const success = onPatch?.(path, search, replace)
+        if (success === false) {
+          failedFilesRef.current.add(path)
+        }
+      },
+    })
+  }
+
   const sendMessage = useCallback(
-    async ({ prompt, currentHtml, model, isFollowUp }: SendMessageOptions) => {
+    async ({ prompt, currentHtml, selectedElement, model, isFollowUp }: SendMessageOptions) => {
       // Cancel any existing request
       if (abortControllerRef.current) {
         abortControllerRef.current.abort()
@@ -37,6 +56,8 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       setContent("")
       setThinking("")
       setError(null)
+      failedFilesRef.current.clear()
+      parserRef.current?.reset()
 
       let fullContent = ""
       let fullThinking = ""
@@ -50,6 +71,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
           body: JSON.stringify({
             prompt,
             currentHtml,
+            selectedElement,
             model,
             isFollowUp,
           }),
@@ -89,6 +111,8 @@ export function useAIChat(options: UseAIChatOptions = {}) {
                   fullContent += data.data
                   setContent(fullContent)
                   onContentUpdate?.(fullContent)
+                  // Detect patches in real-time
+                  parserRef.current?.parse(fullContent)
                 } else if (data.type === "thinking") {
                   fullThinking += data.data
                   setThinking(fullThinking)
@@ -103,7 +127,13 @@ export function useAIChat(options: UseAIChatOptions = {}) {
 
         // Extract HTML from the response
         const extractedHtml = extractHtml(fullContent)
-        onComplete?.({ rawContent: fullContent, extractedHtml })
+        const failedFiles = Array.from(failedFilesRef.current)
+        
+        onComplete?.({ 
+          rawContent: fullContent, 
+          extractedHtml, 
+          failedFiles: failedFiles.length > 0 ? failedFiles : undefined 
+        })
 
         return extractedHtml
       } catch (err) {
@@ -121,7 +151,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
         abortControllerRef.current = null
       }
     },
-    [onContentUpdate, onThinkingUpdate, onComplete, onError]
+    [onContentUpdate, onThinkingUpdate, onComplete, onPatch, onFileUpdate, onError]
   )
 
   const cancel = useCallback(() => {
@@ -146,6 +176,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
     content,
     thinking,
     error,
+    failedFiles: Array.from(failedFilesRef.current)
   }
 }
 

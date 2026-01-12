@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { getCombinedSystemPrompt } from "@/lib/prompts/frontend-design"
+import { FOLLOW_UP_SYSTEM_PROMPT } from "@/lib/prompts/reprompt-system"
+import { buildContext } from "@/lib/context-builder"
 import { getModelsRecord, isModelEnabled, getDefaultModelId } from "@/lib/ai-models"
 
 // Get enabled AI models from configuration
@@ -20,6 +22,7 @@ interface Message {
 interface RequestBody {
   prompt: string
   currentHtml?: string
+  selectedElement?: string
   model?: ModelId
   isFollowUp?: boolean
 }
@@ -27,9 +30,6 @@ interface RequestBody {
 export async function POST(req: NextRequest) {
   try {
     const session = await auth()
-    
-    // Rate limiting for unauthenticated users
-    // const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown"
     
     if (!session?.user) {
       return NextResponse.json(
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body: RequestBody = await req.json()
-    const { prompt, currentHtml, model = getDefaultModelId(), isFollowUp = false } = body
+    const { prompt, currentHtml, selectedElement, model = getDefaultModelId(), isFollowUp = false } = body
 
     if (!prompt || typeof prompt !== "string") {
       return NextResponse.json(
@@ -66,21 +66,22 @@ export async function POST(req: NextRequest) {
     }
 
     // Build messages array
-    // The system prompt is securely loaded from a server-only module
-    const systemPrompt = getCombinedSystemPrompt()
+    // Use follow-up prompt if it's a modification request
+    const systemPrompt = isFollowUp ? FOLLOW_UP_SYSTEM_PROMPT : getCombinedSystemPrompt()
     
     const messages: Message[] = [
       { role: "system", content: systemPrompt },
     ]
 
     if (isFollowUp && currentHtml) {
+      const context = buildContext({
+        currentFile: { name: 'index.html', content: currentHtml },
+        selectedElement: selectedElement,
+      })
+
       messages.push({
         role: "user",
-        content: `Here is my current HTML code:
-
-${currentHtml}
-
-Please modify it based on this request: ${prompt}`,
+        content: `${context}\n\nUser Request: ${prompt}`,
       })
     } else {
       messages.push({

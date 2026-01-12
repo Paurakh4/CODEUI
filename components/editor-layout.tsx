@@ -14,6 +14,7 @@ import { useSession } from "next-auth/react"
 import { useAuthDialog } from "@/components/auth-dialog-provider"
 import { useAIChat, applySearchReplace } from "@/hooks/use-ai-chat"
 import { useStyleHistory } from "@/hooks/use-style-history"
+import { useEditor } from "@/stores/editor-store"
 import { cn } from "@/lib/utils"
 
 type ViewMode = "preview" | "design" | "code"
@@ -73,6 +74,7 @@ interface EditorLayoutNewProps {
 
 export function EditorLayoutNew({ initialPrompt, initialModel, onBack }: EditorLayoutNewProps) {
   const router = useRouter()
+  const { setApplyingPatch } = useEditor()
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>("preview")
@@ -129,7 +131,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack }: EditorL
     }
   }, [])
 
-  // AI Chat Hook
   const {
     sendMessage: sendAIMessage,
     cancel: cancelAI,
@@ -151,20 +152,54 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack }: EditorL
         return prev
       })
     },
-    onComplete: ({ rawContent, extractedHtml }) => {
+    onPatch: (filePath, search, replace) => {
+      let patchApplied = false;
+      // Lock editor during patch
+      // Actually, useAIChat handles streaming, so we should lock for the duration of the stream
+      // but let's be safe and use setApplyingPatch here if needed.
+      
+      setHtmlContent((currentHtml) => {
+        const parser = new StreamParser({});
+        const result = parser.applyPatch(currentHtml, search, replace);
+        
+        if (result.success) {
+          patchApplied = true;
+          return result.content;
+        } else {
+          console.warn(`Patch failed for ${filePath}: ${result.error}`);
+          return currentHtml;
+        }
+      });
+      return patchApplied;
+    },
+    onComplete: ({ rawContent, extractedHtml, failedFiles }) => {
       const isFollowUp = hasGeneratedOnce
 
-      const newHtml = isFollowUp
-        ? applySearchReplace(htmlContent, rawContent)
-        : extractedHtml
-
-      if (newHtml.includes("<!DOCTYPE") || newHtml.includes("<html")) {
-        setHtmlContent(newHtml)
-        setHasUnsavedChanges(true)
-        setHasGeneratedOnce(true)
+      if (failedFiles && failedFiles.length > 0) {
+        console.log("Some patches failed, triggering fallback logic.");
+        // Try to see if extractedHtml is a full valid document
+        if (extractedHtml.includes("<!DOCTYPE") || extractedHtml.includes("<html")) {
+            setHtmlContent(extractedHtml)
+            setHasUnsavedChanges(true)
+            setHasGeneratedOnce(true)
+        } else {
+            // Trigger a NEW call for the full file
+            // Note: We need to be careful not to create infinite loops.
+            // We'll add a toast or message.
+            handleSend("The previous partial update failed. Please provide the FULL HTML content with the requested changes applied.");
+        }
+      } else {
+        // If it was a follow-up, patches were applied in real-time via onPatch.
+        // If it was the first generation, we use the extractedHtml.
+        if (!isFollowUp && (extractedHtml.includes("<!DOCTYPE") || extractedHtml.includes("<html"))) {
+            setHtmlContent(extractedHtml)
+            setHasUnsavedChanges(true)
+            setHasGeneratedOnce(true)
+        }
       }
 
       setDraftAiOutput("")
+      setApplyingPatch(false)
 
       // Mark thinking as complete + leave a short status in chat
       setMessages((prev) => {
@@ -181,6 +216,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack }: EditorL
     },
     onError: (error) => {
       setDraftAiOutput("")
+      setApplyingPatch(false)
       setMessages((prev) => {
         const lastMessage = prev[prev.length - 1]
         if (lastMessage && lastMessage.role === "assistant") {
@@ -228,9 +264,26 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack }: EditorL
 
       // Send to AI
       const isFollowUp = messages.length > 0
+      setApplyingPatch(true)
+      
+      let selectedElementHtml = undefined
+      if (isFollowUp && selectedElement) {
+        try {
+          const parser = new DOMParser()
+          const doc = parser.parseFromString(htmlContent, "text/html")
+          const element = doc.querySelector(selectedElement.id)
+          if (element) {
+            selectedElementHtml = element.outerHTML
+          }
+        } catch (e) {
+          console.error("Failed to extract selected element HTML", e)
+        }
+      }
+
       await sendAIMessage({
         prompt: message,
         currentHtml: isFollowUp ? htmlContent : undefined,
+        selectedElement: selectedElementHtml,
         isFollowUp,
         model,
       })
