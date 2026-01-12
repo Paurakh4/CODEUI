@@ -17,7 +17,7 @@
     - [ ] Subtask: Modify `components/sidebar.tsx` or `components/user-menu.tsx` to show user avatar/name when logged in, or a "Sign In" button when logged out.
 - [ ] Task: Conductor - User Manual Verification 'UI Implementation' (Protocol in workflow.md)
 
-## Phase 3: Route Protection & Logic
+## Phase 3: Route Protection & Logic [checkpoint: bccf19b]
 - [x] Task: Implement Middleware for Route Protection. [2331157]
     - [ ] Subtask: Create `middleware.ts` to protect specific routes (e.g., `/dashboard`).
 - [x] Task: Integrate Auth Logic into Editor. [e6ffc19]
