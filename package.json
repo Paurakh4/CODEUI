@@ -8,7 +8,6 @@
     "dev:local": "bash ./scripts/dev-local.sh",
     "lint": "eslint .",
     "start": "next start",
-    "test": "vitest",
     "db:setup": "bash ./scripts/setup-mongodb-macos.sh",
     "db:ping": "bash ./scripts/mongodb-healthcheck.sh",
     "db:status": "brew services list | grep -E 'mongodb|mongo' || true",
@@ -80,21 +79,12 @@
   "devDependencies": {
     "@iconify-json/solar": "^1.2.5",
     "@tailwindcss/postcss": "^4.1.9",
-    "@testing-library/dom": "^10.4.1",
-    "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.1",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vitejs/plugin-react": "^5.1.2",
-    "@vitest/coverage-v8": "^4.0.17",
-    "dotenv": "^17.2.3",
-    "jsdom": "^27.4.0",
     "postcss": "^8.5",
     "tailwindcss": "^4.1.9",
     "tw-animate-css": "1.3.3",
-    "typescript": "^5",
-    "vite-tsconfig-paths": "^6.0.4",
-    "vitest": "^4.0.17"
+    "typescript": "^5"
   }
 }
