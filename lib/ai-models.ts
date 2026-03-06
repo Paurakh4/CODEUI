@@ -16,6 +16,8 @@ export interface AIModel {
   isNew?: boolean
 }
 
+export const CODEUI_GOD_MODE_MODEL_ID = "google/gemini-3-flash-preview"
+
 // All available models (master list)
 const ALL_MODELS: AIModel[] = [
   {
@@ -74,11 +76,20 @@ const ALL_MODELS: AIModel[] = [
     isFast: true,
   },
   {
-    id: "google/gemini-3-flash-preview",
+    id: CODEUI_GOD_MODE_MODEL_ID,
     name: "CODEUI GOD MODE",
     provider: "Google",
     description: "Latest Gemini model preview",
     contextLength: 2000000,
+    isFast: true,
+    isNew: true,
+  },
+  {
+    id: "google/gemini-3.1-flash-lite-preview",
+    name: "Gemini 3.1 Flash Lite Preview",
+    provider: "Google",
+    description: "Fast and lightweight Gemini 3.1 preview model",
+    contextLength: 1000000,
     isFast: true,
     isNew: true,
   },
@@ -131,11 +142,64 @@ export function isModelEnabled(id: string): boolean {
 
 /**
  * Get default model ID
- * Uses the first enabled model or falls back to DeepSeek V3
+ * Prefers CODEUI GOD MODE when available, otherwise first enabled model.
  */
 export function getDefaultModelId(): string {
   const enabled = getEnabledModels()
-  return enabled.length > 0 ? enabled[0].id : "deepseek/deepseek-chat"
+  const preferred = enabled.find((model) => model.id === CODEUI_GOD_MODE_MODEL_ID)
+  if (preferred) {
+    return preferred.id
+  }
+
+  return enabled.length > 0 ? enabled[0].id : CODEUI_GOD_MODE_MODEL_ID
+}
+
+/**
+ * Build an ordered fallback chain for generation-time failover.
+ * Priority:
+ * 1) Requested/enforced primary model (if enabled)
+ * 2) Default model
+ * 3) CODEUI GOD MODE model
+ * 4) Remaining enabled models (prefer different providers first)
+ */
+export function getModelFallbackChain(primaryModelId?: string): string[] {
+  const enabled = getEnabledModels()
+
+  if (enabled.length === 0) {
+    return [CODEUI_GOD_MODE_MODEL_ID]
+  }
+
+  const byId = new Map(enabled.map((model) => [model.id, model]))
+  const resolvedPrimary =
+    primaryModelId && byId.has(primaryModelId)
+      ? primaryModelId
+      : getDefaultModelId()
+
+  const chain: string[] = []
+  const seen = new Set<string>()
+
+  const pushIfEnabled = (id?: string) => {
+    if (!id || seen.has(id) || !byId.has(id)) {
+      return
+    }
+
+    seen.add(id)
+    chain.push(id)
+  }
+
+  pushIfEnabled(resolvedPrimary)
+  pushIfEnabled(getDefaultModelId())
+  pushIfEnabled(CODEUI_GOD_MODE_MODEL_ID)
+
+  const primaryProvider = byId.get(resolvedPrimary)?.provider
+
+  enabled
+    .filter((model) => model.provider !== primaryProvider)
+    .forEach((model) => pushIfEnabled(model.id))
+
+  enabled.forEach((model) => pushIfEnabled(model.id))
+
+  return chain
 }
 
 /**

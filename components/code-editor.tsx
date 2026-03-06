@@ -1,11 +1,15 @@
 "use client"
 
-import { useRef, useCallback } from "react"
-import Editor, { OnMount, BeforeMount, Monaco } from "@monaco-editor/react"
-import type { editor, IPosition } from "monaco-editor"
+import { useRef, useCallback, useEffect } from "react"
+import Editor, { loader } from "@monaco-editor/react"
+import type { OnMount, BeforeMount } from "@monaco-editor/react"
+import * as monaco from "monaco-editor"
+import type { editor } from "monaco-editor"
 import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useEditor } from "@/stores/editor-store"
+
+loader.config({ monaco })
 
 interface CodeEditorProps {
   value: string
@@ -24,6 +28,28 @@ export function CodeEditor({
 }: CodeEditorProps) {
   const { state } = useEditor()
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") {
+      return
+    }
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason as { message?: string; stack?: string } | undefined
+      const message = reason?.message || ""
+      const stack = reason?.stack || ""
+
+      if (message === "Canceled" && stack.includes("monaco-editor")) {
+        event.preventDefault()
+      }
+    }
+
+    window.addEventListener("unhandledrejection", handleUnhandledRejection)
+
+    return () => {
+      window.removeEventListener("unhandledrejection", handleUnhandledRejection)
+    }
+  }, [])
 
   const handleBeforeMount: BeforeMount = useCallback((monaco) => {
     // Define custom dark theme
@@ -125,10 +151,13 @@ export function CodeEditor({
       <Editor
         height="100%"
         defaultLanguage={language}
+        path="/project/index.html"
         value={value}
         onChange={handleEditorChange}
         beforeMount={handleBeforeMount}
         onMount={handleEditorMount}
+        keepCurrentModel
+        saveViewState
         theme="codeui-dark"
         loading={
           <div className="flex items-center justify-center h-full bg-zinc-950">
@@ -172,6 +201,8 @@ export function CodeEditor({
           showFoldingControls: "mouseover",
           links: true,
           colorDecorators: true,
+          selectionHighlight: false,
+          occurrencesHighlight: "off",
         }}
       />
     </div>

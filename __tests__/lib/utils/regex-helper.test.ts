@@ -1,68 +1,49 @@
-import { describe, it, expect } from 'vitest';
-// @ts-ignore
-import { createFlexibleHtmlRegex, escapeRegExp } from '../../../lib/utils/regex-helper';
+import { describe, expect, it } from 'vitest'
+import { createFlexibleHtmlRegex, escapeRegExp } from '../../../lib/utils/regex-helper'
 
 describe('escapeRegExp', () => {
-  it('should escape special regex characters', () => {
-    // Note: JS regex might not escape ] if it's not closing a class, which is fine.
-    // My implementation escapes [ but not ] depending on the regex.
-    const escaped = escapeRegExp('[].*+?^${}()|\\');
-    expect(escaped).toContain('\\[');
-    expect(escaped).toContain('\\.');
-    expect(escaped).toContain('\\*');
-  });
-});
+  it('escapes special regex characters', () => {
+    const escaped = escapeRegExp('[].*+?^${}()|\\')
+    expect(escaped).toContain('\\[')
+    expect(escaped).toContain('\\.')
+    expect(escaped).toContain('\\*')
+  })
+})
 
 describe('createFlexibleHtmlRegex', () => {
-  it('should match exact string', () => {
-    const search = '<div class="btn">Click me</div>';
-    const regex = createFlexibleHtmlRegex(search);
-    expect(regex.test(search)).toBe(true);
-  });
+  it('matches exact strings', () => {
+    const search = '<div class="btn">Click me</div>'
+    const regex = createFlexibleHtmlRegex(search)
+    expect(regex.test(search)).toBe(true)
+  })
 
-  it('should handle whitespace variations (AI hallucination: extra spaces)', () => {
-    const search = '<div class="btn">Click me</div>';
-    const actual = '<div  class="btn" >Click me</div >';
-    const regex = createFlexibleHtmlRegex(search);
-    expect(regex.test(actual)).toBe(true);
-  });
+  it('handles whitespace variations', () => {
+    const search = '<div class="btn">Click me</div>'
+    const actual = '<div  class="btn" >Click me</div >'
+    expect(actual).toMatch(createFlexibleHtmlRegex(search))
+  })
 
-  it('should handle newline variations', () => {
-    const search = '<div>\n  <span>Hello</span>\n</div>';
-    const actual = '<div> <span>Hello</span> </div>';
-    const regex = createFlexibleHtmlRegex(search);
-    expect(regex.test(actual)).toBe(true);
-  });
+  it('matches single and double quotes interchangeably', () => {
+    const search = '<button class="cta">Go</button>'
+    const actual = "<button class='cta'>Go</button>"
+    expect(actual).toMatch(createFlexibleHtmlRegex(search))
+  })
 
-  it('should handle space between tags', () => {
-    const search = '<div></div><div></div>';
-    const actual = '<div></div>  <div></div>';
-    const regex = createFlexibleHtmlRegex(search);
-    expect(regex.test(actual)).toBe(true);
-  });
+  it('allows flexible delimiter spacing', () => {
+    const search = 'const total=(price+tax);'
+    const actual = 'const total = ( price + tax ) ;'
+    expect(actual).toMatch(createFlexibleHtmlRegex(search))
+  })
 
-  it('should match multi-line blocks with varying indentation', () => {
-    const search = `
-<section>
-  <h1>Title</h1>
-  <p>Text</p>
-</section>
-    `.trim();
-    
-    const actual = `
-<section >
-    <h1>Title</h1>
-<p>Text</p>
-</section>
-    `.trim();
+  it('handles multi-line blocks with varying indentation', () => {
+    const search = ['<section>', '  <h1>Title</h1>', '  <p>Text</p>', '</section>'].join('\n')
+    const actual = ['<section >', '    <h1>Title</h1>', '<p>Text</p>', '</section>'].join('\n')
+    expect(actual).toMatch(createFlexibleHtmlRegex(search))
+  })
 
-    const regex = createFlexibleHtmlRegex(search);
-    expect(actual).toMatch(regex);
-  });
-
-  it('should escape regex characters in search block', () => {
-    const search = 'const x = (a + b) * c;';
-    const regex = createFlexibleHtmlRegex(search);
-    expect(regex.test(search)).toBe(true);
-  });
-});
+  it('returns a safe regex for empty input', () => {
+    const regex = createFlexibleHtmlRegex('   ')
+    expect(regex.test('')).toBe(true)
+    expect(regex.test('content')).toBe(false)
+  })
+})

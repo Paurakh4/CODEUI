@@ -18,6 +18,7 @@ export interface PreviewFrameProps {
   deviceMode: DeviceMode
   className?: string
   onElementSelect?: (element: SelectedElementInfo) => void
+  onTextChange?: (selector: string, text: string) => void
   isDesignMode?: boolean
   forwardedRef?: React.RefObject<HTMLIFrameElement | null>
   isStyleUpdate?: boolean
@@ -34,6 +35,7 @@ export function PreviewFrame({
   deviceMode,
   className,
   onElementSelect,
+  onTextChange,
   isDesignMode = false,
   forwardedRef,
   isStyleUpdate = false,
@@ -69,7 +71,7 @@ export function PreviewFrame({
     return () => {
       iframe.onload = null
     }
-  }, [htmlContent, key, isStyleUpdate])
+  }, [htmlContent, key])
 
   // Refresh the preview
   const handleRefresh = useCallback(() => {
@@ -89,10 +91,104 @@ export function PreviewFrame({
       const doc = iframe.contentDocument || iframe.contentWindow?.document
       if (!doc || !doc.body) return
 
+      let editingElement: HTMLElement | null = null
+      let editingSelector = ""
+      let originalText = ""
+
+      const isEditing = (target: HTMLElement | null) => {
+        if (!editingElement || !target) return false
+        return editingElement === target || editingElement.contains(target)
+      }
+
+      const isEditableTextElement = (element: HTMLElement) => {
+        const tag = element.tagName.toLowerCase()
+        if ([
+          "html",
+          "body",
+          "script",
+          "style",
+          "img",
+          "svg",
+          "path",
+          "input",
+          "textarea",
+          "select",
+        ].includes(tag)) {
+          return false
+        }
+
+        const hasText = Array.from(element.childNodes).some((node) => {
+          return node.nodeType === Node.TEXT_NODE && node.textContent?.trim()
+        })
+
+        return hasText
+      }
+
+      const findEditableTextElement = (start: HTMLElement) => {
+        let current: HTMLElement | null = start
+        while (current && current !== doc.body && current !== doc.documentElement) {
+          if (isEditableTextElement(current)) return current
+          current = current.parentElement
+        }
+        return null
+      }
+
+      const stopEditing = (options?: { cancel?: boolean }) => {
+        if (!editingElement) return
+
+        const element = editingElement
+        element.removeAttribute("contenteditable")
+        element.removeEventListener("blur", handleEditingBlur)
+
+        if (options?.cancel) {
+          element.textContent = originalText
+        } else {
+          const newText = element.textContent ?? ""
+          if (newText !== originalText) {
+            onTextChange?.(editingSelector, newText)
+          }
+        }
+
+        editingElement = null
+        editingSelector = ""
+        originalText = ""
+      }
+
+      const handleEditingBlur = () => {
+        stopEditing()
+      }
+
+      const startEditing = (element: HTMLElement) => {
+        if (editingElement && editingElement !== element) {
+          stopEditing()
+        }
+
+        editingElement = element
+        editingSelector = getElementPath(element)
+        originalText = element.textContent ?? ""
+
+        element.setAttribute("contenteditable", "true")
+        element.style.outline = ""
+        element.style.outlineOffset = ""
+        element.focus({ preventScroll: true })
+
+        const selection = doc.getSelection()
+        if (selection) {
+          const range = doc.createRange()
+          range.selectNodeContents(element)
+          selection.removeAllRanges()
+          selection.addRange(range)
+        }
+
+        element.addEventListener("blur", handleEditingBlur)
+      }
+
       const handleClick = (e: MouseEvent) => {
+        const target = e.target as HTMLElement
+        if (isEditing(target)) return
+
         e.preventDefault()
         e.stopPropagation()
-        const target = e.target as HTMLElement
         if (target && onElementSelect) {
           // Create a unique selector for the element
           const path = getElementPath(target)
@@ -138,6 +234,7 @@ export function PreviewFrame({
             id: target.id,
             className: target.className,
             tagName: target.tagName.toLowerCase(),
+            textContent: target.textContent ?? "",
           }
 
           onElementSelect({
@@ -152,6 +249,7 @@ export function PreviewFrame({
 
       const handleMouseOver = (e: MouseEvent) => {
         const target = e.target as HTMLElement
+        if (isEditing(target)) return
         if (target && target !== doc.body && target !== doc.documentElement) {
           target.style.outline = "2px solid #3b82f6"
           target.style.outlineOffset = "2px"
@@ -160,20 +258,52 @@ export function PreviewFrame({
 
       const handleMouseOut = (e: MouseEvent) => {
         const target = e.target as HTMLElement
+        if (isEditing(target)) return
         if (target) {
           target.style.outline = ""
           target.style.outlineOffset = ""
         }
       }
 
+      const handleDoubleClick = (e: MouseEvent) => {
+        const target = e.target as HTMLElement
+        const editable = target ? findEditableTextElement(target) : null
+        if (!editable) return
+
+        e.preventDefault()
+        e.stopPropagation()
+        startEditing(editable)
+      }
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (!editingElement) return
+        const target = e.target as HTMLElement
+        if (!isEditing(target)) return
+
+        if (e.key === "Enter") {
+          e.preventDefault()
+          stopEditing()
+        }
+
+        if (e.key === "Escape") {
+          e.preventDefault()
+          stopEditing({ cancel: true })
+        }
+      }
+
       doc.addEventListener("click", handleClick)
       doc.addEventListener("mouseover", handleMouseOver)
       doc.addEventListener("mouseout", handleMouseOut)
+      doc.addEventListener("dblclick", handleDoubleClick)
+      doc.addEventListener("keydown", handleKeyDown, true)
 
       cleanupFn = () => {
         doc.removeEventListener("click", handleClick)
         doc.removeEventListener("mouseover", handleMouseOver)
         doc.removeEventListener("mouseout", handleMouseOut)
+        doc.removeEventListener("dblclick", handleDoubleClick)
+        doc.removeEventListener("keydown", handleKeyDown, true)
+        stopEditing({ cancel: true })
       }
     }
 
@@ -194,7 +324,7 @@ export function PreviewFrame({
       iframe.removeEventListener("load", handleIframeLoad)
       if (cleanupFn) cleanupFn()
     }
-  }, [isDesignMode, htmlContent, onElementSelect, key])
+  }, [isDesignMode, htmlContent, onElementSelect, onTextChange, key])
 
   return (
     <div className={cn("relative flex flex-col", className)}>
@@ -250,8 +380,9 @@ export function PreviewFrame({
 function getElementPath(element: HTMLElement): string {
   const path: string[] = []
   let current: HTMLElement | null = element
+  const doc = element.ownerDocument
   
-  while (current && current !== document.body && current !== document.documentElement) {
+  while (current && current !== doc.body && current !== doc.documentElement) {
     let selector = current.tagName.toLowerCase()
     
     if (current.id) {

@@ -1,14 +1,43 @@
 "use client"
 
 import { useState, useCallback, useRef } from "react"
-import { StreamParser } from "@/lib/parsers/stream-parser"
+import { DIVIDER, REPLACE_END, SEARCH_START } from "@/lib/constants"
+import {
+  detectIncompletePatchBlocks,
+  StreamParser,
+  validateAIResponse,
+} from "@/lib/parsers/stream-parser"
+import { createRepromptLogger } from "@/lib/utils/reprompt-logger"
+
+export interface ConversationHistoryItem {
+  role: "user" | "assistant"
+  content: string
+}
+
+export interface AIStreamMeta {
+  requestedModel?: string
+  modelUsed?: string
+  fallbackUsed?: boolean
+}
+
+export interface AICompletionResult {
+  rawContent: string
+  extractedHtml: string
+  failedFiles?: string[]
+  recoveryMode?: boolean
+  incompletePatches?: number
+  validationError?: string
+  meta?: AIStreamMeta
+}
 
 interface UseAIChatOptions {
   onContentUpdate?: (content: string) => void
   onThinkingUpdate?: (thinking: string) => void
-  onComplete?: (result: { rawContent: string; extractedHtml: string; failedFiles?: string[] }) => void
+  onComplete?: (result: AICompletionResult) => void
   onPatch?: (filePath: string, searchBlock: string, replaceBlock: string) => boolean | void
   onFileUpdate?: (filePath: string) => void
+  onProjectNameUpdate?: (name: string) => void
+  onNewFile?: (filePath: string, content: string) => void
   onError?: (error: Error) => void
 }
 
@@ -18,25 +47,39 @@ interface SendMessageOptions {
   selectedElement?: string
   model?: string
   isFollowUp?: boolean
+  recoveryMode?: boolean | "full-document"
+  enhancedPrompts?: boolean
+  primaryColor?: string
+  secondaryColor?: string
+  theme?: "light" | "dark"
+  conversationHistory?: ConversationHistoryItem[]
 }
 
+const logger = createRepromptLogger("use-ai-chat")
+
 export function useAIChat(options: UseAIChatOptions = {}) {
-  // Use refs for callbacks to avoid stale closure issues during async streaming
   const optionsRef = useRef(options)
   optionsRef.current = options
-  
+
   const [isGenerating, setIsGenerating] = useState(false)
   const [content, setContent] = useState("")
   const [thinking, setThinking] = useState("")
   const [error, setError] = useState<Error | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
-
+  const requestCounterRef = useRef(0)
+  const activeRequestIdRef = useRef<number | null>(null)
   const failedFilesRef = useRef<Set<string>>(new Set())
+  const incompletePatchCountRef = useRef(0)
   const parserRef = useRef<StreamParser | null>(null)
 
   if (!parserRef.current) {
     parserRef.current = new StreamParser({
       onFileUpdate: (path) => optionsRef.current.onFileUpdate?.(path),
+      onProjectNameUpdate: (name) => optionsRef.current.onProjectNameUpdate?.(name),
+      onNewFile: (path, fileContent) => optionsRef.current.onNewFile?.(path, fileContent),
+      onIncompletePatch: (count) => {
+        incompletePatchCountRef.current = count
+      },
       onPatch: (path, search, replace) => {
         const success = optionsRef.current.onPatch?.(path, search, replace)
         if (success === false) {
@@ -47,28 +90,110 @@ export function useAIChat(options: UseAIChatOptions = {}) {
   }
 
   const sendMessage = useCallback(
-    async ({ prompt, currentHtml, selectedElement, model, isFollowUp }: SendMessageOptions) => {
-      // ...
+    async ({
+      prompt,
+      currentHtml,
+      selectedElement,
+      model,
+      isFollowUp,
+      recoveryMode,
+      enhancedPrompts,
+      primaryColor,
+      secondaryColor,
+      theme,
+      conversationHistory,
+    }: SendMessageOptions) => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort()
       }
 
-      abortControllerRef.current = new AbortController()
+      const requestId = requestCounterRef.current + 1
+      requestCounterRef.current = requestId
+      activeRequestIdRef.current = requestId
+
+      const abortController = new AbortController()
+      abortControllerRef.current = abortController
       setIsGenerating(true)
       setContent("")
       setThinking("")
       setError(null)
       failedFilesRef.current.clear()
+      incompletePatchCountRef.current = 0
       parserRef.current?.reset()
 
       let fullContent = ""
       let fullThinking = ""
+      let responseMeta: AIStreamMeta | undefined
+      let chunkCount = 0
+
+      const processSseBlocks = (blocks: string[]) => {
+        for (const block of blocks) {
+          if (!block.startsWith("data: ")) {
+            continue
+          }
+
+          try {
+            const data = JSON.parse(block.slice(6))
+
+            if (data.type === "meta") {
+              responseMeta = data.data
+              logger.info("Received stream meta", {
+                phase: "stream",
+                requestId,
+                ...responseMeta,
+              })
+              continue
+            }
+
+            if (data.type === "error") {
+              throw new Error(data.data || "AI stream error")
+            }
+
+            if (data.type === "content") {
+              if (activeRequestIdRef.current !== requestId) {
+                continue
+              }
+
+              chunkCount += 1
+              fullContent += data.data
+              setContent(fullContent)
+              optionsRef.current.onContentUpdate?.(fullContent)
+              parserRef.current?.parse(fullContent)
+              continue
+            }
+
+            if (data.type === "thinking") {
+              if (activeRequestIdRef.current !== requestId) {
+                continue
+              }
+
+              fullThinking += data.data
+              setThinking(fullThinking)
+              optionsRef.current.onThinkingUpdate?.(fullThinking)
+            }
+          } catch (blockError) {
+            if (blockError instanceof Error) {
+              throw blockError
+            }
+          }
+        }
+      }
+
+      logger.info("Starting AI request", {
+        phase: "stream",
+        requestId,
+        isFollowUp: Boolean(isFollowUp),
+        recoveryMode: recoveryMode === true || recoveryMode === "full-document",
+        model,
+      })
 
       try {
         const response = await fetch("/api/ai", {
           method: isFollowUp ? "PUT" : "POST",
           headers: {
             "Content-Type": "application/json",
+            "X-CodeUI-Request-ID": String(requestId),
+            "X-CodeUI-Recovery": recoveryMode === true || recoveryMode === "full-document" ? "1" : "0",
           },
           body: JSON.stringify({
             prompt,
@@ -76,12 +201,19 @@ export function useAIChat(options: UseAIChatOptions = {}) {
             selectedElement,
             model,
             isFollowUp,
+            recoveryMode,
+            enhancedPrompts,
+            primaryColor,
+            secondaryColor,
+            theme,
+            conversationHistory,
+            isRecoveryRequest: recoveryMode === true || recoveryMode === "full-document",
           }),
-          signal: abortControllerRef.current.signal,
+          signal: abortController.signal,
         })
 
         if (!response.ok) {
-          const errorData = await response.json()
+          const errorData = await response.json().catch(() => ({ error: "Failed to generate content" }))
           throw new Error(errorData.error || "Failed to generate content")
         }
 
@@ -94,71 +226,94 @@ export function useAIChat(options: UseAIChatOptions = {}) {
         let buffer = ""
 
         while (true) {
+          if (activeRequestIdRef.current !== requestId) {
+            logger.info("Cancelling stale request", { phase: "stream", requestId })
+            await reader.cancel().catch(() => {})
+            return null
+          }
+
           const { done, value } = await reader.read()
-          
           if (done) {
+            if (buffer.trim()) {
+              processSseBlocks(buffer.split("\n\n").filter(Boolean))
+            }
             break
           }
 
           buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split("\n\n")
-          buffer = lines.pop() || ""
-
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              try {
-                const data = JSON.parse(line.slice(6))
-                
-                if (data.type === "content") {
-                  fullContent += data.data
-                  setContent(fullContent)
-                  optionsRef.current.onContentUpdate?.(fullContent)
-                  // Detect patches in real-time
-                  parserRef.current?.parse(fullContent)
-                } else if (data.type === "thinking") {
-                  fullThinking += data.data
-                  setThinking(fullThinking)
-                  optionsRef.current.onThinkingUpdate?.(fullThinking)
-                }
-              } catch {
-                // Skip invalid JSON
-              }
-            }
-          }
+          const blocks = buffer.split("\n\n")
+          buffer = blocks.pop() || ""
+          processSseBlocks(blocks)
         }
 
-        // Extract HTML from the response
+        if (activeRequestIdRef.current !== requestId) {
+          return null
+        }
+
         const extractedHtml = extractHtml(fullContent)
         const failedFiles = Array.from(failedFilesRef.current)
-        
-        optionsRef.current.onComplete?.({ 
-          rawContent: fullContent, 
-          extractedHtml, 
-          failedFiles: failedFiles.length > 0 ? failedFiles : undefined 
+        const incompletePatches = Math.max(
+          incompletePatchCountRef.current,
+          detectIncompletePatchBlocks(fullContent),
+        )
+        const validation = validateAIResponse(fullContent)
+
+        logger.info("Completed AI request", {
+          phase: "stream",
+          requestId,
+          chunkCount,
+          contentLength: fullContent.length,
+          failedFileCount: failedFiles.length,
+          incompletePatches,
+          validationError: validation.valid ? undefined : validation.reason,
+        })
+
+        optionsRef.current.onComplete?.({
+          rawContent: fullContent,
+          extractedHtml,
+          failedFiles: failedFiles.length > 0 ? failedFiles : undefined,
+          recoveryMode: recoveryMode === true || recoveryMode === "full-document",
+          incompletePatches,
+          validationError: validation.valid ? undefined : validation.reason,
+          meta: responseMeta,
         })
 
         return extractedHtml
       } catch (err) {
         if (err instanceof Error && err.name === "AbortError") {
-          // Request was cancelled
+          logger.info("AI request aborted", { phase: "stream", requestId })
           return null
         }
-        
-        const error = err instanceof Error ? err : new Error("Unknown error")
-        setError(error)
-        optionsRef.current.onError?.(error)
-        throw error
+
+        if (activeRequestIdRef.current !== requestId) {
+          return null
+        }
+
+        const nextError = err instanceof Error ? err : new Error("Unknown error")
+        logger.error("AI request failed", {
+          phase: "stream",
+          requestId,
+          error: nextError.message,
+        })
+        setError(nextError)
+        optionsRef.current.onError?.(nextError)
+        throw nextError
       } finally {
-        setIsGenerating(false)
-        abortControllerRef.current = null
+        if (activeRequestIdRef.current === requestId) {
+          setIsGenerating(false)
+          activeRequestIdRef.current = null
+          abortControllerRef.current = null
+        }
       }
     },
-    []
+    [],
   )
 
   const cancel = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
+      activeRequestIdRef.current = null
+      abortControllerRef.current = null
       setIsGenerating(false)
     }
   }, [])
@@ -167,6 +322,8 @@ export function useAIChat(options: UseAIChatOptions = {}) {
     setContent("")
     setThinking("")
     setError(null)
+    failedFilesRef.current.clear()
+    incompletePatchCountRef.current = 0
     cancel()
   }, [cancel])
 
@@ -178,26 +335,11 @@ export function useAIChat(options: UseAIChatOptions = {}) {
     content,
     thinking,
     error,
-    failedFiles: Array.from(failedFilesRef.current)
+    failedFiles: Array.from(failedFilesRef.current),
   }
 }
 
-// Helper to extract HTML from AI response
-function extractHtml(content: string): string {
-  // If content starts with <!DOCTYPE, it's already clean HTML
-  if (content.trim().startsWith("<!DOCTYPE") || content.trim().startsWith("<html")) {
-    return content.trim()
-  }
-
-  // Try to extract from markdown code blocks
-  const htmlBlockRegex = /```html?\s*([\s\S]*?)```/gi
-  const matches = [...content.matchAll(htmlBlockRegex)]
-  
-  if (matches.length > 0) {
-    return matches.map(m => m[1]).join("\n").trim()
-  }
-
-  // Try to find complete HTML document
+export function extractHtml(content: string): string {
   const doctypeMatch = content.match(/<!DOCTYPE[\s\S]*?<\/html>/i)
   if (doctypeMatch) {
     return doctypeMatch[0].trim()
@@ -208,28 +350,53 @@ function extractHtml(content: string): string {
     return htmlMatch[0].trim()
   }
 
-  // Return as-is if no patterns match
-  return content.trim()
+  const trimmed = content.trim()
+  if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html")) {
+    return trimmed.includes("</html>") ? trimmed : ""
+  }
+
+  const htmlBlockRegex = /```html?\s*([\s\S]*?)```/gi
+  const matches = [...content.matchAll(htmlBlockRegex)]
+  if (matches.length > 0) {
+    const extracted = matches.map((match) => match[1]).join("\n").trim()
+    if ((extracted.includes("<!DOCTYPE") || extracted.includes("<html")) && extracted.includes("</html>")) {
+      return extracted
+    }
+    return ""
+  }
+
+  if (content.includes(SEARCH_START) || content.includes("<<<<<<< UPDATE_FILE")) {
+    return ""
+  }
+
+  if (trimmed.match(/^[.#@a-z][\w-]*\s*\{/i) || trimmed.match(/^\s*[a-z-]+\s*:/i)) {
+    return ""
+  }
+
+  return ""
 }
 
-// Helper to apply SEARCH/REPLACE patches
 export function applySearchReplace(originalHtml: string, aiResponse: string): string {
-  const patchRegex = /<<<<<<< SEARCH\n([\s\S]*?)\n=======\n([\s\S]*?)\n>>>>>>> REPLACE/g
+  const parser = new StreamParser({})
+  const patchRegex = new RegExp(
+    `${SEARCH_START.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\n([\\s\\S]*?)\\n${DIVIDER.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\n([\\s\\S]*?)\\n${REPLACE_END.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}`,
+    "g",
+  )
+
   let result = originalHtml
-  let match
+  let appliedPatch = false
+  let match: RegExpExecArray | null
 
   while ((match = patchRegex.exec(aiResponse)) !== null) {
     const [, searchBlock, replaceBlock] = match
-    const searchContent = searchBlock.trim()
-    const replaceContent = replaceBlock.trim()
-
-    if (result.includes(searchContent)) {
-      result = result.replace(searchContent, replaceContent)
+    const patchResult = parser.applyPatch(result, searchBlock, replaceBlock, "index.html")
+    if (patchResult.success) {
+      appliedPatch = true
+      result = patchResult.content
     }
   }
 
-  // If no patches found, check if response is a complete HTML document
-  if (result === originalHtml) {
+  if (!appliedPatch) {
     const extractedHtml = extractHtml(aiResponse)
     if (extractedHtml.startsWith("<!DOCTYPE") || extractedHtml.startsWith("<html")) {
       return extractedHtml

@@ -15,12 +15,14 @@ export interface IVersion {
   createdAt: Date;
 }
 
-export interface IProject extends Document {
-  _id: mongoose.Types.ObjectId;
+export interface IProject extends Omit<Document, "_id"> {
+  _id: string;
   userId: mongoose.Types.ObjectId;
   name: string;
   emoji?: string;
   htmlContent: string;
+  latestCheckpointId?: mongoose.Types.ObjectId;
+  checkpointCount: number;
   isPrivate: boolean;
 
   // Stats for dashboard display
@@ -78,6 +80,10 @@ const VersionSchema = new Schema<IVersion>(
 
 const ProjectSchema = new Schema<IProject>(
   {
+    _id: {
+      type: String,
+      required: true,
+    },
     userId: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -97,6 +103,15 @@ const ProjectSchema = new Schema<IProject>(
     htmlContent: {
       type: String,
       default: "",
+    },
+    latestCheckpointId: {
+      type: Schema.Types.ObjectId,
+      ref: "Checkpoint",
+    },
+    checkpointCount: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     isPrivate: {
       type: Boolean,

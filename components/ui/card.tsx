@@ -6,8 +6,14 @@ import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 
 function Card({ className, children, ...props }: React.ComponentProps<'div'>) {
-  const { theme } = useTheme()
-  const isDark = theme === 'dark'
+  const { theme, resolvedTheme } = useTheme()
+  const [mounted, setMounted] = React.useState(false)
+
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const isDark = mounted && (theme === 'dark' || resolvedTheme === 'dark')
 
   // Gradient colors matching gradient-ai-chat-input
   const mainGradient = {

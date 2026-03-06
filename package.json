@@ -5,9 +5,16 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev",
+    "dev:local": "bash ./scripts/dev-local.sh",
     "lint": "eslint .",
     "start": "next start",
-    "test": "vitest"
+    "test": "vitest",
+    "db:setup": "bash ./scripts/setup-mongodb-macos.sh",
+    "db:ping": "bash ./scripts/mongodb-healthcheck.sh",
+    "db:status": "brew services list | grep -E 'mongodb|mongo' || true",
+    "db:start": "brew services start mongodb-community",
+    "db:stop": "brew services stop mongodb-community",
+    "db:restart": "brew services restart mongodb-community"
   },
   "dependencies": {
     "@fontsource/geist": "^5.2.8",

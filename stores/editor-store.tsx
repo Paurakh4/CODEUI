@@ -7,7 +7,10 @@ import React, {
   useCallback,
   ReactNode,
   useEffect,
+  useState,
 } from "react"
+import { useToast } from "@/hooks/use-toast"
+import { CODEUI_GOD_MODE_MODEL_ID } from "@/lib/ai-models"
 
 const CINEMATHEQUE_TEMPLATE_ENDPOINT = "/api/templates/cinematheque-preview"
 const LOADING_HTML = `<!DOCTYPE html>
@@ -90,13 +93,16 @@ export interface EditorState {
   
   // Settings
   selectedModel: string
+  availableModels: { id: string; name: string }[]
+  isLoadingModels: boolean
   primaryColor: string
   secondaryColor: string
   theme: "light" | "dark"
+  enhancedPrompts: boolean
 }
 
 // Initial State
-const initialState: EditorState = {
+export const initialState: EditorState = {
   project: null,
   htmlContent: LOADING_HTML,
   
@@ -112,17 +118,20 @@ const initialState: EditorState = {
   isApplyingPatch: false,
   
   // Version History
-
+  versions: [],
   currentVersionId: null,
   
-  selectedModel: "deepseek/deepseek-chat",
+  selectedModel: CODEUI_GOD_MODE_MODEL_ID,
+  availableModels: [],
+  isLoadingModels: true,
   primaryColor: "blue",
   secondaryColor: "slate",
   theme: "dark",
+  enhancedPrompts: false,
 }
 
 // Action Types
-type EditorAction =
+export type EditorAction =
   | { type: "SET_HTML_CONTENT"; payload: string }
   | { type: "SET_HTML_CONTENT_INITIAL"; payload: string }
   | { type: "SET_VIEW_MODE"; payload: ViewMode }
@@ -138,14 +147,17 @@ type EditorAction =
   | { type: "CREATE_VERSION"; payload: { description?: string } }
   | { type: "RESTORE_VERSION"; payload: string }
   | { type: "SET_MODEL"; payload: string }
+  | { type: "SET_AVAILABLE_MODELS"; payload: { id: string; name: string }[] }
+  | { type: "SET_IS_LOADING_MODELS"; payload: boolean }
   | { type: "SET_PRIMARY_COLOR"; payload: string }
   | { type: "SET_SECONDARY_COLOR"; payload: string }
   | { type: "SET_THEME"; payload: "light" | "dark" }
+  | { type: "SET_ENHANCED_PROMPTS"; payload: boolean }
   | { type: "SET_PROJECT"; payload: Project }
   | { type: "RESET_STATE" }
 
 // Reducer
-function editorReducer(state: EditorState, action: EditorAction): EditorState {
+export function editorReducer(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
     case "SET_HTML_CONTENT":
       return { 
@@ -228,6 +240,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case "SET_MODEL":
       return { ...state, selectedModel: action.payload }
+
+    case "SET_AVAILABLE_MODELS":
+      return { ...state, availableModels: action.payload }
+
+    case "SET_IS_LOADING_MODELS":
+      return { ...state, isLoadingModels: action.payload }
     
     case "SET_PRIMARY_COLOR":
       return { ...state, primaryColor: action.payload }
@@ -237,6 +255,9 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     
     case "SET_THEME":
       return { ...state, theme: action.payload }
+
+    case "SET_ENHANCED_PROMPTS":
+      return { ...state, enhancedPrompts: action.payload }
     
     case "SET_PROJECT":
       return {
@@ -271,6 +292,11 @@ interface EditorContextValue {
   setApplyingPatch: (applying: boolean) => void
   createVersion: (description?: string) => void
   restoreVersion: (versionId: string) => void
+  setModel: (modelId: string) => void
+  setPrimaryColor: (color: string) => void
+  setSecondaryColor: (color: string) => void
+  setTheme: (theme: "light" | "dark") => void
+  setEnhancedPrompts: (enabled: boolean) => void
 }
 
 const EditorContext = createContext<EditorContextValue | null>(null)
@@ -278,6 +304,92 @@ const EditorContext = createContext<EditorContextValue | null>(null)
 // Provider
 export function EditorProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(editorReducer, initialState)
+  const [hasHydratedSelectedModel, setHasHydratedSelectedModel] = useState(false)
+  const [hasHydratedGenerationSettings, setHasHydratedGenerationSettings] = useState(false)
+  const { toast } = useToast()
+
+  // Load selected model from localStorage
+  useEffect(() => {
+    const savedModel = localStorage.getItem("selected_model")
+    const preferredModelId = savedModel || CODEUI_GOD_MODE_MODEL_ID
+
+    if (savedModel) {
+      dispatch({ type: "SET_MODEL", payload: savedModel })
+    }
+
+    setHasHydratedSelectedModel(true)
+
+    const resolveModelId = (models: { id: string }[]) => {
+      if (models.some((m) => m.id === preferredModelId)) {
+        return preferredModelId
+      }
+
+      const godMode = models.find((m) => m.id === CODEUI_GOD_MODE_MODEL_ID)
+      if (godMode) {
+        return godMode.id
+      }
+
+      return models[0]?.id
+    }
+
+    // Fetch available models
+    fetch('/api/ai/models')
+      .then(res => res.json())
+      .then(data => {
+        if (data.models && Array.isArray(data.models)) {
+          const models = data.models.map((m: any) => ({ id: m.id, name: m.name }))
+          dispatch({ type: "SET_AVAILABLE_MODELS", payload: models })
+
+          const resolvedModel = resolveModelId(models)
+          if (resolvedModel) {
+            dispatch({ type: "SET_MODEL", payload: resolvedModel })
+          }
+        }
+      })
+      .catch(err => {
+        console.error('Failed to fetch models:', err)
+        toast({
+          title: "Model Unavailable",
+          description: "Failed to load models. Using fallback models.",
+          variant: "destructive",
+        })
+        const fallbackModels = [
+          { id: CODEUI_GOD_MODE_MODEL_ID, name: "CODEUI GOD MODE" },
+          { id: "deepseek/deepseek-chat", name: "DeepSeek V3" },
+          { id: "deepseek/deepseek-r1", name: "DeepSeek R1" },
+        ]
+        dispatch({ type: "SET_AVAILABLE_MODELS", payload: fallbackModels })
+
+        const resolvedFallbackModel = resolveModelId(fallbackModels)
+        if (resolvedFallbackModel) {
+          dispatch({ type: "SET_MODEL", payload: resolvedFallbackModel })
+        }
+      })
+      .finally(() => {
+        dispatch({ type: "SET_IS_LOADING_MODELS", payload: false })
+      })
+  }, [toast])
+
+  // Save selected model to localStorage and listen for changes
+  useEffect(() => {
+    if (!hasHydratedSelectedModel) return
+
+    if (state.selectedModel) {
+      localStorage.setItem("selected_model", state.selectedModel)
+    }
+  }, [hasHydratedSelectedModel, state.selectedModel])
+
+  // Listen for storage events to sync across tabs
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "selected_model" && e.newValue) {
+        dispatch({ type: "SET_MODEL", payload: e.newValue })
+      }
+    }
+
+    window.addEventListener("storage", handleStorageChange)
+    return () => window.removeEventListener("storage", handleStorageChange)
+  }, [])
 
   // Load default preview template (Cinematheque) once the provider mounts.
   useEffect(() => {
@@ -301,6 +413,53 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       cancelled = true
     }
   }, [state.htmlContent])
+
+  // Load generation settings from localStorage
+  useEffect(() => {
+    const savedGenerationSettings = localStorage.getItem("generation_settings")
+    if (savedGenerationSettings) {
+      try {
+        const parsed = JSON.parse(savedGenerationSettings)
+        if (typeof parsed.primaryColor === "string") {
+          dispatch({ type: "SET_PRIMARY_COLOR", payload: parsed.primaryColor })
+        }
+        if (typeof parsed.secondaryColor === "string") {
+          dispatch({ type: "SET_SECONDARY_COLOR", payload: parsed.secondaryColor })
+        }
+        if (parsed.theme === "light" || parsed.theme === "dark") {
+          dispatch({ type: "SET_THEME", payload: parsed.theme })
+        }
+        if (typeof parsed.enhancedPrompts === "boolean") {
+          dispatch({ type: "SET_ENHANCED_PROMPTS", payload: parsed.enhancedPrompts })
+        }
+      } catch (error) {
+        console.error("Failed to restore generation settings", error)
+      }
+    }
+
+    setHasHydratedGenerationSettings(true)
+  }, [])
+
+  // Persist generation settings
+  useEffect(() => {
+    if (!hasHydratedGenerationSettings) return
+
+    localStorage.setItem(
+      "generation_settings",
+      JSON.stringify({
+        primaryColor: state.primaryColor,
+        secondaryColor: state.secondaryColor,
+        theme: state.theme,
+        enhancedPrompts: state.enhancedPrompts,
+      })
+    )
+  }, [
+    hasHydratedGenerationSettings,
+    state.primaryColor,
+    state.secondaryColor,
+    state.theme,
+    state.enhancedPrompts,
+  ])
   
   const setHtmlContent = useCallback((content: string) => {
     dispatch({ type: "SET_HTML_CONTENT", payload: content })
@@ -350,6 +509,26 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const restoreVersion = useCallback((versionId: string) => {
     dispatch({ type: "RESTORE_VERSION", payload: versionId })
   }, [])
+
+  const setModel = useCallback((modelId: string) => {
+    dispatch({ type: "SET_MODEL", payload: modelId })
+  }, [])
+
+  const setPrimaryColor = useCallback((color: string) => {
+    dispatch({ type: "SET_PRIMARY_COLOR", payload: color })
+  }, [])
+
+  const setSecondaryColor = useCallback((color: string) => {
+    dispatch({ type: "SET_SECONDARY_COLOR", payload: color })
+  }, [])
+
+  const setTheme = useCallback((theme: "light" | "dark") => {
+    dispatch({ type: "SET_THEME", payload: theme })
+  }, [])
+
+  const setEnhancedPrompts = useCallback((enabled: boolean) => {
+    dispatch({ type: "SET_ENHANCED_PROMPTS", payload: enabled })
+  }, [])
   
   const value: EditorContextValue = {
     state,
@@ -364,6 +543,11 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     setApplyingPatch,
     createVersion,
     restoreVersion,
+    setModel,
+    setPrimaryColor,
+    setSecondaryColor,
+    setTheme,
+    setEnhancedPrompts,
   }
   
   return (

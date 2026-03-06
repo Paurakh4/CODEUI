@@ -1,7 +1,16 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
-import { Project } from "@/lib/models";
+import { Checkpoint, Project } from "@/lib/models";
+
+const CHECKPOINT_RETENTION_LIMIT = 50;
+const VALID_KINDS = new Set(["auto", "manual", "restore"]);
+const VALID_TRIGGERS = new Set([
+  "before-ai",
+  "after-ai",
+  "manual-save",
+  "restore",
+]);
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -26,6 +35,17 @@ export async function GET(request: Request, { params }: RouteParams) {
 
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    const checkpoints = await Checkpoint.find({
+      projectId: id,
+      userId: session.user.id,
+    })
+      .sort({ seq: 1 })
+      .lean();
+
+    if (checkpoints.length > 0) {
+      return NextResponse.json({ versions: checkpoints });
     }
 
     return NextResponse.json({ versions: project.versions || [] });
@@ -59,27 +79,69 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    const version = {
-      htmlContent: body.htmlContent,
-      description: body.description || "",
-      createdAt: new Date(),
-    };
+    const kind = body.kind || "manual";
+    const trigger = body.trigger || "manual-save";
+
+    if (!VALID_KINDS.has(kind)) {
+      return NextResponse.json(
+        { error: "Invalid field: kind" },
+        { status: 400 }
+      );
+    }
+
+    if (!VALID_TRIGGERS.has(trigger)) {
+      return NextResponse.json(
+        { error: "Invalid field: trigger" },
+        { status: 400 }
+      );
+    }
 
     const project = await Project.findOneAndUpdate(
       { _id: id, userId: session.user.id },
       {
-        $push: { versions: version },
-        $set: { htmlContent: body.htmlContent }, // Also update current content
+        $inc: { checkpointCount: 1 },
+        $set: { htmlContent: body.htmlContent },
       },
-      { new: true, projection: { versions: { $slice: -1 } } }
+      { new: true, projection: { checkpointCount: 1 } }
     ).lean();
 
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
+    const checkpoint = await Checkpoint.create({
+      projectId: id,
+      userId: session.user.id,
+      seq: project.checkpointCount,
+      htmlContent: body.htmlContent,
+      description: body.description || "",
+      kind,
+      trigger,
+      restoredFromId: body.restoredFromId || undefined,
+    });
+
+    await Project.updateOne(
+      { _id: id, userId: session.user.id },
+      { $set: { latestCheckpointId: checkpoint._id } }
+    );
+
+    const staleCheckpoints = await Checkpoint.find({
+      projectId: id,
+      userId: session.user.id,
+    })
+      .sort({ seq: -1 })
+      .skip(CHECKPOINT_RETENTION_LIMIT)
+      .select({ _id: 1 })
+      .lean();
+
+    if (staleCheckpoints.length > 0) {
+      await Checkpoint.deleteMany({
+        _id: { $in: staleCheckpoints.map((item) => item._id) },
+      });
+    }
+
     return NextResponse.json(
-      { version: project.versions[0] },
+      { version: checkpoint },
       { status: 201 }
     );
   } catch (error) {

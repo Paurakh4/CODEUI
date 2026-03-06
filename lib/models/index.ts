@@ -6,3 +6,15 @@ export {
   type IMessage,
   type IVersion,
 } from "./Project";
+export {
+  default as Checkpoint,
+  type ICheckpoint,
+  type CheckpointKind,
+  type CheckpointTrigger,
+} from "./Checkpoint";
+export { default as UsageLog, type IUsageLog } from "./UsageLog";
+export {
+  default as MediaAsset,
+  type IMediaAsset,
+  type MediaKind,
+} from "./MediaAsset";

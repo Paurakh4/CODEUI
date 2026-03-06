@@ -3,6 +3,7 @@ import Google from "next-auth/providers/google";
 import connectDB from "./db";
 import User from "./models/User";
 import { authConfig } from "@/auth.config";
+import { getMonthlyCreditsForTier, SubscriptionTier } from "./pricing";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
@@ -32,16 +33,28 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           });
 
           if (!existingUser) {
+            // Calculate initial credits and reset date
+            const initialCredits = getMonthlyCreditsForTier("free");
+            const nextResetDate = new Date();
+            nextResetDate.setMonth(nextResetDate.getMonth() + 1);
+            nextResetDate.setDate(1);
+
             // Create new user on first sign in
             const newUser = await User.create({
-              email: user.email,
-              name: user.name,
-              image: user.image,
-              googleId: profile.sub,
+              email: user.email!,
+              name: user.name!,
+              image: user.image || undefined,
+              googleId: profile.sub!,
               subscription: {
                 tier: "free",
               },
-              credits: 10,
+              // New credit system
+              monthlyCredits: initialCredits,
+              topupCredits: 20,
+              creditsResetDate: nextResetDate,
+              totalCreditsUsed: 0,
+              // Legacy fields (backwards compatibility)
+              credits: initialCredits,
               creditsUsedThisMonth: 0,
             });
             // Use MongoDB _id as the user id
@@ -76,8 +89,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           await connectDB();
           const dbUser = await User.findById(token.id);
           if (dbUser) {
-            token.subscription = dbUser.subscription.tier;
-            token.credits = dbUser.credits;
+            token.subscription = dbUser.subscription.tier as SubscriptionTier;
+            // New credit fields
+            token.monthlyCredits = dbUser.monthlyCredits ?? 0;
+            token.topupCredits = dbUser.topupCredits ?? 0;
+            token.totalCredits =
+              (dbUser.monthlyCredits ?? 0) + (dbUser.topupCredits ?? 0);
+            // Legacy field
+            token.credits = dbUser.credits ?? dbUser.monthlyCredits ?? 0;
           }
         } catch (error) {
           console.error("Error fetching user data for JWT:", error);
@@ -91,9 +110,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (session.user) {
         session.user.id = token.id as string;
         // Add subscription info to session
-        (session.user as Record<string, unknown>).subscription =
+        (session.user as any).subscription =
           token.subscription;
-        (session.user as Record<string, unknown>).credits = token.credits;
+        // New credit fields
+        (session.user as any).monthlyCredits =
+          token.monthlyCredits;
+        (session.user as any).topupCredits =
+          token.topupCredits;
+        (session.user as any).totalCredits =
+          token.totalCredits;
+        // Legacy field
+        (session.user as any).credits = token.credits;
       }
       return session;
     },

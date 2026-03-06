@@ -1,10 +1,11 @@
 "use client";
 
-import { ArrowRight, Bot, Check, ChevronDown, Paperclip } from "lucide-react";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { ArrowRight, Bot, Check, ChevronDown, Paperclip, Loader2 } from "lucide-react";
+import { useState, useRef, useCallback, useEffect, type ChangeEvent } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { CODEUI_GOD_MODE_MODEL_ID } from "@/lib/ai-models";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -97,9 +98,25 @@ const OPENAI_ICON = (
 
 interface AI_PromptProps {
     onSend?: (message: string, model?: string) => void;
+    onFileSelect?: (event: ChangeEvent<HTMLInputElement>) => void;
+    fileUploadAccept?: string;
+    isFileUploadDisabled?: boolean;
+    initialModelId?: string;
+    onModelChange?: (modelId: string) => void;
+    availableModels?: Array<{id: string, name: string}>;
+    isLoadingModels?: boolean;
 }
 
-export function AI_Prompt({ onSend }: AI_PromptProps) {
+export function AI_Prompt({ 
+    onSend, 
+    onFileSelect,
+    fileUploadAccept,
+    isFileUploadDisabled,
+    initialModelId, 
+    onModelChange,
+    availableModels: propAvailableModels,
+    isLoadingModels: propIsLoadingModels
+}: AI_PromptProps) {
     const [value, setValue] = useState("");
     const { textareaRef, adjustHeight } = useAutoResizeTextarea({
         minHeight: 48,
@@ -107,35 +124,65 @@ export function AI_Prompt({ onSend }: AI_PromptProps) {
     });
     
     // State for models
-    const [selectedModelId, setSelectedModelId] = useState("deepseek/deepseek-chat");
-    const [availableModels, setAvailableModels] = useState<Array<{id: string, name: string}>>([]);
-    const [isLoadingModels, setIsLoadingModels] = useState(true);
+    const [selectedModelId, setSelectedModelId] = useState(initialModelId || CODEUI_GOD_MODE_MODEL_ID);
+    // Use props if provided, otherwise default to empty (or local fetch if we wanted to keep fallback, but store is better)
+    // We'll keep local state for fallback if props aren't provided to maintain component independence if needed, 
+    // but for now we'll prioritize props.
+    const [localAvailableModels, setLocalAvailableModels] = useState<Array<{id: string, name: string}>>([]);
+    const [localIsLoadingModels, setLocalIsLoadingModels] = useState(true);
 
-    // Fetch available models on mount
+    const availableModels = propAvailableModels || localAvailableModels;
+    const isLoadingModels = propIsLoadingModels !== undefined ? propIsLoadingModels : localIsLoadingModels;
+
+    // Sync state with prop
     useEffect(() => {
+        if (initialModelId) {
+            setSelectedModelId(initialModelId);
+        }
+    }, [initialModelId]);
+
+    useEffect(() => {
+        if (onModelChange) {
+            onModelChange(selectedModelId);
+        }
+    }, [selectedModelId, onModelChange]);
+
+    // Fetch available models on mount only if props are not provided
+    useEffect(() => {
+        if (propAvailableModels) return;
+
         fetch('/api/ai/models')
             .then(res => res.json())
             .then(data => {
                 if (data.models && Array.isArray(data.models)) {
-                    setAvailableModels(data.models.map((m: any) => ({ id: m.id, name: m.name })));
-                    // Set first model as default if current selection is not available
-                    if (data.models.length > 0) {
-                        setSelectedModelId(data.models[0].id);
+                    const models = data.models.map((m: any) => ({ id: m.id, name: m.name }));
+                    setLocalAvailableModels(models);
+
+                    if (models.length > 0 && !initialModelId) {
+                        setSelectedModelId((currentModelId) => {
+                            if (models.some((m: { id: string }) => m.id === currentModelId)) {
+                                return currentModelId;
+                            }
+
+                            const godMode = models.find((m: { id: string }) => m.id === CODEUI_GOD_MODE_MODEL_ID);
+                            return godMode ? godMode.id : models[0].id;
+                        });
                     }
                 }
             })
             .catch(err => {
                 console.error('Failed to fetch models:', err);
                 // Fallback to default models
-                setAvailableModels([
+                setLocalAvailableModels([
+                    { id: CODEUI_GOD_MODE_MODEL_ID, name: "CODEUI GOD MODE" },
                     { id: "deepseek/deepseek-chat", name: "DeepSeek V3" },
                     { id: "deepseek/deepseek-r1", name: "DeepSeek R1" },
                 ]);
             })
             .finally(() => {
-                setIsLoadingModels(false);
+                setLocalIsLoadingModels(false);
             });
-    }, []);
+    }, [propAvailableModels, initialModelId]);
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === "Enter" && !e.shiftKey && value.trim()) {
@@ -204,9 +251,18 @@ export function AI_Prompt({ onSend }: AI_PromptProps) {
                                                         }}
                                                         className="flex items-center gap-1"
                                                     >
-                                                        <Bot className="w-4 h-4 opacity-70" />
-                                                        {isLoadingModels ? "Loading..." : (selectedModel?.name || "Select Model")}
-                                                        <ChevronDown className="w-3 h-3 opacity-50" />
+                                                        {isLoadingModels ? (
+                                                            <>
+                                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                <span>Loading...</span>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Bot className="w-4 h-4 opacity-70" />
+                                                                {selectedModel?.name || "Select Model"}
+                                                                <ChevronDown className="w-3 h-3 opacity-50" />
+                                                            </>
+                                                        )}
                                                     </motion.div>
                                                 </AnimatePresence>
                                             </Button>
@@ -240,13 +296,21 @@ export function AI_Prompt({ onSend }: AI_PromptProps) {
                                     <div className="h-3.5 w-px bg-black/10 dark:bg-white/10" />
                                     <label
                                         className={cn(
-                                            "rounded-md p-1.5 bg-black/5 dark:bg-white/5 cursor-pointer",
+                                            "rounded-md p-1.5 bg-black/5 dark:bg-white/5",
                                             "hover:bg-black/10 dark:hover:bg-white/10 focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-blue-500",
-                                            "text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white"
+                                            "text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white",
+                                            isFileUploadDisabled && "opacity-50 cursor-not-allowed pointer-events-none",
+                                            !isFileUploadDisabled && "cursor-pointer"
                                         )}
                                         aria-label="Attach file"
                                     >
-                                        <input type="file" className="hidden" />
+                                        <input
+                                            type="file"
+                                            className="hidden"
+                                            onChange={onFileSelect}
+                                            accept={fileUploadAccept}
+                                            disabled={isFileUploadDisabled}
+                                        />
                                         <Paperclip className="w-3.5 h-3.5 transition-colors" />
                                     </label>
                                 </div>

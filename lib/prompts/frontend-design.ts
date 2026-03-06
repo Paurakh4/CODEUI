@@ -65,11 +65,19 @@ CRITICAL RULES:
 7. Use a cohesive color scheme based on Tailwind's color palette
 8. Add meaningful content - avoid Lorem Ipsum when possible
 9. Include JavaScript for interactivity when appropriate (inline in <script> tags)
+10. ALWAYS generate a creative project name for new projects using the special tag format
 
 OUTPUT FORMAT:
 - Return ONLY the complete HTML document, starting with <!DOCTYPE html>
 - Do NOT include any markdown code blocks, explanations, or comments outside the HTML
 - The output should be directly renderable in a browser
+
+For new projects, you MUST include the project name at the beginning of your response using this format:
+<<<<<<< PROJECT_NAME_START
+[Creative Project Name]
+>>>>>>> PROJECT_NAME_END
+
+Then follow with the HTML content.
 
 When modifying existing code, use the SEARCH/REPLACE format:
 <<<<<<< SEARCH

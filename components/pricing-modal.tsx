@@ -11,10 +11,10 @@ import { Button } from "@/components/ui/button"
 import { 
   Check, 
   Zap, 
-  ShieldCheck, 
-  Users, 
+  Crown,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Plus
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -24,10 +24,25 @@ interface PricingModalProps {
   onClose: () => void
 }
 
+// Topup packages matching lib/pricing.ts
+const TOPUP_PACKAGES = [
+  { id: "topup_25", credits: 25, price: 5 },
+  { id: "topup_50", credits: 50, price: 10 },
+  { id: "topup_100", credits: 100, price: 20 },
+]
+
 export function PricingModal({ isOpen, onClose }: PricingModalProps) {
   const [isLoading, setIsLoading] = React.useState<string | null>(null)
+  const [showTopups, setShowTopups] = React.useState(false)
+  const [paymentMethod, setPaymentMethod] = React.useState<'stripe' | 'khalti'>('stripe')
 
-  const onCheckout = async (priceId: string) => {
+  const onCheckout = async (priceId: string, planId?: string) => {
+    if (paymentMethod === 'khalti') {
+      if (!planId) return
+      await onKhaltiCheckout(planId)
+      return
+    }
+
     try {
       setIsLoading(priceId)
       const response = await fetch("/api/stripe/checkout", {
@@ -50,15 +65,74 @@ export function PricingModal({ isOpen, onClose }: PricingModalProps) {
     }
   }
 
+  const onKhaltiCheckout = async (planId: string) => {
+    try {
+      setIsLoading(planId)
+      const response = await fetch("/api/khalti/initiate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ planId }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to initiate Khalti payment")
+      }
+
+      const data = await response.json()
+
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        toast.error("Failed to initiate Khalti payment")
+      }
+    } catch (error) {
+      console.error(error)
+      toast.error("Something went wrong. Please try again.")
+    } finally {
+      setIsLoading(null)
+    }
+  }
+
+  const onTopupCheckout = async (packageId: string) => {
+    if (paymentMethod === 'khalti') {
+      await onKhaltiCheckout(packageId)
+      return
+    }
+
+    try {
+      setIsLoading(packageId)
+      const response = await fetch("/api/stripe/topup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ packageId }),
+      })
+
+      const data = await response.json()
+
+      if (data.url) {
+        window.location.href = data.url
+      }
+    } catch (error) {
+      toast.error("Something went wrong. Please try again.")
+    } finally {
+      setIsLoading(null)
+    }
+  }
+
   const plans = [
     {
+      id: "free",
       name: "Free",
       price: "$0",
-      priceId: "free", // Placeholder
+      priceId: "free",
       description: "Perfect for exploring and small projects",
       features: [
-        "500 monthly credits",
-        "Standard generation speed",
+        "20 prompts per month",
+        "All AI models",
         "Public projects",
         "Community support"
       ],
@@ -67,20 +141,21 @@ export function PricingModal({ isOpen, onClose }: PricingModalProps) {
       current: true
     },
     {
+      id: "pro",
       name: "Pro",
-      price: "$20",
-      priceId: "price_pro_monthly", // You should replace this with your actual Stripe price ID
+      price: paymentMethod === 'khalti' ? "NPR 1,300" : "$10",
+      priceId: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID || "price_pro",
       period: "/month",
-      description: "For professionals who need more power",
+      description: "For creators who need more power",
       features: [
-        "Unlimited credits",
-        "Priority GOD MODE access",
+        "120 prompts per month",
+        "All AI models",
         "Private projects",
         "Export to code",
-        "Advanced style controls",
+        "Version history",
         "Priority support"
       ],
-      buttonText: "Upgrade to Pro",
+      buttonText: paymentMethod === 'khalti' ? "Pay with Khalti" : "Upgrade to Pro",
       buttonVariant: "default" as const,
       popular: true,
       icon: Zap,
@@ -89,24 +164,27 @@ export function PricingModal({ isOpen, onClose }: PricingModalProps) {
       border: "border-amber-500/20"
     },
     {
-      name: "Enterprise",
-      price: "Custom",
-      priceId: "enterprise", // Placeholder
-      description: "Custom solutions for large teams",
+      id: "proplus",
+      name: "Pro Plus",
+      price: paymentMethod === 'khalti' ? "NPR 4,000" : "$30",
+      priceId: process.env.NEXT_PUBLIC_STRIPE_PROPLUS_PRICE_ID || "price_proplus",
+      period: "/month",
+      description: "For power users and teams",
       features: [
-        "Custom credit limits",
-        "Dedicated infrastructure",
-        "Team collaboration tools",
-        "SSO & Advanced security",
-        "Custom model fine-tuning",
-        "24/7 Dedicated support"
+        "350 prompts per month",
+        "All AI models",
+        "Private projects",
+        "Export to code",
+        "Version history",
+        "Priority support",
+        "Early access to new features"
       ],
-      buttonText: "Contact Sales",
-      buttonVariant: "outline" as const,
-      icon: ShieldCheck,
-      color: "text-blue-500",
-      bg: "bg-blue-500/10",
-      border: "border-blue-500/20"
+      buttonText: paymentMethod === 'khalti' ? "Pay with Khalti" : "Upgrade to Pro Plus",
+      buttonVariant: "default" as const,
+      icon: Crown,
+      color: "text-purple-500",
+      bg: "bg-purple-500/10",
+      border: "border-purple-500/20"
     }
   ]
 
@@ -114,16 +192,41 @@ export function PricingModal({ isOpen, onClose }: PricingModalProps) {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[900px] bg-zinc-950 border-white/10 text-zinc-100 p-0 overflow-hidden outline-none">
         <div className="p-8">
-          <DialogHeader className="flex flex-col items-center text-center mb-10">
+          <DialogHeader className="flex flex-col items-center text-center mb-6">
             <div className="flex justify-center mb-4">
               <div className="bg-white/5 px-3 py-1 rounded-full border border-white/10">
                 <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Pricing Plans</span>
               </div>
             </div>
             <DialogTitle className="text-3xl font-bold tracking-tight mb-2 text-white text-center">Upgrade your creative power</DialogTitle>
-            <p className="text-zinc-400 max-w-md mx-auto text-center">
+            <p className="text-zinc-400 max-w-md mx-auto text-center mb-6">
               Choose the plan that's right for you and start building amazing UIs with CodeUI.
             </p>
+
+            <div className="flex p-1 bg-white/5 rounded-lg border border-white/10">
+              <button
+                onClick={() => setPaymentMethod('stripe')}
+                className={cn(
+                  "px-4 py-1.5 rounded-md text-xs font-medium transition-all",
+                  paymentMethod === 'stripe' 
+                    ? "bg-white text-black shadow-sm" 
+                    : "text-zinc-400 hover:text-white"
+                )}
+              >
+                Card (Stripe)
+              </button>
+              <button
+                onClick={() => setPaymentMethod('khalti')}
+                className={cn(
+                  "px-4 py-1.5 rounded-md text-xs font-medium transition-all",
+                  paymentMethod === 'khalti' 
+                    ? "bg-[#5C2D91] text-white shadow-sm" 
+                    : "text-zinc-400 hover:text-white"
+                )}
+              >
+                Khalti (NPR)
+              </button>
+            </div>
           </DialogHeader>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -183,7 +286,7 @@ export function PricingModal({ isOpen, onClose }: PricingModalProps) {
                         : "bg-transparent border-white/20 text-white hover:bg-white/5 hover:border-white/30"
                     )}
                     disabled={plan.current || isLoading !== null}
-                    onClick={() => !plan.current && onCheckout(plan.priceId)}
+                    onClick={() => !plan.current && onCheckout(plan.priceId, plan.id)}
                   >
                     {isLoading === plan.priceId ? "Processing..." : plan.buttonText}
                     {!plan.current && isLoading !== plan.priceId && <ArrowRight className="w-3 h-3 ml-2" />}
@@ -194,19 +297,47 @@ export function PricingModal({ isOpen, onClose }: PricingModalProps) {
           </div>
 
           <div className="mt-10 pt-8 border-t border-white/5">
-            <div className="flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
-              <div>
-                <h4 className="text-sm font-semibold mb-1 flex items-center gap-2 justify-center md:justify-start">
-                  <Users className="w-4 h-4 text-zinc-400" />
-                  Need a custom team plan?
-                </h4>
-                <p className="text-xs text-zinc-500">
-                  Get in touch with our team for personalized onboarding and custom features.
-                </p>
-              </div>
-              <Button variant="ghost" className="text-xs text-zinc-300 hover:text-white hover:bg-white/5 px-6">
-                Contact Sales
+            <div className="flex flex-col items-center gap-4">
+              <Button
+                variant="ghost"
+                onClick={() => setShowTopups(!showTopups)}
+                className="text-xs text-zinc-400 hover:text-white hover:bg-white/5"
+              >
+                <Plus className="w-3 h-3 mr-2" />
+                {showTopups ? "Hide top-up options" : "Need more credits? Buy a top-up"}
               </Button>
+
+              {showTopups && (
+                <div className="w-full grid grid-cols-3 gap-4 mt-2">
+                  {TOPUP_PACKAGES.map((pkg) => {
+                    const displayPrice = paymentMethod === 'khalti'
+                      ? (pkg.id === 'topup_25' ? 'NPR 600' : pkg.id === 'topup_50' ? 'NPR 1,200' : 'NPR 2,500')
+                      : `$${pkg.price}`
+                      
+                    return (
+                      <div
+                        key={pkg.id}
+                        className="flex flex-col items-center p-4 rounded-xl border border-white/10 bg-zinc-900/50 hover:border-white/20 transition-all"
+                      >
+                        <div className="flex items-center gap-1 mb-2">
+                          <Sparkles className="w-4 h-4 text-amber-500" />
+                          <span className="text-lg font-bold text-white">{pkg.credits}</span>
+                        </div>
+                        <span className="text-xs text-zinc-500 mb-3">credits</span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full text-xs border-white/20 hover:bg-white/5"
+                          disabled={isLoading !== null}
+                          onClick={() => onTopupCheckout(pkg.id)}
+                        >
+                          {isLoading === pkg.id ? "..." : displayPrice}
+                        </Button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>

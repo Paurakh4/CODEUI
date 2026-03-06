@@ -140,7 +140,17 @@ export function useStyleHistory(
     let undoneChanges: StyleChange[] | null = null
 
     setState((prev) => {
-      if (prev.past.length === 0) return prev
+      if (prev.past.length === 0) {
+        if (!prev.present) return prev
+
+        undoneChanges = prev.present
+
+        return {
+          past: [],
+          present: null,
+          future: [prev.present, ...prev.future].slice(0, maxSize),
+        }
+      }
 
       const newPast = prev.past.slice(0, -1)
       const previousState = prev.past[prev.past.length - 1]

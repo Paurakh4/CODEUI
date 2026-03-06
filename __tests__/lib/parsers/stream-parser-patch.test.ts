@@ -1,85 +1,75 @@
-import { describe, it, expect, vi } from 'vitest';
-// @ts-ignore
-import { StreamParser } from '../../../lib/parsers/stream-parser';
+import { describe, expect, it } from 'vitest'
+import { StreamParser } from '../../../lib/parsers/stream-parser'
 
-describe('StreamParser Patch Application', () => {
-  it('should apply a basic patch successfully', () => {
-    const onPatch = vi.fn((filePath, search, replace) => {
-        const result = parser.applyPatch('<div>old</div>', search, replace);
-        expect(result.success).toBe(true);
-        expect(result.content).toBe('<div>new</div>');
-    });
-    const parser = new StreamParser({ onPatch });
+describe('StreamParser patch application', () => {
+  it('applies a basic patch successfully', () => {
+    const parser = new StreamParser({})
+    const result = parser.applyPatch('<div>old</div>', '<div>old</div>', '<div>new</div>', 'index.html')
 
-    const stream = [
-      '<<<<<<< UPDATE_FILE_START index.html >>>>>>> UPDATE_FILE_END',
-      '<<<<<<< SEARCH',
-      '<div>old</div>',
-      '=======',
-      '<div>new</div>',
-      '>>>>>>> REPLACE',
-    ].join('\n');
+    expect(result.success).toBe(true)
+    expect(result.content).toBe('<div>new</div>')
+    expect(result.tier).toBe('exact')
+  })
 
-    parser.parse(stream);
-    expect(onPatch).toHaveBeenCalled();
-  });
+  it('supports prepend inserts with empty search blocks', () => {
+    const parser = new StreamParser({})
+    const result = parser.applyPatch('<main>Body</main>', '', '<style>body{color:red;}</style>', 'index.html')
 
-  it('should handle deletions (empty replace block)', () => {
-    const onPatch = vi.fn((filePath, search, replace) => {
-        const result = parser.applyPatch('<div>old</div><span>keep</span>', search, replace);
-        expect(result.success).toBe(true);
-        expect(result.content).toBe('<span>keep</span>');
-    });
-    const parser = new StreamParser({ onPatch });
+    expect(result.success).toBe(true)
+    expect(result.content.startsWith('<style>body{color:red;}</style>')).toBe(true)
+    expect(result.tier).toBe('prepend')
+  })
 
-    const stream = [
-      '<<<<<<< UPDATE_FILE_START index.html >>>>>>> UPDATE_FILE_END',
-      '<<<<<<< SEARCH',
-      '<div>old</div>',
-      '=======',
-      '>>>>>>> REPLACE',
-    ].join('\n');
+  it('applies patches when search differs only by surrounding whitespace', () => {
+    const parser = new StreamParser({})
+    const result = parser.applyPatch('<div>old</div>', '  <div>old</div>  ', '<div>new</div>', 'index.html')
 
-    parser.parse(stream);
-    expect(onPatch).toHaveBeenCalled();
-  });
+    expect(result.success).toBe(true)
+    expect(result.tier).toBe('trimmed')
+  })
 
-  it('should return failure if search block does not match', () => {
-    const onPatch = vi.fn((filePath, search, replace) => {
-        const result = parser.applyPatch('<div>other</div>', search, replace);
-        expect(result.success).toBe(false);
-    });
-    const parser = new StreamParser({ onPatch });
+  it('applies patches when indentation differs', () => {
+    const parser = new StreamParser({})
+    const current = ['<ul>', '    <li>First</li>', '    <li>Second</li>', '</ul>'].join('\n')
+    const search = ['<ul>', '  <li>First</li>', '  <li>Second</li>', '</ul>'].join('\n')
+    const replace = ['<ul>', '  <li>First</li>', '  <li>Second Updated</li>', '</ul>'].join('\n')
 
-    const stream = [
-      '<<<<<<< UPDATE_FILE_START index.html >>>>>>> UPDATE_FILE_END',
-      '<<<<<<< SEARCH',
-      '<div>old</div>',
-      '=======',
-      '<div>new</div>',
-      '>>>>>>> REPLACE',
-    ].join('\n');
+    const result = parser.applyPatch(current, search, replace, 'index.html')
 
-    parser.parse(stream);
-  });
+    expect(result.success).toBe(true)
+    expect(result.content).toContain('Second Updated')
+  })
 
-  it('should use flexible regex to match variations', () => {
-      const onPatch = vi.fn((filePath, search, replace) => {
-          const result = parser.applyPatch('<div  class="btn" >old</div >', search, replace);
-          expect(result.success).toBe(true);
-          expect(result.content).toBe('<div>new</div>');
-      });
-      const parser = new StreamParser({ onPatch });
-  
-      const stream = [
-        '<<<<<<< UPDATE_FILE_START index.html >>>>>>> UPDATE_FILE_END',
-        '<<<<<<< SEARCH',
-        '<div class="btn">old</div>',
-        '=======',
-        '<div>new</div>',
-        '>>>>>>> REPLACE',
-      ].join('\n');
-  
-      parser.parse(stream);
-  });
-});
+  it('matches quote variations via flexible regex', () => {
+    const parser = new StreamParser({})
+    const current = "<button class='btn primary'>Save</button>"
+    const search = '<button class="btn primary">Save</button>'
+    const replace = '<button class="btn primary">Saved</button>'
+
+    const result = parser.applyPatch(current, search, replace, 'index.html')
+
+    expect(result.success).toBe(true)
+    expect(result.content).toContain('Saved')
+  })
+
+  it('preserves CRLF line endings', () => {
+    const parser = new StreamParser({})
+    const current = '<div>\r\n  <span>old</span>\r\n</div>'
+    const search = '<div>\n  <span>old</span>\n</div>'
+    const replace = '<div>\n  <span>new</span>\n</div>'
+
+    const result = parser.applyPatch(current, search, replace, 'index.html')
+
+    expect(result.success).toBe(true)
+    expect(result.content).toContain('\r\n')
+    expect(result.content).toContain('new')
+  })
+
+  it('returns failure when search block does not match', () => {
+    const parser = new StreamParser({})
+    const result = parser.applyPatch('<div>other</div>', '<div>old</div>', '<div>new</div>', 'index.html')
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Could not find match')
+  })
+})

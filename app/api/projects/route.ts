@@ -1,7 +1,11 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
-import { Project } from "@/lib/models";
+import { Project, User } from "@/lib/models";
+import { deriveProjectNameFromPrompt, normalizeProjectName } from "@/lib/utils/project-name";
+import { isAdminUser } from "@/lib/pricing";
+
+const FREE_TIER_PROJECT_LIMIT = 4;
 
 export async function GET() {
   const session = await auth();
@@ -52,12 +56,49 @@ export async function POST(request: Request) {
   try {
     await connectDB();
 
+    const user = await User.findById(session.user.id)
+      .select("subscription.tier email")
+      .lean();
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const userTier = user.subscription?.tier || "free";
+    const userEmail = user.email || session.user.email || "";
+    const adminBypass = isAdminUser(userEmail);
+
+    if (userTier === "free" && !adminBypass) {
+      const activeProjectCount = await Project.countDocuments({
+        userId: session.user.id,
+      });
+
+      if (activeProjectCount >= FREE_TIER_PROJECT_LIMIT) {
+        return NextResponse.json(
+          {
+            error: `Free tier allows up to ${FREE_TIER_PROJECT_LIMIT} active projects. Delete an existing project or upgrade to Pro for unlimited projects.`,
+            code: "FREE_PROJECT_LIMIT_REACHED",
+            tier: userTier,
+            limit: FREE_TIER_PROJECT_LIMIT,
+            currentCount: activeProjectCount,
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     const body = await request.json();
+    const prompt = typeof body.prompt === "string" ? body.prompt : undefined;
+    const projectName = normalizeProjectName(
+      typeof body.name === "string" ? body.name : undefined,
+      deriveProjectNameFromPrompt(prompt)
+    );
 
     // Create a new project in MongoDB
     const newProject = await Project.create({
+      _id: body.id, // Use provided ID (UUID)
       userId: session.user.id,
-      name: body.name || "Untitled Project",
+      name: projectName,
       emoji: body.emoji || "🎨",
       htmlContent: body.htmlContent || "",
       isPrivate: body.isPrivate !== false, // Default to private

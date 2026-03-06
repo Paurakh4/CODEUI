@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
+import { SubscriptionTier } from "@/lib/pricing";
 
 export interface IUser extends Document {
   _id: mongoose.Types.ObjectId;
@@ -9,16 +10,22 @@ export interface IUser extends Document {
 
   // Subscription info
   subscription: {
-    tier: "free" | "pro" | "enterprise";
+    tier: SubscriptionTier;
     stripeCustomerId?: string;
     stripeSubscriptionId?: string;
     stripePriceId?: string;
     currentPeriodEnd?: Date;
   };
 
-  // Usage tracking
-  credits: number;
-  creditsUsedThisMonth: number;
+  // Credit system
+  monthlyCredits: number; // Credits from subscription (resets monthly)
+  topupCredits: number; // Credits from one-time purchases (never expire)
+  creditsResetDate: Date; // When monthly credits should reset
+  totalCreditsUsed: number; // Lifetime usage tracking
+
+  // Legacy fields (for backwards compatibility)
+  credits?: number;
+  creditsUsedThisMonth?: number;
 
   createdAt: Date;
   updatedAt: Date;
@@ -49,7 +56,7 @@ const UserSchema = new Schema<IUser>(
     subscription: {
       tier: {
         type: String,
-        enum: ["free", "pro", "enterprise"],
+        enum: ["free", "pro", "proplus"],
         default: "free",
       },
       stripeCustomerId: String,
@@ -57,9 +64,30 @@ const UserSchema = new Schema<IUser>(
       stripePriceId: String,
       currentPeriodEnd: Date,
     },
+    monthlyCredits: {
+      type: Number,
+      default: 20, // Free tier starts with 20 credits
+    },
+    topupCredits: {
+      type: Number,
+      default: 20,
+    },
+    creditsResetDate: {
+      type: Date,
+      default: () => {
+        // Set to first day of next month
+        const now = new Date();
+        return new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      },
+    },
+    totalCreditsUsed: {
+      type: Number,
+      default: 0,
+    },
+    // Legacy fields (backwards compatibility)
     credits: {
       type: Number,
-      default: 10, // Free tier starts with 10 credits
+      default: 20,
     },
     creditsUsedThisMonth: {
       type: Number,
@@ -72,8 +100,6 @@ const UserSchema = new Schema<IUser>(
 );
 
 // Indexes for common queries
-UserSchema.index({ email: 1 });
-UserSchema.index({ googleId: 1 });
 UserSchema.index({ "subscription.stripeCustomerId": 1 });
 
 const User: Model<IUser> =

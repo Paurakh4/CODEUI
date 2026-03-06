@@ -110,7 +110,26 @@ function useSectionState(storageKey: string = 'style-panel-sections') {
     return expandedSections.has(sectionName)
   }, [expandedSections])
 
-  return { expandedSections, toggleSection, isExpanded }
+  const expandSections = useCallback((sectionNames: string[]) => {
+    setExpandedSections(() => {
+      const next = new Set(sectionNames)
+      try {
+        localStorage.setItem(storageKey, JSON.stringify([...next]))
+      } catch {}
+      return next
+    })
+  }, [storageKey])
+
+  const collapseAllSections = useCallback(() => {
+    setExpandedSections(() => {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify([]))
+      } catch {}
+      return new Set()
+    })
+  }, [storageKey])
+
+  return { expandedSections, toggleSection, isExpanded, expandSections, collapseAllSections }
 }
 
 // Enhanced debounce with immediate option
@@ -168,6 +187,7 @@ interface SectionHeaderProps {
 function SectionHeader({ title, icon, isExpanded, onToggle }: SectionHeaderProps) {
   return (
     <button
+      type="button"
       onClick={onToggle}
       className="group w-full flex items-center gap-3 px-5 py-3.5 transition-all duration-300 hover:bg-stone-800/30"
     >
@@ -286,8 +306,17 @@ function StyledInput({ label, value, onChange, onImmediateChange, placeholder, u
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && onImmediateChange && validation?.isValid) {
-      onImmediateChange(validation.sanitizedValue.toString())
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (onImmediateChange) {
+        if (property) {
+          if (validation?.isValid) {
+            onImmediateChange(validation.sanitizedValue.toString())
+          }
+        } else {
+          onImmediateChange(localValue)
+        }
+      }
       ;(e.target as HTMLInputElement).blur()
     }
   }
@@ -433,6 +462,16 @@ function ColorInput({ label, value, onChange, onImmediateChange, property }: Col
     }
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (onImmediateChange && validation?.isValid) {
+        onImmediateChange(validation.sanitizedValue.toString())
+      }
+      ;(e.target as HTMLInputElement).blur()
+    }
+  }
+
   const displayColor = localValue === 'transparent' ? '#00000000' : localValue || '#000000'
 
   const getBorderColor = () => {
@@ -483,6 +522,7 @@ function ColorInput({ label, value, onChange, onImmediateChange, property }: Col
             onChange={handleChange}
             onFocus={() => setIsFocused(true)}
             onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
             placeholder="#000000"
             className="flex-1 h-7 px-2 text-xs font-mono text-stone-300 bg-transparent focus:outline-none"
           />
@@ -558,20 +598,53 @@ interface StyledSliderProps {
 }
 
 function StyledSlider({ label, value, onChange, onChangeComplete, min = 0, max = 100, step = 1, unit = '' }: StyledSliderProps) {
-  const numValue = typeof value === 'number' ? value : parseFloat(value) || 0
-  const percentage = ((numValue - min) / (max - min)) * 100
+  const controlledValue = typeof value === 'number' ? value : parseFloat(value) || 0
+  const [localValue, setLocalValue] = useState(controlledValue)
   const [isDragging, setIsDragging] = useState(false)
+  const [isInputFocused, setIsInputFocused] = useState(false)
+
+  useEffect(() => {
+    if (!isDragging && !isInputFocused) {
+      setLocalValue(controlledValue)
+    }
+  }, [controlledValue, isDragging, isInputFocused])
+
+  const snapToStep = useCallback((nextValue: number) => {
+    const clamped = Math.min(max, Math.max(min, nextValue))
+    const stepped = Math.round((clamped - min) / step) * step + min
+    const precision = step.toString().includes('.') ? step.toString().split('.')[1]?.length || 0 : 0
+    return precision > 0 ? parseFloat(stepped.toFixed(precision)) : stepped
+  }, [min, max, step])
+
+  const applyValue = useCallback((nextValue: number, commit = false) => {
+    const normalized = snapToStep(nextValue)
+    setLocalValue(normalized)
+    onChange(normalized)
+    if (commit && onChangeComplete) {
+      onChangeComplete(normalized)
+    }
+  }, [onChange, onChangeComplete, snapToStep])
+
+  const percentage = max === min ? 0 : ((localValue - min) / (max - min)) * 100
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = parseFloat(e.target.value)
-    onChange(newValue)
+    applyValue(newValue)
   }
 
-  const handleMouseUp = () => {
+  const handleCommit = () => {
     if (isDragging && onChangeComplete) {
-      onChangeComplete(numValue)
+      onChangeComplete(snapToStep(localValue))
     }
     setIsDragging(false)
+  }
+
+  const handleNumberInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.value === '') return
+    const parsed = parseFloat(e.target.value)
+    if (Number.isFinite(parsed)) {
+      applyValue(parsed)
+    }
   }
 
   return (
@@ -580,12 +653,37 @@ function StyledSlider({ label, value, onChange, onChangeComplete, min = 0, max =
         <label className="text-[10px] font-semibold tracking-widest text-stone-500 uppercase">
           {label}
         </label>
-        <span className={cn(
-          "text-xs font-bold tabular-nums transition-colors duration-200",
-          isDragging ? "text-amber-300" : "text-amber-400/80"
-        )}>
-          {numValue.toFixed(step < 1 ? 2 : 0)}{unit}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <input
+            type="number"
+            value={localValue}
+            min={min}
+            max={max}
+            step={step}
+            onFocus={() => setIsInputFocused(true)}
+            onBlur={() => {
+              setIsInputFocused(false)
+              applyValue(localValue, true)
+            }}
+            onChange={handleNumberInputChange}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                applyValue(localValue, true)
+                ;(e.target as HTMLInputElement).blur()
+              }
+            }}
+            className="h-6 w-14 rounded-md border border-stone-700/60 bg-stone-800/70 px-1.5 text-right text-[11px] font-semibold text-stone-200 outline-none transition-all focus:ring-2 focus:ring-amber-500/30"
+          />
+          {!!unit && (
+            <span className={cn(
+              "text-[10px] font-bold uppercase transition-colors duration-200",
+              isDragging ? "text-amber-300" : "text-amber-400/80"
+            )}>
+              {unit}
+            </span>
+          )}
+        </div>
       </div>
       <div className="relative h-2 rounded-full bg-stone-800 overflow-hidden">
         <div 
@@ -597,18 +695,45 @@ function StyledSlider({ label, value, onChange, onChangeComplete, min = 0, max =
         />
         <input
           type="range"
-          value={numValue}
+          value={localValue}
           onChange={handleChange}
           onMouseDown={() => setIsDragging(true)}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
+          onMouseUp={handleCommit}
+          onMouseLeave={handleCommit}
           onTouchStart={() => setIsDragging(true)}
-          onTouchEnd={handleMouseUp}
+          onTouchEnd={handleCommit}
           min={min}
           max={max}
           step={step}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         />
+      </div>
+    </div>
+  )
+}
+
+interface ValuePresetRowProps {
+  label: string
+  values: number[]
+  unit?: string
+  onSelect: (value: number) => void
+}
+
+function ValuePresetRow({ label, values, unit = '', onSelect }: ValuePresetRowProps) {
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] font-bold tracking-widest text-amber-500/60 uppercase">{label}</p>
+      <div className="grid grid-cols-6 gap-1.5">
+        {values.map((preset) => (
+          <button
+            type="button"
+            key={`${label}-${preset}`}
+            onClick={() => onSelect(preset)}
+            className="h-7 rounded-md border border-stone-700/60 bg-stone-800/40 px-2 text-[11px] font-semibold text-stone-300 transition-all hover:border-stone-600 hover:bg-stone-800/70 hover:text-stone-100"
+          >
+            {preset}{unit}
+          </button>
+        ))}
       </div>
     </div>
   )
@@ -681,6 +806,7 @@ function AlignmentButtons({ label, value, onChange }: AlignmentButtonsProps) {
       <div className="flex gap-1 p-1 bg-stone-800/60 rounded-lg border border-stone-700/50">
         {options.map(opt => (
           <button
+            type="button"
             key={opt.value}
             onClick={() => onChange(opt.value)}
             className={cn(
@@ -774,6 +900,18 @@ const SECTION_ICONS: Record<string, React.ReactNode> = {
   image: <ImageIcon className="w-4 h-4" />,
 }
 
+function extractNumericValue(value: StyleProperty | undefined, fallback = 0) {
+  if (typeof value === 'number') return value
+  if (!value) return fallback
+  const parsed = parseFloat(value.toString())
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function toCssLength(value: number, unit: string = 'px') {
+  const normalized = Number.isInteger(value) ? value.toString() : value.toFixed(2).replace(/\.00$/, '').replace(/(\.\d*[1-9])0+$/, '$1')
+  return `${normalized}${unit}`
+}
+
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
@@ -792,14 +930,14 @@ export function StylePanel({
   canUndo = false,
   canRedo = false,
 }: StylePanelProps) {
-  const { toggleSection, isExpanded } = useSectionState()
+  const { toggleSection, isExpanded, expandSections, collapseAllSections } = useSectionState()
   const [position, setPosition] = useState(initialPosition || { x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const dragStartRef = useRef<{ x: number; y: number; posX: number; posY: number } | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   
   // Debounced handlers for different update frequencies
-  const styleChangeHandlers = useDebounce(onStyleChange, 100)
+  const { debounced: debouncedStyleChange, immediate: immediateStyleChange } = useDebounce(onStyleChange, 100)
   const elementChangeHandlers = useDebounce(onElementChange, 200)
 
   // Keyboard shortcuts for undo/redo
@@ -869,16 +1007,16 @@ export function StylePanel({
     if (onLiveStyleChange) {
       onLiveStyleChange(property, value)
     }
-    // Still trigger debounced save if no explicit commit happens?
-    // Actually, for inputs, we rely on onImmediateChange for commit.
-    // But for sliders, we might want live update.
-  }, [onLiveStyleChange])
+    debouncedStyleChange(property, value, true)
+  }, [onLiveStyleChange, debouncedStyleChange])
 
   // Immediate style change (for sliders on mouse up, etc.)
   const handleImmediateStyleChange = useCallback((property: string, value: StyleProperty) => {
-    // This ensures we save the state
-    onStyleChange(property, value, true)
-  }, [onStyleChange])
+    if (onLiveStyleChange) {
+      onLiveStyleChange(property, value)
+    }
+    immediateStyleChange(property, value, true)
+  }, [onLiveStyleChange, immediateStyleChange])
 
   const handlePropertyChange = useCallback((key: string, value: string) => {
     elementChangeHandlers.debounced({
@@ -889,6 +1027,14 @@ export function StylePanel({
       },
     })
   }, [selectedElement, elementChangeHandlers])
+
+  const applyBoxSpacingPreset = useCallback((propertyPrefix: 'margin' | 'padding', rawValue: number) => {
+    const value = toCssLength(rawValue)
+    const properties = [`${propertyPrefix}Top`, `${propertyPrefix}Right`, `${propertyPrefix}Bottom`, `${propertyPrefix}Left`]
+    properties.forEach((property) => {
+      handleImmediateStyleChange(property, value)
+    })
+  }, [handleImmediateStyleChange])
 
   const visibleSections = useMemo(() => {
     const type = selectedElement.type.toLowerCase()
@@ -945,6 +1091,7 @@ export function StylePanel({
           <div className="flex items-center gap-1">
             {/* Undo/Redo buttons */}
             <button
+              type="button"
               onClick={onUndo}
               disabled={!canUndo}
               title="Undo (⌘Z)"
@@ -958,6 +1105,7 @@ export function StylePanel({
               <Undo2 className="w-3.5 h-3.5" />
             </button>
             <button
+              type="button"
               onClick={onRedo}
               disabled={!canRedo}
               title="Redo (⌘⇧Z)"
@@ -974,6 +1122,7 @@ export function StylePanel({
             <div className="w-px h-4 bg-stone-700/50 mx-1" />
             
             <button
+              type="button"
               onClick={onClose}
               className={cn(
                 "p-1.5 rounded-md transition-all duration-200",
@@ -984,6 +1133,23 @@ export function StylePanel({
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
+        </div>
+
+        <div className="relative mt-2.5 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => expandSections(visibleSections)}
+            className="h-7 rounded-md border border-stone-700/60 bg-stone-800/40 px-2.5 text-[10px] font-semibold tracking-wide text-stone-300 transition-all hover:border-stone-600 hover:bg-stone-800/70 hover:text-stone-100"
+          >
+            Expand All
+          </button>
+          <button
+            type="button"
+            onClick={collapseAllSections}
+            className="h-7 rounded-md border border-stone-700/60 bg-stone-800/40 px-2.5 text-[10px] font-semibold tracking-wide text-stone-300 transition-all hover:border-stone-600 hover:bg-stone-800/70 hover:text-stone-100"
+          >
+            Collapse All
+          </button>
         </div>
       </div>
 
@@ -1046,6 +1212,12 @@ export function StylePanel({
             isExpanded={isExpanded('spacing')}
             onToggle={() => toggleSection('spacing')}
           >
+            <ValuePresetRow
+              label="Margin Presets"
+              values={[0, 4, 8, 12, 16, 24]}
+              unit="px"
+              onSelect={(value) => applyBoxSpacingPreset('margin', value)}
+            />
             <div className="space-y-3">
               <p className="text-[10px] font-bold tracking-widest text-amber-500/60 uppercase">Margin</p>
               <div className="grid grid-cols-4 gap-2">
@@ -1055,6 +1227,12 @@ export function StylePanel({
                 <StyledInput label="Left" value={selectedElement.styles.marginLeft?.toString() || ''} onChange={(v) => handleStyleChange('marginLeft', v)} onImmediateChange={(v) => handleImmediateStyleChange('marginLeft', v)} property="marginLeft" compact />
               </div>
             </div>
+            <ValuePresetRow
+              label="Padding Presets"
+              values={[0, 4, 8, 12, 16, 24]}
+              unit="px"
+              onSelect={(value) => applyBoxSpacingPreset('padding', value)}
+            />
             <div className="space-y-3">
               <p className="text-[10px] font-bold tracking-widest text-amber-500/60 uppercase">Padding</p>
               <div className="grid grid-cols-4 gap-2">
@@ -1118,6 +1296,16 @@ export function StylePanel({
               placeholder="0"
               property="gap"
             />
+            <StyledSlider
+              label="Gap Slider"
+              value={extractNumericValue(selectedElement.styles.gap, 0)}
+              onChange={(value) => handleStyleChange('gap', toCssLength(value))}
+              onChangeComplete={(value) => handleImmediateStyleChange('gap', toCssLength(value))}
+              min={0}
+              max={120}
+              step={1}
+              unit="px"
+            />
           </Section>
         )}
 
@@ -1136,15 +1324,17 @@ export function StylePanel({
               onChange={(v) => handleStyleChange('fontFamily', v)}
               options={FONT_FAMILY_OPTIONS}
             />
+            <StyledSlider
+              label="Font Size"
+              value={extractNumericValue(selectedElement.styles.fontSize, 16)}
+              onChange={(value) => handleStyleChange('fontSize', toCssLength(value))}
+              onChangeComplete={(value) => handleImmediateStyleChange('fontSize', toCssLength(value))}
+              min={8}
+              max={96}
+              step={1}
+              unit="px"
+            />
             <div className="grid grid-cols-2 gap-3">
-              <StyledInput
-                label="Size"
-                value={selectedElement.styles.fontSize?.toString() || ''}
-                onChange={(v) => handleStyleChange('fontSize', v)}
-                onImmediateChange={(v) => handleImmediateStyleChange('fontSize', v)}
-                placeholder="16px"
-                property="fontSize"
-              />
               <StyledInput
                 label="Weight"
                 value={selectedElement.styles.fontWeight?.toString() || ''}
@@ -1152,6 +1342,14 @@ export function StylePanel({
                 onImmediateChange={(v) => handleImmediateStyleChange('fontWeight', v)}
                 placeholder="400"
                 property="fontWeight"
+              />
+              <StyledInput
+                label="Size"
+                value={selectedElement.styles.fontSize?.toString() || ''}
+                onChange={(v) => handleStyleChange('fontSize', v)}
+                onImmediateChange={(v) => handleImmediateStyleChange('fontSize', v)}
+                placeholder="16px"
+                property="fontSize"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -1172,6 +1370,16 @@ export function StylePanel({
                 property="letterSpacing"
               />
             </div>
+            <StyledSlider
+              label="Letter Spacing"
+              value={extractNumericValue(selectedElement.styles.letterSpacing, 0)}
+              onChange={(value) => handleStyleChange('letterSpacing', toCssLength(value))}
+              onChangeComplete={(value) => handleImmediateStyleChange('letterSpacing', toCssLength(value))}
+              min={-4}
+              max={24}
+              step={0.5}
+              unit="px"
+            />
             <AlignmentButtons
               label="Text Align"
               value={selectedElement.styles.textAlign?.toString() || ''}
@@ -1215,24 +1423,32 @@ export function StylePanel({
             isExpanded={isExpanded('border')}
             onToggle={() => toggleSection('border')}
           >
-            <div className="grid grid-cols-2 gap-3">
-              <StyledInput
-                label="Width"
-                value={selectedElement.styles.borderWidth?.toString() || ''}
-                onChange={(v) => handleStyleChange('borderWidth', v)}
-                onImmediateChange={(v) => handleImmediateStyleChange('borderWidth', v)}
-                placeholder="0"
-                property="borderWidth"
-              />
-              <StyledInput
-                label="Radius"
-                value={selectedElement.styles.borderRadius?.toString() || ''}
-                onChange={(v) => handleStyleChange('borderRadius', v)}
-                onImmediateChange={(v) => handleImmediateStyleChange('borderRadius', v)}
-                placeholder="0"
-                property="borderRadius"
-              />
-            </div>
+            <StyledSlider
+              label="Border Width"
+              value={extractNumericValue(selectedElement.styles.borderWidth, 0)}
+              onChange={(value) => handleStyleChange('borderWidth', toCssLength(value))}
+              onChangeComplete={(value) => handleImmediateStyleChange('borderWidth', toCssLength(value))}
+              min={0}
+              max={20}
+              step={1}
+              unit="px"
+            />
+            <StyledSlider
+              label="Border Radius"
+              value={extractNumericValue(selectedElement.styles.borderRadius, 0)}
+              onChange={(value) => handleStyleChange('borderRadius', toCssLength(value))}
+              onChangeComplete={(value) => handleImmediateStyleChange('borderRadius', toCssLength(value))}
+              min={0}
+              max={64}
+              step={1}
+              unit="px"
+            />
+            <ValuePresetRow
+              label="Radius Presets"
+              values={[0, 4, 8, 12, 16, 24]}
+              unit="px"
+              onSelect={(value) => handleImmediateStyleChange('borderRadius', toCssLength(value))}
+            />
             <ColorInput
               label="Border Color"
               value={selectedElement.styles.borderColor?.toString() || ''}

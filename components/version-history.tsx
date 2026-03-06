@@ -24,9 +24,11 @@ export interface Version {
 interface VersionHistoryProps {
   versions: Version[]
   currentVersionId?: string | null
-  onRestore: (versionId: string) => void
-  onPreview: (version: Version) => void
-  trigger?: React.ReactNode
+  onRestore: (version: Version) => void | boolean | Promise<void | boolean>
+  onPreview: (version: Version | null) => void
+  trigger?: React.ReactNode | null
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 export function VersionHistory({
@@ -35,34 +37,70 @@ export function VersionHistory({
   onRestore,
   onPreview,
   trigger,
+  open: controlledOpen,
+  onOpenChange,
 }: VersionHistoryProps) {
   const [open, setOpen] = useState(false)
   const [previewingId, setPreviewingId] = useState<string | null>(null)
+  const isControlled = typeof controlledOpen === "boolean"
+  const sheetOpen = isControlled ? controlledOpen : open
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setPreviewingId(null)
+      onPreview(null)
+    }
+
+    if (!isControlled) {
+      setOpen(nextOpen)
+    }
+    onOpenChange?.(nextOpen)
+  }
 
   const sortedVersions = [...versions].sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
   )
 
   const handlePreview = (version: Version) => {
+    if (previewingId === version.id) {
+      setPreviewingId(null)
+      onPreview(null)
+      return
+    }
+
     setPreviewingId(version.id)
     onPreview(version)
   }
 
-  const handleRestore = (versionId: string) => {
-    onRestore(versionId)
-    setOpen(false)
+  const handleRestore = async (version: Version) => {
+    const restored = await onRestore(version)
+    if (restored === false) {
+      return
+    }
+
+    setPreviewingId(null)
+    onPreview(null)
+
+    if (!isControlled) {
+      setOpen(false)
+    }
+    onOpenChange?.(false)
   }
 
+  const triggerNode =
+    trigger === undefined ? (
+      <Button variant="outline" size="sm" className="gap-2">
+        <Clock className="w-4 h-4" />
+        History
+      </Button>
+    ) : (
+      trigger
+    )
+
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        {trigger || (
-          <Button variant="outline" size="sm" className="gap-2">
-            <Clock className="w-4 h-4" />
-            History
-          </Button>
-        )}
-      </SheetTrigger>
+    <Sheet open={sheetOpen} onOpenChange={handleOpenChange}>
+      {triggerNode !== null && (
+        <SheetTrigger asChild>{triggerNode}</SheetTrigger>
+      )}
       <SheetContent className="w-[400px] bg-zinc-950 border-zinc-800 p-0">
         <SheetHeader className="p-4 border-b border-zinc-800">
           <SheetTitle className="text-zinc-100 flex items-center gap-2">
@@ -147,7 +185,7 @@ export function VersionHistory({
 
                         {!isCurrent && (
                           <button
-                            onClick={() => handleRestore(version.id)}
+                            onClick={() => handleRestore(version)}
                             className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 px-2 py-1 rounded transition-colors"
                           >
                             <RotateCcw className="w-3 h-3" />
