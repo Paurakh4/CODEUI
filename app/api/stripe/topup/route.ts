@@ -1,7 +1,7 @@
 import { stripe } from "@/lib/payments/stripe";
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
-import { TOPUP_PACKAGES } from "@/lib/pricing";
+import { TOPUP_PACKAGES, getTopupPriceId } from "@/lib/pricing";
 
 export async function POST(req: Request) {
   try {
@@ -24,7 +24,9 @@ export async function POST(req: Request) {
       return new NextResponse("Invalid package ID", { status: 400 });
     }
 
-    if (!topupPackage.stripePriceId) {
+    const priceId = getTopupPriceId(topupPackage.id);
+
+    if (!priceId) {
       return new NextResponse("Stripe price not configured for this package", {
         status: 500,
       });
@@ -35,7 +37,7 @@ export async function POST(req: Request) {
       payment_method_types: ["card"],
       line_items: [
         {
-          price: topupPackage.stripePriceId,
+          price: priceId,
           quantity: 1,
         },
       ],
@@ -71,7 +73,7 @@ export async function GET() {
       id: pkg.id,
       credits: pkg.credits,
       price: pkg.price,
-      available: !!pkg.stripePriceId,
+      available: !!getTopupPriceId(pkg.id),
     }));
 
     return NextResponse.json({ packages });

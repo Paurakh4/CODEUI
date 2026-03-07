@@ -4,6 +4,7 @@ import connectDB from "@/lib/db";
 import { Project, User } from "@/lib/models";
 import { deriveProjectNameFromPrompt, normalizeProjectName } from "@/lib/utils/project-name";
 import { isAdminUser } from "@/lib/pricing";
+import { normalizeUserPreferences } from "@/lib/user-preferences";
 
 const FREE_TIER_PROJECT_LIMIT = 4;
 
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
     await connectDB();
 
     const user = await User.findById(session.user.id)
-      .select("subscription.tier email")
+      .select("subscription.tier email preferences")
       .lean();
 
     if (!user) {
@@ -93,6 +94,9 @@ export async function POST(request: Request) {
       typeof body.name === "string" ? body.name : undefined,
       deriveProjectNameFromPrompt(prompt)
     );
+    const preferences = normalizeUserPreferences(user.preferences);
+    const defaultPrivateSetting =
+      preferences.privacyPreferences.privateProjectsByDefault;
 
     // Create a new project in MongoDB
     const newProject = await Project.create({
@@ -101,7 +105,10 @@ export async function POST(request: Request) {
       name: projectName,
       emoji: body.emoji || "🎨",
       htmlContent: body.htmlContent || "",
-      isPrivate: body.isPrivate !== false, // Default to private
+      isPrivate:
+        typeof body.isPrivate === "boolean"
+          ? body.isPrivate
+          : defaultPrivateSetting,
     });
 
     return NextResponse.json(

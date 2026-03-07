@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { deriveProjectNameFromPrompt } from "@/lib/utils/project-name"
+import { storePendingProjectStart } from "@/lib/utils/project-bootstrap"
 
 function DashboardContent() {
   const searchParams = useSearchParams()
@@ -94,10 +95,8 @@ function DashboardContent() {
       }
     }
 
-    const params = new URLSearchParams()
-    if (prompt) params.set("prompt", prompt)
-    if (model) params.set("model", model)
-    router.push(`/project/${id}?${params.toString()}`)
+    storePendingProjectStart(id, { prompt, model })
+    router.push(`/project/${id}`)
   }
 
   return <DashboardMain onStart={handleStart} />

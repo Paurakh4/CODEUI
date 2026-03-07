@@ -9,8 +9,11 @@ import React, {
   useEffect,
   useState,
 } from "react"
+import { useSession } from "next-auth/react"
+import { useTheme } from "next-themes"
 import { useToast } from "@/hooks/use-toast"
 import { CODEUI_GOD_MODE_MODEL_ID } from "@/lib/ai-models"
+import { createDefaultUserPreferences } from "@/lib/user-preferences"
 
 const CINEMATHEQUE_TEMPLATE_ENDPOINT = "/api/templates/cinematheque-preview"
 const LOADING_HTML = `<!DOCTYPE html>
@@ -307,43 +310,122 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const [hasHydratedSelectedModel, setHasHydratedSelectedModel] = useState(false)
   const [hasHydratedGenerationSettings, setHasHydratedGenerationSettings] = useState(false)
   const { toast } = useToast()
+  const { data: session, status } = useSession()
+  const { setTheme: applyTheme } = useTheme()
 
-  // Load selected model from localStorage
-  useEffect(() => {
+  const applyPersistedSettings = useCallback((settings: ReturnType<typeof createDefaultUserPreferences>) => {
+    dispatch({ type: "SET_MODEL", payload: settings.defaultModel })
+    dispatch({ type: "SET_PRIMARY_COLOR", payload: settings.primaryColor })
+    dispatch({ type: "SET_SECONDARY_COLOR", payload: settings.secondaryColor })
+    dispatch({ type: "SET_THEME", payload: settings.theme })
+    dispatch({ type: "SET_ENHANCED_PROMPTS", payload: settings.enhancedPrompts })
+    setHasHydratedSelectedModel(true)
+    setHasHydratedGenerationSettings(true)
+  }, [])
+
+  const hydrateGuestSettings = useCallback(() => {
+    const defaults = createDefaultUserPreferences()
     const savedModel = localStorage.getItem("selected_model")
-    const preferredModelId = savedModel || CODEUI_GOD_MODE_MODEL_ID
+    const savedGenerationSettings = localStorage.getItem("generation_settings")
 
-    if (savedModel) {
-      dispatch({ type: "SET_MODEL", payload: savedModel })
+    dispatch({
+      type: "SET_MODEL",
+      payload: savedModel || defaults.defaultModel,
+    })
+
+    if (savedGenerationSettings) {
+      try {
+        const parsed = JSON.parse(savedGenerationSettings)
+
+        dispatch({
+          type: "SET_PRIMARY_COLOR",
+          payload:
+            typeof parsed.primaryColor === "string"
+              ? parsed.primaryColor
+              : defaults.primaryColor,
+        })
+        dispatch({
+          type: "SET_SECONDARY_COLOR",
+          payload:
+            typeof parsed.secondaryColor === "string"
+              ? parsed.secondaryColor
+              : defaults.secondaryColor,
+        })
+        dispatch({
+          type: "SET_THEME",
+          payload:
+            parsed.theme === "light" || parsed.theme === "dark"
+              ? parsed.theme
+              : defaults.theme,
+        })
+        dispatch({
+          type: "SET_ENHANCED_PROMPTS",
+          payload:
+            typeof parsed.enhancedPrompts === "boolean"
+              ? parsed.enhancedPrompts
+              : defaults.enhancedPrompts,
+        })
+      } catch (error) {
+        console.error("Failed to restore generation settings", error)
+        applyPersistedSettings(defaults)
+        return
+      }
+    } else {
+      dispatch({ type: "SET_PRIMARY_COLOR", payload: defaults.primaryColor })
+      dispatch({ type: "SET_SECONDARY_COLOR", payload: defaults.secondaryColor })
+      dispatch({ type: "SET_THEME", payload: defaults.theme })
+      dispatch({ type: "SET_ENHANCED_PROMPTS", payload: defaults.enhancedPrompts })
     }
 
     setHasHydratedSelectedModel(true)
+    setHasHydratedGenerationSettings(true)
+  }, [applyPersistedSettings])
 
-    const resolveModelId = (models: { id: string }[]) => {
-      if (models.some((m) => m.id === preferredModelId)) {
-        return preferredModelId
-      }
+  useEffect(() => {
+    if (status === "loading") return
 
-      const godMode = models.find((m) => m.id === CODEUI_GOD_MODE_MODEL_ID)
-      if (godMode) {
-        return godMode.id
-      }
-
-      return models[0]?.id
+    if (!session?.user?.id) {
+      hydrateGuestSettings()
+      return
     }
 
-    // Fetch available models
+    let cancelled = false
+
+    ;(async () => {
+      try {
+        const res = await fetch("/api/user/settings", { cache: "no-store" })
+
+        if (!res.ok) {
+          throw new Error("Failed to fetch user settings")
+        }
+
+        const data = await res.json()
+        if (!cancelled && data.settings) {
+          applyPersistedSettings(data.settings)
+        }
+      } catch (error) {
+        console.error("Failed to fetch user settings:", error)
+        if (!cancelled) {
+          hydrateGuestSettings()
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [applyPersistedSettings, hydrateGuestSettings, session?.user?.id, status])
+
+  // Fetch available models
+  useEffect(() => {
     fetch('/api/ai/models')
       .then(res => res.json())
       .then(data => {
         if (data.models && Array.isArray(data.models)) {
-          const models = data.models.map((m: any) => ({ id: m.id, name: m.name }))
-          dispatch({ type: "SET_AVAILABLE_MODELS", payload: models })
-
-          const resolvedModel = resolveModelId(models)
-          if (resolvedModel) {
-            dispatch({ type: "SET_MODEL", payload: resolvedModel })
-          }
+          dispatch({
+            type: "SET_AVAILABLE_MODELS",
+            payload: data.models.map((m: any) => ({ id: m.id, name: m.name })),
+          })
         }
       })
       .catch(err => {
@@ -359,28 +441,44 @@ export function EditorProvider({ children }: { children: ReactNode }) {
           { id: "deepseek/deepseek-r1", name: "DeepSeek R1" },
         ]
         dispatch({ type: "SET_AVAILABLE_MODELS", payload: fallbackModels })
-
-        const resolvedFallbackModel = resolveModelId(fallbackModels)
-        if (resolvedFallbackModel) {
-          dispatch({ type: "SET_MODEL", payload: resolvedFallbackModel })
-        }
       })
       .finally(() => {
         dispatch({ type: "SET_IS_LOADING_MODELS", payload: false })
       })
   }, [toast])
 
+  useEffect(() => {
+    if (state.isLoadingModels || state.availableModels.length === 0) return
+
+    if (state.availableModels.some((model) => model.id === state.selectedModel)) {
+      return
+    }
+
+    const godMode = state.availableModels.find(
+      (model) => model.id === CODEUI_GOD_MODE_MODEL_ID
+    )
+    const fallbackModel = godMode?.id || state.availableModels[0]?.id
+
+    if (fallbackModel) {
+      dispatch({ type: "SET_MODEL", payload: fallbackModel })
+    }
+  }, [state.availableModels, state.isLoadingModels, state.selectedModel])
+
   // Save selected model to localStorage and listen for changes
   useEffect(() => {
-    if (!hasHydratedSelectedModel) return
+    if (!hasHydratedSelectedModel || session?.user?.id) return
 
     if (state.selectedModel) {
       localStorage.setItem("selected_model", state.selectedModel)
     }
-  }, [hasHydratedSelectedModel, state.selectedModel])
+  }, [hasHydratedSelectedModel, session?.user?.id, state.selectedModel])
 
   // Listen for storage events to sync across tabs
   useEffect(() => {
+    if (session?.user?.id) {
+      return
+    }
+
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === "selected_model" && e.newValue) {
         dispatch({ type: "SET_MODEL", payload: e.newValue })
@@ -389,7 +487,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
     window.addEventListener("storage", handleStorageChange)
     return () => window.removeEventListener("storage", handleStorageChange)
-  }, [])
+  }, [session?.user?.id])
 
   // Load default preview template (Cinematheque) once the provider mounts.
   useEffect(() => {
@@ -414,35 +512,9 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     }
   }, [state.htmlContent])
 
-  // Load generation settings from localStorage
-  useEffect(() => {
-    const savedGenerationSettings = localStorage.getItem("generation_settings")
-    if (savedGenerationSettings) {
-      try {
-        const parsed = JSON.parse(savedGenerationSettings)
-        if (typeof parsed.primaryColor === "string") {
-          dispatch({ type: "SET_PRIMARY_COLOR", payload: parsed.primaryColor })
-        }
-        if (typeof parsed.secondaryColor === "string") {
-          dispatch({ type: "SET_SECONDARY_COLOR", payload: parsed.secondaryColor })
-        }
-        if (parsed.theme === "light" || parsed.theme === "dark") {
-          dispatch({ type: "SET_THEME", payload: parsed.theme })
-        }
-        if (typeof parsed.enhancedPrompts === "boolean") {
-          dispatch({ type: "SET_ENHANCED_PROMPTS", payload: parsed.enhancedPrompts })
-        }
-      } catch (error) {
-        console.error("Failed to restore generation settings", error)
-      }
-    }
-
-    setHasHydratedGenerationSettings(true)
-  }, [])
-
   // Persist generation settings
   useEffect(() => {
-    if (!hasHydratedGenerationSettings) return
+    if (!hasHydratedGenerationSettings || session?.user?.id) return
 
     localStorage.setItem(
       "generation_settings",
@@ -455,11 +527,16 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     )
   }, [
     hasHydratedGenerationSettings,
+    session?.user?.id,
     state.primaryColor,
     state.secondaryColor,
     state.theme,
     state.enhancedPrompts,
   ])
+
+  useEffect(() => {
+    applyTheme(state.theme)
+  }, [applyTheme, state.theme])
   
   const setHtmlContent = useCallback((content: string) => {
     dispatch({ type: "SET_HTML_CONTENT", payload: content })

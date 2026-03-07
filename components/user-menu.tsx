@@ -14,10 +14,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { LogOut, Settings, User } from "lucide-react";
 import { SignInDialog } from "@/components/sign-in-dialog";
+import { useAccountModals } from "@/components/account-modal-provider";
 
 export function UserMenu() {
   const { data: session, status } = useSession();
   const [showSignInDialog, setShowSignInDialog] = useState(false);
+  const { showProfile, showSettings } = useAccountModals();
 
   if (status === "loading") {
     return (
@@ -80,11 +82,11 @@ export function UserMenu() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        <DropdownMenuItem onClick={showProfile}>
           <User className="mr-2 h-4 w-4" />
           Profile
         </DropdownMenuItem>
-        <DropdownMenuItem>
+        <DropdownMenuItem onClick={showSettings}>
           <Settings className="mr-2 h-4 w-4" />
           Settings
         </DropdownMenuItem>

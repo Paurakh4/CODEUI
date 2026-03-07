@@ -4,6 +4,7 @@ import connectDB from "./db";
 import User from "./models/User";
 import { authConfig } from "@/auth.config";
 import { getMonthlyCreditsForTier, SubscriptionTier } from "./pricing";
+import { createDefaultUserPreferences, normalizeUserPreferences } from "./user-preferences";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
@@ -45,6 +46,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               name: user.name!,
               image: user.image || undefined,
               googleId: profile.sub!,
+              preferences: createDefaultUserPreferences(),
               subscription: {
                 tier: "free",
               },
@@ -63,6 +65,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             // Update existing user info (name/image might change)
             existingUser.name = user.name || existingUser.name;
             existingUser.image = user.image || existingUser.image;
+            existingUser.preferences = normalizeUserPreferences(existingUser.preferences);
             await existingUser.save();
             user.id = existingUser._id.toString();
           }
@@ -89,6 +92,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           await connectDB();
           const dbUser = await User.findById(token.id);
           if (dbUser) {
+            token.name = dbUser.name;
+            token.email = dbUser.email;
+            token.picture = dbUser.image;
             token.subscription = dbUser.subscription.tier as SubscriptionTier;
             // New credit fields
             token.monthlyCredits = dbUser.monthlyCredits ?? 0;
@@ -109,6 +115,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
+        if (typeof token.name === "string") {
+          session.user.name = token.name;
+        }
+        if (typeof token.email === "string") {
+          session.user.email = token.email;
+        }
+        if (typeof token.picture === "string") {
+          session.user.image = token.picture;
+        }
         // Add subscription info to session
         (session.user as any).subscription =
           token.subscription;

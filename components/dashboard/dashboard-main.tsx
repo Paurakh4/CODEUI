@@ -42,9 +42,10 @@ import {
 import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { useEditor } from "@/stores/editor-store"
+import type { SubscriptionTier } from "@/lib/pricing"
 
 // Credit tier configurations (matching lib/pricing.ts)
-const TIER_CREDITS: Record<string, number> = {
+const TIER_CREDITS: Record<SubscriptionTier, number> = {
   free: 20,
   pro: 120,
   proplus: 350,
@@ -182,7 +183,7 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
     topupCredits?: number
     totalCredits?: number
     credits?: number
-    subscription?: string
+    subscription?: SubscriptionTier
   }
   const userTier = sessionUser?.subscription || "free"
   const userMonthlyCredits = realTimeCredits?.monthlyCredits ?? sessionUser?.monthlyCredits ?? 0
@@ -265,7 +266,7 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
   }, [])
 
   return (
-    <div className="flex h-screen bg-black text-white overflow-hidden font-sans selection:bg-white/20">
+    <div className="flex h-screen bg-black text-white font-sans selection:bg-white/20">
       {/* Sidebar */}
       <aside 
         className={`
@@ -480,7 +481,7 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col relative min-w-0">
+      <main className="flex-1 flex flex-col relative min-w-0 overflow-y-auto">
         {!isSidebarOpen && (
           <div className="absolute top-4 left-4 z-30">
             <Button 
@@ -730,6 +731,7 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
       <PricingModal
         isOpen={isPricingOpen}
         onClose={() => setIsPricingOpen(false)}
+        currentTier={userTier}
       />
     </div>
   )

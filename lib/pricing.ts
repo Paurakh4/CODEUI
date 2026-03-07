@@ -21,12 +21,15 @@
  */
 
 export type SubscriptionTier = "free" | "pro" | "proplus";
+export type PaidSubscriptionTier = Exclude<SubscriptionTier, "free">;
+export type BillingCycle = "monthly" | "yearly";
 
 export interface TierConfig {
   name: string;
   monthlyCredits: number;
   priceMonthly: number;
-  stripePriceId: string | undefined;
+  priceYearly?: number;
+  description: string;
   features: string[];
 }
 
@@ -34,8 +37,16 @@ export interface TopupPackage {
   id: string;
   credits: number;
   price: number;
-  stripePriceId: string | undefined;
 }
+
+export interface StripePricingQuote {
+  amount: number;
+  currency: string;
+  priceId: string;
+}
+
+export const BILLING_CYCLES: BillingCycle[] = ["monthly", "yearly"];
+export const PAID_SUBSCRIPTION_TIERS: PaidSubscriptionTier[] = ["pro", "proplus"];
 
 // Subscription tier configurations
 export const TIERS: Record<SubscriptionTier, TierConfig> = {
@@ -43,21 +54,25 @@ export const TIERS: Record<SubscriptionTier, TierConfig> = {
     name: "Free",
     monthlyCredits: 20,
     priceMonthly: 0,
-    stripePriceId: undefined,
+    description: "Perfect for exploring and small projects",
     features: [
       "20 prompts per month",
       "All AI models",
-      "Basic support",
+      "Public projects",
+      "Community support",
     ],
   },
   pro: {
     name: "Pro",
     monthlyCredits: 120,
     priceMonthly: 10,
-    stripePriceId: process.env.STRIPE_PRO_PRICE_ID,
+    priceYearly: 100,
+    description: "For creators who need more power",
     features: [
       "120 prompts per month",
       "All AI models",
+      "Private projects",
+      "Export to code",
       "Priority support",
       "Version history",
     ],
@@ -66,10 +81,13 @@ export const TIERS: Record<SubscriptionTier, TierConfig> = {
     name: "Pro Plus",
     monthlyCredits: 350,
     priceMonthly: 30,
-    stripePriceId: process.env.STRIPE_PROPLUS_PRICE_ID,
+    priceYearly: 300,
+    description: "For power users and teams",
     features: [
       "350 prompts per month",
       "All AI models",
+      "Private projects",
+      "Export to code",
       "Priority support",
       "Version history",
       "Early access to new features",
@@ -83,21 +101,50 @@ export const TOPUP_PACKAGES: TopupPackage[] = [
     id: "topup_25",
     credits: 25,
     price: 5,
-    stripePriceId: process.env.STRIPE_TOPUP_25_PRICE_ID,
   },
   {
     id: "topup_50",
     credits: 50,
     price: 10,
-    stripePriceId: process.env.STRIPE_TOPUP_50_PRICE_ID,
   },
   {
     id: "topup_100",
     credits: 100,
     price: 20,
-    stripePriceId: process.env.STRIPE_TOPUP_100_PRICE_ID,
   },
 ];
+
+function getSubscriptionPriceIds(): Record<PaidSubscriptionTier, Record<BillingCycle, string | undefined>> {
+  return {
+    pro: {
+      monthly: process.env.STRIPE_PRO_MONTHLY_PRICE_ID || process.env.STRIPE_PRO_PRICE_ID,
+      yearly: process.env.STRIPE_PRO_YEARLY_PRICE_ID,
+    },
+    proplus: {
+      monthly: process.env.STRIPE_PROPLUS_MONTHLY_PRICE_ID || process.env.STRIPE_PROPLUS_PRICE_ID,
+      yearly: process.env.STRIPE_PROPLUS_YEARLY_PRICE_ID,
+    },
+  };
+}
+
+function getTopupPriceIds(): Record<TopupPackage["id"], string | undefined> {
+  return {
+    topup_25: process.env.STRIPE_TOPUP_25_PRICE_ID,
+    topup_50: process.env.STRIPE_TOPUP_50_PRICE_ID,
+    topup_100: process.env.STRIPE_TOPUP_100_PRICE_ID,
+  };
+}
+
+export function getSubscriptionPriceId(
+  tier: PaidSubscriptionTier,
+  billingCycle: BillingCycle
+): string | undefined {
+  return getSubscriptionPriceIds()[tier][billingCycle];
+}
+
+export function getTopupPriceId(packageId: TopupPackage["id"]): string | undefined {
+  return getTopupPriceIds()[packageId];
+}
 
 /**
  * Parse staff credits from environment variable
@@ -187,12 +234,15 @@ export function getStaffCreditLimit(email: string): number | undefined {
  * Get tier from Stripe price ID
  */
 export function getTierFromPriceId(priceId: string): SubscriptionTier {
-  if (priceId === process.env.STRIPE_PRO_PRICE_ID) {
-    return "pro";
+  const subscriptionPriceIds = getSubscriptionPriceIds();
+
+  for (const tier of PAID_SUBSCRIPTION_TIERS) {
+    const priceIds = subscriptionPriceIds[tier];
+    if (priceIds.monthly === priceId || priceIds.yearly === priceId) {
+      return tier;
+    }
   }
-  if (priceId === process.env.STRIPE_PROPLUS_PRICE_ID) {
-    return "proplus";
-  }
+
   return "free";
 }
 
@@ -202,7 +252,7 @@ export function getTierFromPriceId(priceId: string): SubscriptionTier {
 export function getTopupPackageFromPriceId(
   priceId: string
 ): TopupPackage | undefined {
-  return TOPUP_PACKAGES.find((pkg) => pkg.stripePriceId === priceId);
+  return TOPUP_PACKAGES.find((pkg) => getTopupPriceId(pkg.id) === priceId);
 }
 
 /**

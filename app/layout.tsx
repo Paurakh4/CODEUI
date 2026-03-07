@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
 import { AuthSessionProvider } from '@/components/session-provider'
 import { AuthDialogProvider } from '@/components/auth-dialog-provider'
+import { AccountModalProvider } from '@/components/account-modal-provider'
 import { EditorProvider } from '@/stores/editor-store'
 import { Toaster } from '@/components/ui/toaster'
 import './globals.css'
@@ -30,8 +31,10 @@ export default function RootLayout({
           >
             <AuthDialogProvider>
               <EditorProvider>
-                {children}
-                <Toaster />
+                <AccountModalProvider>
+                  {children}
+                  <Toaster />
+                </AccountModalProvider>
               </EditorProvider>
             </AuthDialogProvider>
           </ThemeProvider>

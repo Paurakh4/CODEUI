@@ -1456,7 +1456,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   }
 
   return (
-    <div className="flex h-screen bg-zinc-950 text-zinc-100">
+    <div className="flex min-h-screen overflow-x-hidden bg-zinc-950 text-zinc-100">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div

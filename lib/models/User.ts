@@ -1,5 +1,9 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 import { SubscriptionTier } from "@/lib/pricing";
+import {
+  type UserPreferences,
+  createDefaultUserPreferences,
+} from "@/lib/user-preferences";
 
 export interface IUser extends Document {
   _id: mongoose.Types.ObjectId;
@@ -7,6 +11,7 @@ export interface IUser extends Document {
   name: string;
   image?: string;
   googleId: string;
+  preferences: UserPreferences;
 
   // Subscription info
   subscription: {
@@ -31,6 +36,65 @@ export interface IUser extends Document {
   updatedAt: Date;
 }
 
+const ContactPreferencesSchema = new Schema(
+  {
+    productUpdates: {
+      type: Boolean,
+      default: true,
+    },
+    marketingEmails: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  { _id: false }
+);
+
+const PrivacyPreferencesSchema = new Schema(
+  {
+    privateProjectsByDefault: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  { _id: false }
+);
+
+const PreferencesSchema = new Schema(
+  {
+    theme: {
+      type: String,
+      enum: ["light", "dark"],
+      default: "dark",
+    },
+    primaryColor: {
+      type: String,
+      default: "blue",
+    },
+    secondaryColor: {
+      type: String,
+      default: "slate",
+    },
+    defaultModel: {
+      type: String,
+      default: createDefaultUserPreferences().defaultModel,
+    },
+    enhancedPrompts: {
+      type: Boolean,
+      default: false,
+    },
+    contactPreferences: {
+      type: ContactPreferencesSchema,
+      default: () => createDefaultUserPreferences().contactPreferences,
+    },
+    privacyPreferences: {
+      type: PrivacyPreferencesSchema,
+      default: () => createDefaultUserPreferences().privacyPreferences,
+    },
+  },
+  { _id: false }
+);
+
 const UserSchema = new Schema<IUser>(
   {
     email: {
@@ -52,6 +116,10 @@ const UserSchema = new Schema<IUser>(
       type: String,
       required: true,
       unique: true,
+    },
+    preferences: {
+      type: PreferencesSchema,
+      default: () => createDefaultUserPreferences(),
     },
     subscription: {
       tier: {

@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { UserMenu } from "@/components/user-menu"
+import { useAccountModals } from "@/components/account-modal-provider"
 import { 
   PanelLeft, 
   Save, 
@@ -19,10 +20,10 @@ import {
   Copy,
   Check,
   Zap,
-  Crown
+  Crown,
+  Settings
 } from "lucide-react"
 import { useState, useCallback, useEffect, useRef } from "react"
-import { SettingsPanel } from "@/components/settings-panel"
 import {
   Tooltip,
   TooltipContent,
@@ -77,17 +78,18 @@ export function TopNav({
   onHistoryOpen,
   isGenerating = false,
   hasUnsavedChanges = false,
-  primaryColor = "blue",
-  secondaryColor = "slate",
-  theme = "dark",
-  enhancedPrompts = false,
-  onPrimaryColorChange,
-  onSecondaryColorChange,
-  onThemeChange,
-  onEnhancedPromptsChange,
+  primaryColor: _primaryColor = "blue",
+  secondaryColor: _secondaryColor = "slate",
+  theme: _theme = "dark",
+  enhancedPrompts: _enhancedPrompts = false,
+  onPrimaryColorChange: _onPrimaryColorChange,
+  onSecondaryColorChange: _onSecondaryColorChange,
+  onThemeChange: _onThemeChange,
+  onEnhancedPromptsChange: _onEnhancedPromptsChange,
 }: TopNavProps) {
   const [copied, setCopied] = useState(false)
   const { data: session, update: updateSession } = useSession()
+  const { showSettings } = useAccountModals()
 
   // Credit system logic (matching dashboard-main.tsx)
   const [realTimeCredits, setRealTimeCredits] = useState<{
@@ -400,16 +402,18 @@ export function TopNav({
             <TooltipContent side="bottom">Open in new tab</TooltipContent>
           </Tooltip>
 
-          <SettingsPanel
-            primaryColor={primaryColor}
-            secondaryColor={secondaryColor}
-            theme={theme}
-            enhancedPrompts={enhancedPrompts}
-            onPrimaryColorChange={(color) => onPrimaryColorChange?.(color)}
-            onSecondaryColorChange={(color) => onSecondaryColorChange?.(color)}
-            onThemeChange={(nextTheme) => onThemeChange?.(nextTheme)}
-            onEnhancedPromptsChange={(enabled) => onEnhancedPromptsChange?.(enabled)}
-          />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={showSettings}
+                aria-label="Open settings"
+                className="p-1.5 h-6 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Settings</TooltipContent>
+          </Tooltip>
 
           {/* User Menu */}
           <UserMenu />
