@@ -15,9 +15,28 @@ export interface ConversationHistoryItem {
 }
 
 export interface AIStreamMeta {
+  requestId?: string
   requestedModel?: string
   modelUsed?: string
   fallbackUsed?: boolean
+  modelsUsed?: string[]
+  outputThresholdTokens?: number
+  outputThresholdChars?: number
+  thresholdReached?: boolean
+  continuationCount?: number
+  totalParts?: number
+  totalContentLength?: number
+}
+
+export type AIProgressStage = "preparing" | "generating" | "continuing" | "finalizing"
+
+export interface AIStreamProgress {
+  stage: AIProgressStage
+  message: string
+  partNumber: number
+  continuationCount: number
+  totalContentLength: number
+  thresholdReached?: boolean
 }
 
 export interface AICompletionResult {
@@ -33,6 +52,7 @@ export interface AICompletionResult {
 interface UseAIChatOptions {
   onContentUpdate?: (content: string) => void
   onThinkingUpdate?: (thinking: string) => void
+  onProgressUpdate?: (progress: AIStreamProgress) => void
   onComplete?: (result: AICompletionResult) => void
   onPatch?: (filePath: string, searchBlock: string, replaceBlock: string) => boolean | void
   onFileUpdate?: (filePath: string) => void
@@ -56,6 +76,23 @@ interface SendMessageOptions {
 }
 
 const logger = createRepromptLogger("use-ai-chat")
+
+function mergeStreamMeta(
+  currentMeta: AIStreamMeta | undefined,
+  incomingMeta: AIStreamMeta | undefined,
+): AIStreamMeta | undefined {
+  if (!incomingMeta) {
+    return currentMeta
+  }
+
+  const mergedModels = [...new Set([...(currentMeta?.modelsUsed ?? []), ...(incomingMeta.modelsUsed ?? [])])]
+
+  return {
+    ...currentMeta,
+    ...incomingMeta,
+    modelsUsed: mergedModels.length > 0 ? mergedModels : undefined,
+  }
+}
 
 export function useAIChat(options: UseAIChatOptions = {}) {
   const optionsRef = useRef(options)
@@ -124,6 +161,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       let fullContent = ""
       let fullThinking = ""
       let responseMeta: AIStreamMeta | undefined
+      let latestProgress: AIStreamProgress | undefined
       let chunkCount = 0
 
       const processSseBlocks = (blocks: string[]) => {
@@ -136,12 +174,20 @@ export function useAIChat(options: UseAIChatOptions = {}) {
             const data = JSON.parse(block.slice(6))
 
             if (data.type === "meta") {
-              responseMeta = data.data
+              responseMeta = mergeStreamMeta(responseMeta, data.data)
               logger.info("Received stream meta", {
                 phase: "stream",
                 requestId,
                 ...responseMeta,
               })
+              continue
+            }
+
+            if (data.type === "progress") {
+              latestProgress = data.data as AIStreamProgress
+              if (latestProgress) {
+                optionsRef.current.onProgressUpdate?.(latestProgress)
+              }
               continue
             }
 
@@ -267,6 +313,15 @@ export function useAIChat(options: UseAIChatOptions = {}) {
           incompletePatches,
           validationError: validation.valid ? undefined : validation.reason,
         })
+
+        if (latestProgress && responseMeta) {
+          responseMeta = mergeStreamMeta(responseMeta, {
+            continuationCount: latestProgress.continuationCount,
+            totalParts: Math.max(responseMeta.totalParts ?? 0, latestProgress.partNumber),
+            totalContentLength: latestProgress.totalContentLength,
+            thresholdReached: latestProgress.thresholdReached,
+          })
+        }
 
         optionsRef.current.onComplete?.({
           rawContent: fullContent,

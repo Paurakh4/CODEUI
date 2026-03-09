@@ -1,6 +1,6 @@
 "use client"
 
-import { use, Suspense, useEffect, useState } from "react"
+import { use, Suspense, useEffect, useRef, useState } from "react"
 import { EditorLayoutNew } from "@/components/editor-layout"
 import { useRouter, useSearchParams } from "next/navigation"
 import { consumePendingProjectStart } from "@/lib/utils/project-bootstrap"
@@ -14,19 +14,28 @@ function ProjectContent({ id }: { id: string }) {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [initialRequest, setInitialRequest] = useState<InitialProjectRequest>({})
+  const hasResolvedInitialRequestRef = useRef(false)
 
   useEffect(() => {
+    if (hasResolvedInitialRequestRef.current) {
+      return
+    }
+
     const promptFromUrl = searchParams.get("prompt") || undefined
     const modelFromUrl = searchParams.get("model") || undefined
 
     if (promptFromUrl || modelFromUrl) {
+      hasResolvedInitialRequestRef.current = true
       setInitialRequest({ prompt: promptFromUrl, model: modelFromUrl })
       router.replace(`/project/${id}`)
       return
     }
 
     const pendingRequest = consumePendingProjectStart(id)
-    setInitialRequest(pendingRequest ?? {})
+    if (pendingRequest) {
+      hasResolvedInitialRequestRef.current = true
+      setInitialRequest(pendingRequest)
+    }
   }, [id, router, searchParams])
 
   return (

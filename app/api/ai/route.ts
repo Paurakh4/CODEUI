@@ -21,7 +21,19 @@ import {
   isStaffUser,
   SubscriptionTier,
 } from "@/lib/pricing"
+import {
+  NEW_FILE_END,
+  NEW_FILE_START,
+  PROJECT_NAME_END,
+  PROJECT_NAME_START,
+  REPLACE_END,
+  SEARCH_START,
+  UPDATE_FILE_END,
+  UPDATE_FILE_START,
+} from "@/lib/constants"
+import { detectIncompletePatchBlocks, validateAIResponse } from "@/lib/parsers/stream-parser"
 import { estimateTokenCount } from "@/lib/token-counter"
+import { getPromptAdaptationGuidance } from "@/lib/prompt-adaptation"
 import { createRepromptLogger } from "@/lib/utils/reprompt-logger"
 
 export const AI_MODELS = getModelsRecord()
@@ -60,9 +72,269 @@ interface CreditContext {
   refunded: boolean
 }
 
+interface UpstreamRequestResult {
+  response: Response | null
+  modelUsed: string
+  fatalStatus: number | null
+}
+
+interface StreamMetaEvent {
+  requestId: string
+  requestedModel: string
+  modelUsed?: string
+  fallbackUsed?: boolean
+  modelsUsed?: string[]
+  outputThresholdTokens?: number
+  outputThresholdChars?: number
+  thresholdReached?: boolean
+  continuationCount?: number
+  totalParts?: number
+  totalContentLength?: number
+}
+
+type StreamProgressStage = "preparing" | "generating" | "continuing" | "finalizing"
+
+interface StreamProgressEvent {
+  stage: StreamProgressStage
+  message: string
+  partNumber: number
+  continuationCount: number
+  totalContentLength: number
+  thresholdReached?: boolean
+}
+
+interface StreamOpenRouterOptions {
+  response: Response
+  thresholdChars: number
+  onContent: (content: string) => void
+  onThinking: (thinking: string) => void
+}
+
+interface StreamOpenRouterResult {
+  contentLength: number
+  thresholdReached: boolean
+  completedNaturally: boolean
+}
+
 const FULL_DOCUMENT_RECOVERY_FLAG = "FULL_DOCUMENT_RECOVERY_MODE"
 const MAX_PROMPT_LENGTH = 10_000
+const UPSTREAM_MAX_TOKENS = 16_000
+const DEFAULT_CONTINUATION_THRESHOLD_TOKENS = 8_000
+const DEFAULT_MAX_CONTINUATIONS = 3
+const DEFAULT_CONTINUATION_CONTEXT_BUFFER_TOKENS = 4_000
 const logger = createRepromptLogger("api-ai-route")
+
+function parsePositiveInteger(value: string | undefined, fallback: number, min = 1, max = Number.MAX_SAFE_INTEGER) {
+  const parsed = Number.parseInt(value ?? "", 10)
+  if (!Number.isFinite(parsed)) {
+    return fallback
+  }
+
+  return Math.min(max, Math.max(min, parsed))
+}
+
+const CONTINUATION_THRESHOLD_TOKENS = parsePositiveInteger(
+  process.env.CODEUI_CONTINUATION_THRESHOLD_TOKENS,
+  DEFAULT_CONTINUATION_THRESHOLD_TOKENS,
+  1_500,
+  UPSTREAM_MAX_TOKENS,
+)
+
+const MAX_CONTINUATIONS = parsePositiveInteger(
+  process.env.CODEUI_MAX_CONTINUATIONS,
+  DEFAULT_MAX_CONTINUATIONS,
+  1,
+  6,
+)
+
+const CONTINUATION_CONTEXT_BUFFER_TOKENS = parsePositiveInteger(
+  process.env.CODEUI_CONTINUATION_CONTEXT_BUFFER_TOKENS,
+  DEFAULT_CONTINUATION_CONTEXT_BUFFER_TOKENS,
+  1_000,
+  12_000,
+)
+
+function hasCompleteHtmlDocument(content: string): boolean {
+  const trimmed = content.trim()
+  if (!trimmed) {
+    return false
+  }
+
+  const hasRoot = trimmed.includes("<!DOCTYPE") || trimmed.includes("<html")
+  return hasRoot && trimmed.includes("</html>")
+}
+
+function hasStructuredPatchMarkers(content: string): boolean {
+  return (
+    content.includes(SEARCH_START) ||
+    content.includes(UPDATE_FILE_START) ||
+    content.includes(NEW_FILE_START) ||
+    content.includes(PROJECT_NAME_START)
+  )
+}
+
+function endsWithStructuredBoundary(content: string): boolean {
+  const trimmed = content.trim()
+  return (
+    trimmed.endsWith(REPLACE_END) ||
+    trimmed.endsWith(UPDATE_FILE_END) ||
+    trimmed.endsWith(NEW_FILE_END) ||
+    trimmed.endsWith(PROJECT_NAME_END)
+  )
+}
+
+function shouldContinueGeneration(options: {
+  aggregateContent: string
+  thresholdReached: boolean
+  continuationCount: number
+  isFollowUp: boolean
+}): boolean {
+  const { aggregateContent, thresholdReached, continuationCount, isFollowUp } = options
+
+  if (!thresholdReached || continuationCount >= MAX_CONTINUATIONS) {
+    return false
+  }
+
+  if (hasCompleteHtmlDocument(aggregateContent)) {
+    return false
+  }
+
+  const incompletePatchCount = detectIncompletePatchBlocks(aggregateContent)
+  if (incompletePatchCount > 0) {
+    return true
+  }
+
+  const validation = validateAIResponse(aggregateContent)
+  if (!validation.valid) {
+    return true
+  }
+
+  if (!isFollowUp) {
+    return true
+  }
+
+  if (!hasStructuredPatchMarkers(aggregateContent)) {
+    return true
+  }
+
+  return !endsWithStructuredBoundary(aggregateContent)
+}
+
+function buildContinuationPrompt(originalPrompt: string, partNumber: number): string {
+  return [
+    `Continue the previous response from exactly where it stopped. This is continuation part ${partNumber}.`,
+    "Do not restart the answer, do not repeat previous content, and do not add narration.",
+    "Preserve the exact response format already in progress.",
+    "Do not simplify the UI or omit requested features to save space.",
+    "Maintain full prompt fidelity and continue implementing the complete requested scope.",
+    "If you were returning SEARCH/REPLACE blocks, continue with SEARCH/REPLACE blocks only.",
+    "If you were returning a full HTML document, continue the same document until it is complete and properly closed.",
+    "Output only the continuation content.",
+    `Original request: ${originalPrompt}`,
+  ].join("\n")
+}
+
+function extractOpenRouterDelta(rawData: string): { done: boolean; content?: string; reasoning?: string } {
+  if (rawData === "[DONE]") {
+    return { done: true }
+  }
+
+  try {
+    const parsed = JSON.parse(rawData)
+    return {
+      done: false,
+      content: parsed.choices?.[0]?.delta?.content,
+      reasoning: parsed.choices?.[0]?.delta?.reasoning,
+    }
+  } catch {
+    return { done: false }
+  }
+}
+
+async function streamOpenRouterResponse({
+  response,
+  thresholdChars,
+  onContent,
+  onThinking,
+}: StreamOpenRouterOptions): Promise<StreamOpenRouterResult> {
+  const reader = response.body?.getReader()
+  if (!reader) {
+    return {
+      contentLength: 0,
+      thresholdReached: false,
+      completedNaturally: true,
+    }
+  }
+
+  const decoder = new TextDecoder()
+  let buffer = ""
+  let contentLength = 0
+  let thresholdReached = false
+  let completedNaturally = true
+
+  const processLine = (line: string): "continue" | "done" | "stop" => {
+    if (!line.startsWith("data: ")) {
+      return "continue"
+    }
+
+    const delta = extractOpenRouterDelta(line.slice(6).trim())
+
+    if (delta.done) {
+      return "done"
+    }
+
+    if (delta.reasoning) {
+      onThinking(delta.reasoning)
+    }
+
+    if (delta.content) {
+      contentLength += delta.content.length
+      onContent(delta.content)
+
+      if (contentLength >= thresholdChars) {
+        thresholdReached = true
+        completedNaturally = false
+        return "stop"
+      }
+    }
+
+    return "continue"
+  }
+
+  while (true) {
+    const { done, value } = await reader.read()
+
+    if (done) {
+      if (buffer.trim()) {
+        const trailingLines = buffer.split("\n").filter(Boolean)
+        for (const line of trailingLines) {
+          const status = processLine(line)
+          if (status !== "continue") {
+            return { contentLength, thresholdReached, completedNaturally: status === "done" ? true : completedNaturally }
+          }
+        }
+      }
+
+      return { contentLength, thresholdReached, completedNaturally }
+    }
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split("\n")
+    buffer = lines.pop() || ""
+
+    for (const line of lines) {
+      const status = processLine(line)
+      if (status === "done") {
+        return { contentLength, thresholdReached, completedNaturally: true }
+      }
+
+      if (status === "stop") {
+        await reader.cancel().catch(() => {})
+        return { contentLength, thresholdReached, completedNaturally }
+      }
+    }
+  }
+}
 
 function isRecoverableModelFailure(status: number): boolean {
   if (status === 408 || status === 409 || status === 425 || status === 429 || status === 404) {
@@ -325,6 +597,8 @@ export async function POST(req: NextRequest) {
       : FOLLOW_UP_SYSTEM_PROMPT
 
     const modelContextWindow = getModelById(model)?.contextLength
+    const continuationThresholdTokens = CONTINUATION_THRESHOLD_TOKENS
+    const continuationThresholdChars = continuationThresholdTokens * 4
     const conversationBudgetTokens = Math.floor((modelContextWindow ?? 64_000) * 0.15)
     const historyMessages = normalizeConversationHistory(conversationHistory, conversationBudgetTokens)
     const enhancedPromptPrefix = buildEnhancedPromptPrefix({
@@ -333,41 +607,44 @@ export async function POST(req: NextRequest) {
       secondaryColor,
       theme,
     })
+    const promptAdaptationGuidance = getPromptAdaptationGuidance(sanitizedPrompt || prompt)
+    const adaptationPrefix = promptAdaptationGuidance ? `${promptAdaptationGuidance}\n\n` : ""
 
-    const messages: Message[] = [{ role: "system", content: systemPrompt }]
+    const baseMessages: Message[] = [{ role: "system", content: systemPrompt }]
     if (historyMessages.length > 0) {
-      messages.push(...historyMessages)
+      baseMessages.push(...historyMessages)
     }
 
     if (isFollowUp && currentHtml) {
       const context = buildContext({
         currentFile: { name: "index.html", content: currentHtml },
         selectedElement,
+        modelContextWindow,
         modelId: model,
+        reservedOutputTokens: continuationThresholdTokens + CONTINUATION_CONTEXT_BUFFER_TOKENS,
       })
 
       const recoveryInstruction = isFullDocumentRecovery
         ? "\n\nRecovery instructions: Return one COMPLETE HTML document that keeps the current design, structure, spacing, colors, and typography unless the user explicitly requested a redesign. Apply only the requested change."
         : ""
 
-      messages.push({
+      baseMessages.push({
         role: "user",
-        content: `${context}\n\n${enhancedPromptPrefix}User Request: ${sanitizedPrompt || prompt}${recoveryInstruction}`,
+        content: `${context}\n\n${enhancedPromptPrefix}${adaptationPrefix}User Request: ${sanitizedPrompt || prompt}${recoveryInstruction}`,
       })
     } else {
-      messages.push({
+      baseMessages.push({
         role: "user",
         content: enhancedPromptPrefix
-          ? `${enhancedPromptPrefix}User Request: ${sanitizedPrompt || prompt}`
-          : sanitizedPrompt || prompt,
+          ? `${enhancedPromptPrefix}${adaptationPrefix}User Request: ${sanitizedPrompt || prompt}`
+          : `${adaptationPrefix}User Request: ${sanitizedPrompt || prompt}`,
       })
     }
 
     const fallbackChain = getModelFallbackChain(model)
     const requestBase = {
-      messages,
       stream: true,
-      max_tokens: 16000,
+      max_tokens: UPSTREAM_MAX_TOKENS,
       temperature: isFollowUp ? 0.25 : 0.7,
     }
 
@@ -379,189 +656,272 @@ export async function POST(req: NextRequest) {
       "X-CodeUI-Request-ID": requestId,
     }
 
-    let response: Response | null = null
-    let modelUsed = model
-    let firstFailureStatus: number | null = null
-    const fallbackFailures: string[] = []
+    const requestOpenRouterStream = async (partMessages: Message[]): Promise<UpstreamRequestResult> => {
+      let response: Response | null = null
+      let modelUsed = model
+      let firstFailureStatus: number | null = null
 
-    for (let index = 0; index < fallbackChain.length; index += 1) {
-      const candidateModel = fallbackChain[index]
+      for (let index = 0; index < fallbackChain.length; index += 1) {
+        const candidateModel = fallbackChain[index]
 
-      try {
-        const candidateResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: openRouterHeaders,
-          body: JSON.stringify({
-            ...requestBase,
-            model: candidateModel,
-          }),
-        })
-
-        if (candidateResponse.ok && candidateResponse.body) {
-          response = candidateResponse
-          modelUsed = candidateModel
-          break
-        }
-
-        let failureDetails = "AI service error"
         try {
-          failureDetails = await candidateResponse.text()
-        } catch {
-          failureDetails = "Unable to read upstream error body"
-        }
+          const candidateResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: openRouterHeaders,
+            body: JSON.stringify({
+              ...requestBase,
+              messages: partMessages,
+              model: candidateModel,
+            }),
+          })
 
-        if (firstFailureStatus === null) {
-          firstFailureStatus = candidateResponse.status
-        }
+          if (candidateResponse.ok && candidateResponse.body) {
+            response = candidateResponse
+            modelUsed = candidateModel
+            break
+          }
 
-        fallbackFailures.push(`[${candidateModel}] ${candidateResponse.status}: ${failureDetails.slice(0, 300)}`)
-        logger.warn("OpenRouter model attempt failed", {
-          phase: "upstream",
-          requestId,
-          candidateModel,
-          status: candidateResponse.status,
-          detail: failureDetails.slice(0, 300),
-        })
+          let failureDetails = "AI service error"
+          try {
+            failureDetails = await candidateResponse.text()
+          } catch {
+            failureDetails = "Unable to read upstream error body"
+          }
 
-        const hasMoreCandidates = index < fallbackChain.length - 1
-        if (!hasMoreCandidates || !isRecoverableModelFailure(candidateResponse.status)) {
-          await refundCreditsIfNeeded(creditContext, `upstream-status-${candidateResponse.status}`)
-          return NextResponse.json(
-            {
-              error: "AI service error",
-              fallbackAttempted: fallbackChain.length > 1,
-            },
-            { status: candidateResponse.status },
-          )
+          if (firstFailureStatus === null) {
+            firstFailureStatus = candidateResponse.status
+          }
+
+          logger.warn("OpenRouter model attempt failed", {
+            phase: "upstream",
+            requestId,
+            candidateModel,
+            status: candidateResponse.status,
+            detail: failureDetails.slice(0, 300),
+          })
+
+          const hasMoreCandidates = index < fallbackChain.length - 1
+          if (!hasMoreCandidates || !isRecoverableModelFailure(candidateResponse.status)) {
+            return {
+              response: null,
+              modelUsed,
+              fatalStatus: candidateResponse.status,
+            }
+          }
+        } catch (fetchError) {
+          logger.warn("OpenRouter network error on model attempt", {
+            phase: "upstream",
+            requestId,
+            candidateModel,
+            error: fetchError instanceof Error ? fetchError.message : String(fetchError),
+          })
         }
-      } catch (fetchError) {
-        fallbackFailures.push(
-          `[${candidateModel}] network: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`,
-        )
-        logger.warn("OpenRouter network error on model attempt", {
-          phase: "upstream",
-          requestId,
-          candidateModel,
-          error: fetchError instanceof Error ? fetchError.message : String(fetchError),
-        })
+      }
+
+      return {
+        response,
+        modelUsed,
+        fatalStatus: firstFailureStatus,
       }
     }
 
-    if (!response || !response.body) {
+    const initialUpstreamRequest = await requestOpenRouterStream(baseMessages)
+
+    if (!initialUpstreamRequest.response || !initialUpstreamRequest.response.body) {
       await refundCreditsIfNeeded(creditContext, "all-models-failed")
       return NextResponse.json(
         {
           error: "AI service unavailable after fallback attempts",
           fallbackAttempted: fallbackChain.length > 1,
         },
-        { status: firstFailureStatus && firstFailureStatus >= 500 ? 503 : firstFailureStatus || 503 },
+        {
+          status:
+            initialUpstreamRequest.fatalStatus && initialUpstreamRequest.fatalStatus >= 500
+              ? 503
+              : initialUpstreamRequest.fatalStatus || 503,
+        },
       )
     }
 
     const encoder = new TextEncoder()
-    const decoder = new TextDecoder()
 
     const stream = new ReadableStream({
       async start(controller) {
-        const reader = response?.body?.getReader()
-        if (!reader) {
-          await refundCreditsIfNeeded(creditContext, "missing-reader")
-          controller.close()
-          return
-        }
-
-        let buffer = ""
-        let emittedContentLength = 0
+        let aggregatedContent = ""
+        let totalEmittedContentLength = 0
+        let continuationCount = 0
+        let totalParts = 0
+        const modelsUsed = new Set<string>()
+        let lastModelUsed = initialUpstreamRequest.modelUsed
 
         const emitEvent = (type: string, data: unknown) => {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type, data })}\n\n`))
         }
 
         const maybeRefundForEmptyStream = async (reason: string) => {
-          if (emittedContentLength === 0) {
+          if (totalEmittedContentLength === 0) {
             await refundCreditsIfNeeded(creditContext, reason)
           }
         }
 
-        emitEvent("meta", {
-          requestedModel: model,
-          modelUsed,
-          fallbackUsed: modelUsed !== model,
+        const emitMeta = () => {
+          const payload: StreamMetaEvent = {
+            requestId,
+            requestedModel: model,
+            modelUsed: lastModelUsed,
+            fallbackUsed: Array.from(modelsUsed).some((usedModel) => usedModel !== model),
+            modelsUsed: Array.from(modelsUsed),
+            outputThresholdTokens: continuationThresholdTokens,
+            outputThresholdChars: continuationThresholdChars,
+            thresholdReached: continuationCount > 0,
+            continuationCount,
+            totalParts,
+            totalContentLength: totalEmittedContentLength,
+          }
+
+          emitEvent("meta", payload)
+        }
+
+        const emitProgress = (progress: StreamProgressEvent) => {
+          emitEvent("progress", progress)
+        }
+
+        const buildMessagesForPart = (partNumber: number) => {
+          if (partNumber === 1) {
+            return baseMessages
+          }
+
+          return [
+            ...baseMessages,
+            {
+              role: "assistant" as const,
+              content: aggregatedContent,
+            },
+            {
+              role: "user" as const,
+              content: buildContinuationPrompt(sanitizedPrompt || prompt, partNumber),
+            },
+          ]
+        }
+
+        let activeResponse: Response | null = initialUpstreamRequest.response
+        let activeModelUsed = initialUpstreamRequest.modelUsed
+
+        emitMeta()
+        emitProgress({
+          stage: "preparing",
+          message: "Analyzing request...",
+          partNumber: 1,
+          continuationCount,
+          totalContentLength: 0,
         })
 
         try {
-          while (true) {
-            const { done, value } = await reader.read()
+          while (activeResponse && totalParts < MAX_CONTINUATIONS + 1) {
+            totalParts += 1
+            lastModelUsed = activeModelUsed
+            modelsUsed.add(activeModelUsed)
 
-            if (done) {
-              if (buffer.trim()) {
-                const finalLine = buffer.trim()
-                if (finalLine.startsWith("data: ")) {
-                  const data = finalLine.slice(6).trim()
-                  if (data !== "[DONE]") {
-                    try {
-                      const parsed = JSON.parse(data)
-                      const content = parsed.choices?.[0]?.delta?.content
-                      const reasoning = parsed.choices?.[0]?.delta?.reasoning
-                      if (content) {
-                        emittedContentLength += content.length
-                        emitEvent("content", content)
-                      }
-                      if (reasoning) {
-                        emitEvent("thinking", reasoning)
-                      }
-                    } catch {
-                      // Ignore malformed trailing payloads.
-                    }
-                  }
-                }
-              }
+            emitMeta()
+            emitProgress({
+              stage: totalParts === 1 ? "generating" : "continuing",
+              message:
+                totalParts === 1
+                  ? "Generating code..."
+                  : `Continuing generation (part ${totalParts})...`,
+              partNumber: totalParts,
+              continuationCount,
+              totalContentLength: totalEmittedContentLength,
+              thresholdReached: continuationCount > 0,
+            })
 
+            const partResult = await streamOpenRouterResponse({
+              response: activeResponse,
+              thresholdChars: continuationThresholdChars,
+              onContent: (content) => {
+                aggregatedContent += content
+                totalEmittedContentLength += content.length
+                emitEvent("content", content)
+              },
+              onThinking: (thinking) => {
+                emitEvent("thinking", thinking)
+              },
+            })
+
+            if (partResult.contentLength === 0 && totalEmittedContentLength === 0) {
               await maybeRefundForEmptyStream("empty-stream")
-              if (emittedContentLength === 0) {
-                emitEvent("error", "Empty or insufficient response from AI")
-              }
+              emitEvent("error", "Empty or insufficient response from AI")
               controller.close()
-              break
+              return
             }
 
-            buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split("\n")
-            buffer = lines.pop() || ""
+            const needsContinuation = shouldContinueGeneration({
+              aggregateContent: aggregatedContent,
+              thresholdReached: partResult.thresholdReached,
+              continuationCount,
+              isFollowUp,
+            })
 
-            for (const line of lines) {
-              if (!line.startsWith("data: ")) {
-                continue
-              }
-
-              const data = line.slice(6).trim()
-              if (data === "[DONE]") {
-                await maybeRefundForEmptyStream("empty-stream")
-                if (emittedContentLength === 0) {
-                  emitEvent("error", "Empty or insufficient response from AI")
-                }
-                controller.close()
-                return
-              }
-
-              try {
-                const parsed = JSON.parse(data)
-                const content = parsed.choices?.[0]?.delta?.content
-                const reasoning = parsed.choices?.[0]?.delta?.reasoning
-
-                if (content) {
-                  emittedContentLength += content.length
-                  emitEvent("content", content)
-                }
-
-                if (reasoning) {
-                  emitEvent("thinking", reasoning)
-                }
-              } catch {
-                // Skip invalid JSON chunks from upstream.
-              }
+            if (!needsContinuation) {
+              emitMeta()
+              emitProgress({
+                stage: "finalizing",
+                message: "Finalizing editor update...",
+                partNumber: totalParts,
+                continuationCount,
+                totalContentLength: totalEmittedContentLength,
+                thresholdReached: continuationCount > 0,
+              })
+              controller.close()
+              return
             }
+
+            continuationCount += 1
+            emitMeta()
+            emitProgress({
+              stage: "continuing",
+              message: `Preparing continuation part ${continuationCount + 1}...`,
+              partNumber: continuationCount + 1,
+              continuationCount,
+              totalContentLength: totalEmittedContentLength,
+              thresholdReached: true,
+            })
+
+            const nextUpstreamRequest = await requestOpenRouterStream(buildMessagesForPart(continuationCount + 1))
+            if (!nextUpstreamRequest.response || !nextUpstreamRequest.response.body) {
+              logger.warn("Continuation request failed", {
+                phase: "upstream",
+                requestId,
+                partNumber: continuationCount + 1,
+                fatalStatus: nextUpstreamRequest.fatalStatus,
+              })
+
+              emitProgress({
+                stage: "finalizing",
+                message: "Finalizing partial update after continuation failure...",
+                partNumber: totalParts,
+                continuationCount,
+                totalContentLength: totalEmittedContentLength,
+                thresholdReached: true,
+              })
+              controller.close()
+              return
+            }
+
+            activeResponse = nextUpstreamRequest.response
+            activeModelUsed = nextUpstreamRequest.modelUsed
           }
+
+          emitMeta()
+          emitProgress({
+            stage: "finalizing",
+            message: "Finalizing editor update...",
+            partNumber: totalParts,
+            continuationCount,
+            totalContentLength: totalEmittedContentLength,
+            thresholdReached: continuationCount > 0,
+          })
+          controller.close()
         } catch (error) {
           logger.error("Stream error", {
             phase: "stream",
@@ -585,7 +945,7 @@ export async function POST(req: NextRequest) {
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
         "X-CodeUI-Model-Requested": model,
-        "X-CodeUI-Model-Used": modelUsed,
+        "X-CodeUI-Model-Used": initialUpstreamRequest.modelUsed,
         "X-CodeUI-Request-ID": requestId,
       },
     })

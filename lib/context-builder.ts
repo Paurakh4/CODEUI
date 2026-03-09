@@ -14,6 +14,7 @@ export interface ContextInput {
   maxTokens?: number
   modelId?: string
   modelContextWindow?: number
+  reservedOutputTokens?: number
 }
 
 const DEFAULT_MAX_TOKENS = 12000
@@ -24,7 +25,7 @@ interface TruncateResult {
   truncated: boolean
 }
 
-const resolveTokenBudget = ({ maxTokens, modelId, modelContextWindow }: ContextInput): number => {
+const resolveTokenBudget = ({ maxTokens, modelId, modelContextWindow, reservedOutputTokens }: ContextInput): number => {
   if (typeof maxTokens === 'number' && maxTokens > 0) {
     return maxTokens
   }
@@ -37,7 +38,11 @@ const resolveTokenBudget = ({ maxTokens, modelId, modelContextWindow }: ContextI
     return DEFAULT_MAX_TOKENS
   }
 
-  return Math.max(4000, Math.floor(contextWindow * MODEL_CONTEXT_BUDGET_RATIO))
+  const ratioBudget = Math.max(4000, Math.floor(contextWindow * MODEL_CONTEXT_BUDGET_RATIO))
+  const reservedBudget = Math.max(0, reservedOutputTokens ?? 0)
+  const availableBudget = Math.max(4000, contextWindow - reservedBudget)
+
+  return Math.max(4000, Math.min(ratioBudget, availableBudget))
 }
 
 const buildTruncatedCurrentFile = (

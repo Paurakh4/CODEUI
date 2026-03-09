@@ -13,11 +13,12 @@ import { ChevronDown, ChevronLeft, X, ChevronUp, RotateCcw } from "lucide-react"
 import { SolarCodeSquareLinear } from "@/components/solar-code-square-linear"
 import { useSession } from "next-auth/react"
 import { useAuthDialog } from "@/components/auth-dialog-provider"
-import { useAIChat } from "@/hooks/use-ai-chat"
+import { useAIChat, type AIStreamProgress } from "@/hooks/use-ai-chat"
 import { useStyleHistory } from "@/hooks/use-style-history"
 import { useEditor } from "@/stores/editor-store"
 import { useToast } from "@/hooks/use-toast"
 import { StreamParser } from "@/lib/parsers/stream-parser"
+import { validatePromptScope } from "@/lib/prompt-scope"
 import { cn } from "@/lib/utils"
 import { convertHtmlToReactComponent, sanitizeFileName } from "@/lib/utils/export"
 import { deriveProjectNameFromPrompt, isDefaultProjectName, normalizeProjectName } from "@/lib/utils/project-name"
@@ -65,6 +66,7 @@ interface Message {
   timestamp: Date
   isThinking?: boolean
   thinkingContent?: string
+  progressLabel?: string
 }
 
 interface CheckpointOptions {
@@ -78,6 +80,9 @@ interface PendingRecovery {
   prompt: string
   failedFiles: string[]
   model?: string
+  reason?: string
+  baseHtml?: string
+  isPromptScopeRecovery?: boolean
 }
 
 const MONGO_OBJECT_ID_REGEX = /^[a-f\d]{24}$/i
@@ -98,6 +103,7 @@ const coerceVersionId = (value: unknown): string => {
 
 const CINEMATHEQUE_TEMPLATE_ENDPOINT = "/api/templates/cinematheque-preview"
 const TEXT_CONTENT_PROPERTY = "__textContent__"
+const MAX_SCOPE_RECOVERY_ATTEMPTS = 2
 const LOADING_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -133,6 +139,201 @@ const EXAMPLE_PROMPTS = [
   "A startup landing page with animated hero, team section, and contact form",
   "A music streaming app landing with playlist preview and feature highlights",
 ]
+
+function cleanSummaryText(value: string | null | undefined): string {
+  return (value || "").replace(/\s+/g, " ").trim()
+}
+
+function joinSummaryParts(parts: string[]): string {
+  if (parts.length === 0) {
+    return ""
+  }
+
+  if (parts.length === 1) {
+    return parts[0]
+  }
+
+  if (parts.length === 2) {
+    return `${parts[0]} and ${parts[1]}`
+  }
+
+  return `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`
+}
+
+function uniqueSummaryItems(items: string[], maxItems: number): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+
+  for (const item of items) {
+    const normalized = cleanSummaryText(item).toLowerCase()
+    if (!normalized || seen.has(normalized)) {
+      continue
+    }
+
+    seen.add(normalized)
+    result.push(cleanSummaryText(item))
+
+    if (result.length >= maxItems) {
+      break
+    }
+  }
+
+  return result
+}
+
+function inferProjectType(prompt: string, html: string): string {
+  const source = `${prompt} ${html}`.toLowerCase()
+
+  if (source.includes("photograph")) return "a photographer portfolio"
+  if (source.includes("portfolio")) return "a portfolio site"
+  if (source.includes("saas")) return "a SaaS landing page"
+  if (source.includes("restaurant")) return "a restaurant website"
+  if (source.includes("blog")) return "a blog homepage"
+  if (source.includes("e-commerce") || source.includes("ecommerce") || source.includes("shop")) return "an e-commerce experience"
+  if (source.includes("fitness")) return "a fitness landing page"
+  if (source.includes("music")) return "a music-focused landing page"
+  if (source.includes("startup")) return "a startup landing page"
+
+  return "a custom website"
+}
+
+function extractContentSummary(doc: Document, prompt: string, html: string): string {
+  const fullText = doc.body?.textContent?.toLowerCase() || html.toLowerCase()
+  const features: string[] = []
+
+  if (doc.querySelector("header, [class*='hero'], [id*='hero'], main h1")) {
+    features.push("a strong hero section")
+  }
+  if ((doc.querySelectorAll("img").length >= 4) || /gallery|portfolio|featured work|selected work/.test(fullText)) {
+    features.push("an image-led gallery")
+  }
+  if (/about|story|bio/.test(fullText)) {
+    features.push("an about section")
+  }
+  if (/project|work|case study|portfolio/.test(fullText)) {
+    features.push("a featured work showcase")
+  }
+  if (/service|offer|expertise/.test(fullText)) {
+    features.push("a services section")
+  }
+  if (/testimonial|review|client/.test(fullText)) {
+    features.push("testimonials")
+  }
+  if (doc.querySelector("form") || /contact|book|reserve|get in touch|newsletter/.test(fullText)) {
+    features.push("a contact call to action")
+  }
+
+  const headingLabels = uniqueSummaryItems(
+    Array.from(doc.querySelectorAll("h1, h2, h3"))
+      .map((node) => cleanSummaryText(node.textContent))
+      .filter((text) => text.length >= 4 && text.length <= 48),
+    4,
+  )
+
+  const featureSummary = uniqueSummaryItems(features, 5)
+  const projectType = inferProjectType(prompt, html)
+
+  if (featureSummary.length > 0) {
+    return `Generated: ${projectType} with ${joinSummaryParts(featureSummary)}.`
+  }
+
+  if (headingLabels.length > 0) {
+    return `Generated: ${projectType} centered on ${joinSummaryParts(headingLabels.map((label) => `"${label}"`))}.`
+  }
+
+  return `Generated: ${projectType}.`
+}
+
+function extractDesignSummary(doc: Document, html: string): string {
+  const lowerHtml = html.toLowerCase()
+  const designNotes: string[] = []
+
+  const darkSignals = /(bg-black|bg-zinc|bg-slate|bg-neutral|#0[0-9a-f]{2}|#111|#000|color-scheme:\s*dark|text-white)/.test(lowerHtml)
+  const lightSignals = /(bg-white|bg-stone-50|bg-zinc-50|#f[0-9a-f]{2}|#fff|color-scheme:\s*light|text-slate-900)/.test(lowerHtml)
+
+  if (darkSignals && !lightSignals) {
+    designNotes.push("a dark, high-contrast palette")
+  } else if (lightSignals && !darkSignals) {
+    designNotes.push("a light, airy palette")
+  } else if (/gradient/.test(lowerHtml)) {
+    designNotes.push("a bold gradient-driven palette")
+  } else {
+    designNotes.push("a polished modern palette")
+  }
+
+  if (doc.querySelectorAll("img").length >= 4) {
+    designNotes.push("an image-forward composition")
+  }
+
+  if (/font-family:[^;]*(serif|playfair|cormorant|merriweather|baskerville)/.test(lowerHtml)) {
+    designNotes.push("editorial typography")
+  } else {
+    designNotes.push("clean contemporary typography")
+  }
+
+  if (/grid|columns-|masonry/.test(lowerHtml)) {
+    designNotes.push("a structured grid layout")
+  } else if (/flex/.test(lowerHtml)) {
+    designNotes.push("a balanced split layout")
+  }
+
+  if (/card|rounded-\[|rounded-xl|rounded-2xl|shadow/.test(lowerHtml)) {
+    designNotes.push("layered card treatments")
+  }
+
+  if (/transition|hover|animate|keyframes/.test(lowerHtml)) {
+    designNotes.push("subtle motion cues")
+  }
+
+  return `UI design: ${joinSummaryParts(uniqueSummaryItems(designNotes, 5))}.`
+}
+
+function buildGenerationSummary(options: {
+  prompt: string
+  html: string
+}): string {
+  const { prompt, html } = options
+
+  if (typeof DOMParser === "undefined" || !html.trim()) {
+    const projectType = inferProjectType(prompt, html)
+    return [`Generated: ${projectType}.`, "UI design: a polished modern layout."].join("\n")
+  }
+
+  const doc = new DOMParser().parseFromString(html, "text/html")
+
+  return [
+    extractContentSummary(doc, prompt, html),
+    extractDesignSummary(doc, html),
+  ].join("\n")
+}
+
+function buildPromptScopeRecoveryPrompt(prompt: string, missingRequirements: string[]): string {
+  const missingList = missingRequirements.join(", ")
+
+  return [
+    prompt.trim(),
+    "",
+    "Important: the previous attempt omitted parts of the requested UI scope.",
+    `You must fully implement these missing requirements: ${missingList}.`,
+    "Do not simplify the interface, remove sections, or collapse the request into a lighter version.",
+    "Return a complete, feature-rich single-page UI that covers the full prompt in detail.",
+  ].join("\n")
+}
+
+function formatMissingScopeMessage(missingRequirements: string[]): string {
+  if (missingRequirements.length === 0) {
+    return "The generated UI still missed some requested core features."
+  }
+
+  const preview = missingRequirements.slice(0, 3).join(", ")
+  const remainingCount = missingRequirements.length - Math.min(missingRequirements.length, 3)
+
+  if (remainingCount > 0) {
+    return `The generated UI still missed some requested core features, including ${preview}, and ${remainingCount} more.`
+  }
+
+  return `The generated UI still missed some requested core features, including ${preview}.`
+}
 
 interface EditorLayoutNewProps {
   initialPrompt?: string
@@ -209,6 +410,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   const hasProcessedInitialPrompt = useRef(false)
   const lastUserPromptRef = useRef("")
   const recoveryInFlightRef = useRef(false)
+  const promptScopeRecoveryInFlightRef = useRef(false)
+  const scopeRecoveryAttemptsRef = useRef(0)
   const [pendingRecovery, setPendingRecovery] = useState<PendingRecovery | null>(null)
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
   
@@ -570,7 +773,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
           return prev.map((m, i) =>
             i === prev.length - 1
-              ? { ...m, isThinking: false, content }
+              ? { ...m, isThinking: false, content, progressLabel: undefined }
               : m
           )
         }
@@ -580,12 +783,27 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     [saveMessageToMongo]
   )
 
-  const finalizeGenerationSuccess = useCallback(() => {
+  const updateAssistantProgress = useCallback((progress: AIStreamProgress) => {
+    setMessages((prev) => {
+      const lastMessage = prev[prev.length - 1]
+      if (!lastMessage || lastMessage.role !== "assistant") {
+        return prev
+      }
+
+      return prev.map((message, index) =>
+        index === prev.length - 1
+          ? { ...message, progressLabel: progress.message, isThinking: true }
+          : message,
+      )
+    })
+  }, [])
+
+  const finalizeGenerationSuccess = useCallback((summary: string) => {
     setDraftAiOutput("")
     setApplyingPatch(false)
     setViewMode("preview")
     setHasGeneratedOnce(true)
-    finalizeAssistantMessage("Built. Code updated in the editor.")
+    finalizeAssistantMessage(summary)
 
     if (htmlContentRef.current) {
       createCheckpoint("AI-generated update", {
@@ -616,6 +834,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         return prev
       })
     },
+    onProgressUpdate: updateAssistantProgress,
     onProjectNameUpdate: (name) => {
       const normalizedName = normalizeProjectName(name)
       setProjectName(normalizedName)
@@ -642,31 +861,99 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         return false
       }
     },
-    onComplete: ({ extractedHtml, failedFiles, recoveryMode, incompletePatches, validationError }) => {
+    onComplete: (result) => {
+      const { extractedHtml, failedFiles, recoveryMode, incompletePatches, validationError } = result
       const isFollowUp = hasGeneratedOnce
       const hasPatchFailures = !!failedFiles?.length
       const hasCompleteHtml = isCompleteHtmlDocument(extractedHtml)
+      const finalHtmlForValidation = hasCompleteHtml ? extractedHtml : htmlContentRef.current
+      const promptScopeValidation = validatePromptScope(lastUserPromptRef.current, finalHtmlForValidation)
+      const hasPromptScopeIssues = !promptScopeValidation.valid
+      const canRetryPromptScope = hasPromptScopeIssues && scopeRecoveryAttemptsRef.current < MAX_SCOPE_RECOVERY_ATTEMPTS
       const hasProtocolIssues = Boolean(validationError) || (incompletePatches || 0) > 0
-      const shouldRecover = (hasPatchFailures || hasProtocolIssues) && !hasCompleteHtml
+      const shouldRecoverForOutputIssues = (hasPatchFailures || hasProtocolIssues) && !hasCompleteHtml
+      const shouldRecoverForPromptScope = hasPromptScopeIssues && canRetryPromptScope
+      const shouldRecover = shouldRecoverForOutputIssues || shouldRecoverForPromptScope
+      const scopeFailureMessage = formatMissingScopeMessage(promptScopeValidation.missingRequirements)
 
       if (shouldRecover && !recoveryMode) {
         const failedFileSummary = (failedFiles || []).join(", ") || "index.html"
         const originalPrompt = lastUserPromptRef.current || "the requested changes"
-        const recoveryReason = validationError
-          ? validationError
-          : incompletePatches
-            ? `Received ${incompletePatches} incomplete patch block${incompletePatches > 1 ? "s" : ""}`
-            : `Patch update failed for ${failedFileSummary}`
+        const recoveryReason = hasPromptScopeIssues
+          ? `Missing requested UI scope: ${promptScopeValidation.missingRequirements.join(", ")}`
+          : validationError
+            ? validationError
+            : incompletePatches
+              ? `Received ${incompletePatches} incomplete patch block${incompletePatches > 1 ? "s" : ""}`
+              : `Patch update failed for ${failedFileSummary}`
+        const recoveryPrompt = hasPromptScopeIssues
+          ? buildPromptScopeRecoveryPrompt(originalPrompt, promptScopeValidation.missingRequirements)
+          : originalPrompt
+
+        if (hasPromptScopeIssues && hasCompleteHtml) {
+          setHtmlContent(extractedHtml)
+          htmlContentRef.current = extractedHtml
+          setHasUnsavedChanges(true)
+          scopeRecoveryAttemptsRef.current += 1
+        }
 
         setPendingRecovery({
-          prompt: originalPrompt,
+          prompt: recoveryPrompt,
           failedFiles: failedFiles || [],
           model: state.selectedModel,
+          reason: recoveryReason,
+          baseHtml: hasCompleteHtml ? extractedHtml : htmlContentRef.current,
+          isPromptScopeRecovery: hasPromptScopeIssues,
         })
 
-        toast({
-          title: "Recovering update",
-          description: `${recoveryReason}. Applying a full-document recovery update...`,
+        if (hasPromptScopeIssues) {
+          updateAssistantProgress({
+            stage: "continuing",
+            message: "Expanding requested UI coverage...",
+            partNumber: (result.meta?.totalParts ?? 1) + 1,
+            continuationCount: scopeRecoveryAttemptsRef.current,
+            totalContentLength: finalHtmlForValidation.length,
+            thresholdReached: result.meta?.thresholdReached,
+          })
+        } else {
+          toast({
+            title: "Recovering update",
+            description: `${recoveryReason}. Applying a full-document recovery update...`,
+          })
+        }
+
+        setDraftAiOutput("")
+        setViewMode("code")
+        return
+      }
+
+      if (shouldRecoverForPromptScope && recoveryMode && hasCompleteHtml) {
+        const originalPrompt = lastUserPromptRef.current || "the requested changes"
+        const recoveryPrompt = buildPromptScopeRecoveryPrompt(
+          originalPrompt,
+          promptScopeValidation.missingRequirements,
+        )
+
+        setHtmlContent(extractedHtml)
+        htmlContentRef.current = extractedHtml
+        setHasUnsavedChanges(true)
+        scopeRecoveryAttemptsRef.current += 1
+        setPendingRecovery({
+          prompt: recoveryPrompt,
+          failedFiles: failedFiles || [],
+          model: state.selectedModel,
+          reason: `Missing requested UI scope: ${promptScopeValidation.missingRequirements.join(", ")}`,
+          baseHtml: extractedHtml,
+          isPromptScopeRecovery: true,
+        })
+
+        updateAssistantProgress({
+          stage: "continuing",
+          message: "Refining missing UI sections...",
+          partNumber: (result.meta?.totalParts ?? 1) + 1,
+          continuationCount: scopeRecoveryAttemptsRef.current,
+          totalContentLength: extractedHtml.length,
+          thresholdReached: result.meta?.thresholdReached,
         })
 
         setDraftAiOutput("")
@@ -676,17 +963,30 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
       if (shouldRecover && recoveryMode) {
         recoveryInFlightRef.current = false
+        promptScopeRecoveryInFlightRef.current = false
         setPendingRecovery(null)
         setDraftAiOutput("")
         setApplyingPatch(false)
         setViewMode("preview")
-        toast({
-          title: "Recovery failed",
-          description: "Could not recover the update automatically. Try a smaller, more specific follow-up request.",
-          variant: "destructive",
-        })
-        finalizeAssistantMessage("Could not recover the update automatically. Try a smaller, more specific follow-up request.")
+        if (!hasPromptScopeIssues) {
+          toast({
+            title: "Recovery failed",
+            description: "Could not recover the update automatically. Try a smaller, more specific follow-up request.",
+            variant: "destructive",
+          })
+        }
+        finalizeAssistantMessage(
+          hasPromptScopeIssues
+            ? `${scopeFailureMessage} Try a more explicit follow-up request if you want another pass.`
+            : "Could not recover the update automatically. Try a smaller, more specific follow-up request.",
+        )
         return
+      }
+
+      if (hasPromptScopeIssues && hasCompleteHtml && scopeRecoveryAttemptsRef.current > 0) {
+        setHtmlContent(extractedHtml)
+        htmlContentRef.current = extractedHtml
+        setHasUnsavedChanges(true)
       }
 
       if (hasCompleteHtml) {
@@ -711,32 +1011,50 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       }
 
       recoveryInFlightRef.current = false
+      promptScopeRecoveryInFlightRef.current = false
+      scopeRecoveryAttemptsRef.current = 0
       setPendingRecovery(null)
-      finalizeGenerationSuccess()
+      const summary = buildGenerationSummary({
+        prompt: lastUserPromptRef.current,
+        html: hasCompleteHtml ? extractedHtml : htmlContentRef.current,
+      })
+      const finalSummary = hasPromptScopeIssues && hasCompleteHtml
+        ? `${summary}\nScope note: ${scopeFailureMessage} The latest complete UI was kept in the editor.`
+        : summary
+      finalizeGenerationSuccess(finalSummary)
     },
     onError: (error) => {
       const isRecoveryFailure = recoveryInFlightRef.current
+      const isPromptScopeRecoveryFailure = promptScopeRecoveryInFlightRef.current
       recoveryInFlightRef.current = false
+      promptScopeRecoveryInFlightRef.current = false
+      scopeRecoveryAttemptsRef.current = 0
       setPendingRecovery(null)
       setDraftAiOutput("")
       setApplyingPatch(false)
       setViewMode("preview")
-      toast({
-        title: isRecoveryFailure ? "Recovery failed" : "Generation failed",
-        description: isRecoveryFailure
-          ? "Could not recover the update automatically. Try a smaller, more specific follow-up request."
-          : error.message || "Something went wrong while generating code. Please try again.",
-        variant: "destructive",
-      })
+      if (!(isRecoveryFailure && isPromptScopeRecoveryFailure)) {
+        toast({
+          title: isRecoveryFailure ? "Recovery failed" : "Generation failed",
+          description: isRecoveryFailure
+            ? "Could not recover the update automatically. Try a smaller, more specific follow-up request."
+            : error.message || "Something went wrong while generating code. Please try again.",
+          variant: "destructive",
+        })
+      }
       setMessages((prev) => {
         const lastMessage = prev[prev.length - 1]
         if (lastMessage && lastMessage.role === "assistant") {
           const finalContent = isRecoveryFailure
-            ? "Could not recover the update automatically. Try a smaller, more specific follow-up request."
+            ? isPromptScopeRecoveryFailure
+              ? "Could not finish expanding the requested UI automatically. The latest complete result was kept in the editor."
+              : "Could not recover the update automatically. Try a smaller, more specific follow-up request."
             : `Error: ${error.message}`
 
           return prev.map((m, i) =>
-            i === prev.length - 1 ? { ...m, isThinking: false, content: finalContent } : m
+            i === prev.length - 1
+              ? { ...m, isThinking: false, content: finalContent, progressLabel: undefined }
+              : m
           )
         }
         return prev
@@ -749,6 +1067,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
     recoveryInFlightRef.current = true
     const recoveryRequest = pendingRecovery
+    promptScopeRecoveryInFlightRef.current = Boolean(recoveryRequest.isPromptScopeRecovery)
     setPendingRecovery(null)
 
     setApplyingPatch(true)
@@ -757,7 +1076,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
     void sendAIMessage({
       prompt: recoveryRequest.prompt,
-      currentHtml: htmlContentRef.current,
+      currentHtml: recoveryRequest.baseHtml ?? htmlContentRef.current,
       selectedElement: undefined,
       isFollowUp: true,
       recoveryMode: "full-document",
@@ -787,6 +1106,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       if (!message.trim()) return
 
       recoveryInFlightRef.current = false
+      promptScopeRecoveryInFlightRef.current = false
+      scopeRecoveryAttemptsRef.current = 0
       setPendingRecovery(null)
 
       if (isGenerating) {
@@ -839,6 +1160,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         role: "assistant",
         timestamp: new Date(),
         isThinking: true,
+        progressLabel: "Analyzing request...",
       }
       setMessages((prev) => [...prev, assistantMessage])
 
@@ -1562,7 +1884,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                       {message.role === "assistant" && message.isThinking && !message.content ? (
                         <div className="flex items-center gap-2">
                           <TextShimmer className="font-mono text-sm" duration={1}>
-                            Generating code...
+                            {message.progressLabel || "Generating code..."}
                           </TextShimmer>
                           <button
                             onClick={cancelAI}
