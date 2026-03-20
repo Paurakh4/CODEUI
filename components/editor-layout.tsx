@@ -1727,7 +1727,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       case "design":
         const panelPos = panelPosition ? calculatePanelPosition(panelPosition) : null
         return (
-          <div className="flex h-full relative overflow-hidden">
+          <div className="flex h-full min-h-0 relative overflow-hidden">
             <PreviewFrame
               htmlContent={htmlContent}
               deviceMode={deviceMode}
@@ -1778,7 +1778,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   }
 
   return (
-    <div className="flex min-h-screen overflow-x-hidden bg-zinc-950 text-zinc-100">
+    <div className="flex h-dvh overflow-hidden bg-zinc-950 text-zinc-100">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -1839,7 +1839,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         </div>
 
         {/* Chat Messages */}
-        <div className="flex-1 overflow-auto px-4 py-4">
+        <div className="flex-1 overflow-y-auto px-4 py-4 min-h-0 min-w-0">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-4">
               <div className="mb-2 flex items-center justify-center">
@@ -2044,7 +2044,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         />
 
         {/* Canvas/Editor Area */}
-        <div className="flex-1 overflow-hidden bg-zinc-900">
+        <div className="flex-1 min-h-0 overflow-y-auto bg-zinc-900">
           {renderContent()}
         </div>
       </div>

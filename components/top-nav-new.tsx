@@ -89,7 +89,7 @@ export function TopNav({
 }: TopNavProps) {
   const [copied, setCopied] = useState(false)
   const { data: session, update: updateSession } = useSession()
-  const { showSettings } = useAccountModals()
+  const { showPricing, showSettings } = useAccountModals()
 
   // Credit system logic (matching dashboard-main.tsx)
   const [realTimeCredits, setRealTimeCredits] = useState<{
@@ -317,13 +317,17 @@ export function TopNav({
           {/* Credits Display */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="flex items-center gap-2 bg-zinc-900/50 hover:bg-zinc-900 rounded-full px-3 py-1 border border-white/10 transition-colors cursor-pointer group">
+              <button
+                onClick={showPricing}
+                aria-label="Open plans and top-up credits"
+                className="flex items-center gap-2 bg-zinc-900/50 hover:bg-zinc-900 rounded-full px-3 py-1 border border-white/10 transition-colors cursor-pointer group"
+              >
                 <TierIcon className={cn("w-3.5 h-3.5 group-hover:scale-110 transition-transform", tierBadge.color)} />
                 <span className="text-xs font-bold text-zinc-100">{userTotalCredits}</span>
-              </div>
+              </button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              {userMonthlyCredits} monthly{userTopupCredits > 0 ? ` + ${userTopupCredits} bonus` : ''} credits. Credits are used when AI generation runs.
+              {userMonthlyCredits} monthly credits and {userTopupCredits} top-up credits. Click to view plans or buy a one-time credit pack.
             </TooltipContent>
           </Tooltip>
 

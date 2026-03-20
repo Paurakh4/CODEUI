@@ -8,6 +8,7 @@
     "dev:local": "bash ./scripts/dev-local.sh",
     "lint": "eslint .",
     "start": "next start",
+    "test": "vitest run",
     "db:setup": "bash ./scripts/setup-mongodb-macos.sh",
     "db:ping": "bash ./scripts/mongodb-healthcheck.sh",
     "db:status": "brew services list | grep -E 'mongodb|mongo' || true",
@@ -84,6 +85,7 @@
     "@types/react-dom": "^19",
     "postcss": "^8.5",
     "tailwindcss": "^4.1.9",
+    "vitest": "^3.2.4",
     "tw-animate-css": "1.3.3",
     "typescript": "^5"
   }

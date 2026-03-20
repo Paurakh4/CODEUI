@@ -1,17 +1,57 @@
 "use client"
 
 import { DashboardMain } from "@/components/dashboard/dashboard-main"
-import { useState, useEffect, Suspense } from "react"
+import { useEffect, Suspense, useState, useEffectEvent } from "react"
 import { toast } from "sonner"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { deriveProjectNameFromPrompt } from "@/lib/utils/project-name"
 import { storePendingProjectStart } from "@/lib/utils/project-bootstrap"
+import { pollCheckoutSync, type CheckoutSyncResponse } from "@/lib/payments/checkout-sync"
+
+type BillingSyncState = "idle" | "processing" | "confirmed" | "failed"
 
 function DashboardContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const { data: session } = useSession()
+  const { data: session, status, update: updateSession } = useSession()
+  const [billingSyncState, setBillingSyncState] = useState<BillingSyncState>("idle")
+  const [billingSyncMessage, setBillingSyncMessage] = useState<string | null>(null)
+
+  const clearPaymentParams = useEffectEvent(() => {
+    const nextParams = new URLSearchParams(searchParams.toString())
+    nextParams.delete("success")
+    nextParams.delete("canceled")
+    nextParams.delete("session_id")
+
+    const nextQuery = nextParams.toString()
+    router.replace(nextQuery ? `/dashboard?${nextQuery}` : "/dashboard")
+  })
+
+  const fetchCheckoutStatus = useEffectEvent(async (checkoutSessionId: string) => {
+    const response = await fetch(`/api/stripe/checkout-status?session_id=${encodeURIComponent(checkoutSessionId)}`, {
+      cache: "no-store",
+    })
+
+    let payload: CheckoutSyncResponse | null = null
+
+    try {
+      payload = await response.json()
+    } catch {
+      payload = null
+    }
+
+    if (payload) {
+      return payload
+    }
+
+    return {
+      status: response.ok ? "processing" : "failed",
+      message: response.ok
+        ? "Payment succeeded and we are still confirming the upgrade."
+        : "Unable to verify the Stripe checkout right now.",
+    } satisfies CheckoutSyncResponse
+  })
 
   // Load state from localStorage on mount
   useEffect(() => {
@@ -53,13 +93,82 @@ function DashboardContent() {
   }, [router, session])
 
   useEffect(() => {
-    if (searchParams.get("success")) {
-      toast.success("Subscription successful! Welcome to Pro.")
-    }
     if (searchParams.get("canceled")) {
+      setBillingSyncState("idle")
+      setBillingSyncMessage(null)
       toast.error("Subscription canceled. You can try again anytime.")
+      clearPaymentParams()
     }
-  }, [searchParams])
+  }, [clearPaymentParams, searchParams])
+
+  useEffect(() => {
+    const checkoutSucceeded = searchParams.get("success")
+    const checkoutSessionId = searchParams.get("session_id")
+
+    if (!checkoutSucceeded || status === "loading") {
+      return
+    }
+
+    if (!session?.user?.id) {
+      setBillingSyncState("failed")
+      setBillingSyncMessage("Sign in again to confirm your subscription upgrade.")
+      toast.error("Sign in again to confirm your subscription upgrade.")
+      return
+    }
+
+    if (!checkoutSessionId) {
+      setBillingSyncState("processing")
+      setBillingSyncMessage("Payment completed. Refreshing your account status.")
+
+      void updateSession()
+      toast.success("Payment completed. Refreshing your account status.")
+      clearPaymentParams()
+      return
+    }
+
+    let isActive = true
+
+    const syncCheckout = async () => {
+      setBillingSyncState("processing")
+      setBillingSyncMessage("Payment received. Confirming your upgrade with Stripe.")
+
+      const result = await pollCheckoutSync(
+        (attempt) => fetchCheckoutStatus(checkoutSessionId),
+        {
+          onProgress: (progressResult) => {
+            if (!isActive) {
+              return
+            }
+
+            setBillingSyncMessage(progressResult.message)
+          },
+        }
+      )
+
+      if (!isActive) {
+        return
+      }
+
+      setBillingSyncMessage(result.message)
+
+      if (result.status === "confirmed") {
+        setBillingSyncState("confirmed")
+        await updateSession()
+        toast.success(result.message)
+        clearPaymentParams()
+        return
+      }
+
+      setBillingSyncState("failed")
+      toast.error(result.message)
+    }
+
+    void syncCheckout()
+
+    return () => {
+      isActive = false
+    }
+  }, [clearPaymentParams, fetchCheckoutStatus, searchParams, session?.user?.id, status, updateSession])
 
   const handleStart = async (prompt?: string, model?: string) => {
     const id = crypto.randomUUID()
@@ -99,7 +208,39 @@ function DashboardContent() {
     router.push(`/project/${id}`)
   }
 
-  return <DashboardMain onStart={handleStart} />
+  return (
+    <DashboardMain
+      onStart={handleStart}
+      billingSyncState={billingSyncState}
+      billingSyncMessage={billingSyncMessage}
+      onRetryBillingSync={async () => {
+        const checkoutSessionId = searchParams.get("session_id")
+
+        if (!checkoutSessionId) {
+          setBillingSyncState("failed")
+          setBillingSyncMessage("The Stripe checkout session is no longer available.")
+          return
+        }
+
+        setBillingSyncState("processing")
+        const result = await fetchCheckoutStatus(checkoutSessionId)
+        setBillingSyncMessage(result.message)
+
+        if (result.status === "confirmed") {
+          setBillingSyncState("confirmed")
+          await updateSession()
+          toast.success(result.message)
+          clearPaymentParams()
+          return
+        }
+
+        if (result.status === "failed") {
+          setBillingSyncState("failed")
+          toast.error(result.message)
+        }
+      }}
+    />
+  )
 }
 
 export default function DashboardPage() {

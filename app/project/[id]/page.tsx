@@ -39,7 +39,7 @@ function ProjectContent({ id }: { id: string }) {
   }, [id, router, searchParams])
 
   return (
-    <div className="dark min-h-screen bg-zinc-950">
+    <div className="dark h-dvh overflow-hidden bg-zinc-950">
       <EditorLayoutNew 
         projectId={id}
         initialPrompt={initialRequest.prompt} 

@@ -14,17 +14,18 @@ import {
   Crown,
   Sparkles,
   ArrowRight,
-  Plus
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import {
+  PAID_SUBSCRIPTION_TIERS,
   TOPUP_PACKAGES,
   TIERS,
   type BillingCycle,
   type PaidSubscriptionTier,
   type StripePricingQuote,
   type SubscriptionTier,
+  type TopupPackage,
 } from "@/lib/pricing"
 
 interface PricingModalProps {
@@ -37,6 +38,20 @@ type PricingResponse = Record<
   PaidSubscriptionTier,
   Partial<Record<BillingCycle, StripePricingQuote>>
 >
+
+type PricingAvailability = Record<
+  PaidSubscriptionTier,
+  Record<BillingCycle, boolean>
+>
+
+type TopupOption = TopupPackage & {
+  available: boolean
+}
+
+async function getResponseError(response: Response, fallbackMessage: string) {
+  const message = (await response.text()).trim()
+  return message || fallbackMessage
+}
 
 const PLAN_ORDER: SubscriptionTier[] = ["free", "pro", "proplus"]
 
@@ -72,10 +87,13 @@ function formatCurrency(amount: number, currency: string) {
 
 export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingModalProps) {
   const [isLoading, setIsLoading] = React.useState<string | null>(null)
-  const [showTopups, setShowTopups] = React.useState(false)
   const [billingCycle, setBillingCycle] = React.useState<BillingCycle>("monthly")
   const [pricing, setPricing] = React.useState<PricingResponse | null>(null)
+  const [availability, setAvailability] = React.useState<PricingAvailability | null>(null)
+  const [topupPackages, setTopupPackages] = React.useState<TopupOption[]>([])
   const [isPricingLoading, setIsPricingLoading] = React.useState(false)
+  const [isTopupLoading, setIsTopupLoading] = React.useState(false)
+  const [pricingIssues, setPricingIssues] = React.useState<string[]>([])
 
   React.useEffect(() => {
     if (!isOpen) {
@@ -87,31 +105,81 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
     const loadPricing = async () => {
       try {
         setIsPricingLoading(true)
-        const response = await fetch("/api/stripe/pricing", {
+        const pricingResponse = await fetch("/api/stripe/pricing", {
           cache: "no-store",
           signal: controller.signal,
         })
 
-        if (!response.ok) {
-          throw new Error("Failed to load Stripe pricing")
+        if (!pricingResponse.ok) {
+          throw new Error(await getResponseError(pricingResponse, "Failed to load Stripe pricing"))
         }
 
-        const data = await response.json() as { prices?: PricingResponse }
+        const data = await pricingResponse.json() as {
+          prices?: PricingResponse
+          availability?: PricingAvailability
+          issues?: string[]
+        }
+
         setPricing(data.prices ?? null)
+        setAvailability(data.availability ?? null)
+        setPricingIssues(data.issues ?? [])
+
+        if (data.issues?.length) {
+          toast.error("Some Stripe pricing options are unavailable right now.")
+          console.error("STRIPE_PRICING_ISSUES", data.issues)
+        }
       } catch (error) {
         if ((error as Error).name !== "AbortError") {
           console.error(error)
-          toast.error("Unable to load live Stripe pricing. Showing fallback prices.")
+          toast.error(error instanceof Error ? error.message : "Unable to load live Stripe pricing.")
         }
       } finally {
         setIsPricingLoading(false)
       }
     }
 
+    const loadTopupPackages = async () => {
+      try {
+        setIsTopupLoading(true)
+        const topupResponse = await fetch("/api/stripe/topup", {
+          cache: "no-store",
+          signal: controller.signal,
+        })
+
+        if (!topupResponse.ok) {
+          throw new Error(await getResponseError(topupResponse, "Failed to load top-up packages"))
+        }
+
+        const data = await topupResponse.json() as {
+          packages?: TopupOption[]
+        }
+
+        setTopupPackages(data.packages ?? [])
+      } catch (error) {
+        if ((error as Error).name !== "AbortError") {
+          console.error(error)
+          toast.error(error instanceof Error ? error.message : "Unable to load top-up packages.")
+        }
+      } finally {
+        setIsTopupLoading(false)
+      }
+    }
+
     void loadPricing()
+    void loadTopupPackages()
 
     return () => controller.abort()
   }, [isOpen])
+
+  const hasYearlyPlans = availability
+    ? PAID_SUBSCRIPTION_TIERS.some((tier) => availability[tier]?.yearly)
+    : true
+
+  React.useEffect(() => {
+    if (billingCycle === "yearly" && !hasYearlyPlans) {
+      setBillingCycle("monthly")
+    }
+  }, [billingCycle, hasYearlyPlans])
 
   const onCheckout = async (tier: PaidSubscriptionTier) => {
     try {
@@ -125,23 +193,26 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
       })
 
       if (!response.ok) {
-        throw new Error("Failed to create Stripe checkout session")
+        throw new Error(await getResponseError(response, "Failed to create Stripe checkout session"))
       }
 
       const data = await response.json()
 
       if (data.url) {
         window.location.href = data.url
+        return
       }
+
+      throw new Error("Stripe checkout session did not return a redirect URL")
     } catch (error) {
       console.error(error)
-      toast.error("Something went wrong. Please try again.")
+      toast.error(error instanceof Error ? error.message : "Something went wrong. Please try again.")
     } finally {
       setIsLoading(null)
     }
   }
 
-  const onTopupCheckout = async (packageId: string) => {
+  const onTopupCheckout = async (packageId: TopupPackage["id"]) => {
     try {
       setIsLoading(packageId)
       const response = await fetch("/api/stripe/topup", {
@@ -153,17 +224,20 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
       })
 
       if (!response.ok) {
-        throw new Error("Failed to create Stripe top-up session")
+        throw new Error(await getResponseError(response, "Failed to create Stripe top-up session"))
       }
 
       const data = await response.json()
 
       if (data.url) {
         window.location.href = data.url
+        return
       }
+
+      throw new Error("Stripe top-up session did not return a redirect URL")
     } catch (error) {
       console.error(error)
-      toast.error("Something went wrong. Please try again.")
+      toast.error(error instanceof Error ? error.message : "Something went wrong. Please try again.")
     } finally {
       setIsLoading(null)
     }
@@ -179,6 +253,11 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
     const isCurrentTier = currentTier === planId
     const isPaidTier = planId !== "free"
     const style = isPaidTier ? PLAN_STYLES[planId] : undefined
+    const isConfiguredForCycle = isPaidTier
+      ? availability
+        ? Boolean(availability[planId]?.[billingCycle])
+        : true
+      : true
 
     return {
       id: planId,
@@ -187,9 +266,9 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
       features: tier.features,
       amount,
       currency,
-      isCurrentTier,
-      isPaidTier,
       yearlySavings,
+      isCurrentTier,
+      isConfiguredForCycle,
       icon: style?.icon,
       color: style?.color,
       bg: style?.bg,
@@ -198,22 +277,27 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
     }
   })
 
+  const visibleTopupPackages = topupPackages.length > 0
+    ? topupPackages
+    : TOPUP_PACKAGES.map((pkg) => ({ ...pkg, available: false }))
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[900px] bg-zinc-950 border-white/10 text-zinc-100 p-0 max-h-[90vh] overflow-hidden outline-none">
-        <div className="max-h-[90vh] overflow-y-auto p-6 sm:p-8">
-          <DialogHeader className="flex flex-col items-center text-center mb-6">
-            <div className="flex justify-center mb-4">
-              <div className="bg-white/5 px-3 py-1 rounded-full border border-white/10">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Pricing Plans</span>
-              </div>
-            </div>
-            <DialogTitle className="text-3xl font-bold tracking-tight mb-2 text-white text-center">Upgrade your creative power</DialogTitle>
-            <p className="text-zinc-400 max-w-md mx-auto text-center mb-6">
-              Choose the plan that's right for you and start building amazing UIs with CodeUI.
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open) {
+        onClose()
+      }
+    }}>
+      <DialogContent className="w-[95vw] sm:max-w-5xl md:w-[80vw] border-white/10 bg-[#050506] p-0 text-white sm:rounded-3xl">
+        <div className="px-6 py-6 sm:px-8 sm:py-8 overflow-y-auto max-h-[85vh] scrollbar-thin scrollbar-thumb-white/10">
+          <DialogHeader className="items-start text-left">
+            <DialogTitle className="text-3xl font-semibold tracking-tight text-white">
+              Choose your plan
+            </DialogTitle>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400">
+              Upgrade when you need more monthly credits, private projects, and priority access. Live pricing is pulled directly from Stripe.
             </p>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="flex p-1 bg-white/5 rounded-lg border border-white/10">
                 <button
                   onClick={() => setBillingCycle("monthly")}
@@ -228,8 +312,9 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
                 </button>
                 <button
                   onClick={() => setBillingCycle("yearly")}
+                  disabled={!hasYearlyPlans}
                   className={cn(
-                    "px-4 py-1.5 rounded-md text-xs font-medium transition-all",
+                    "px-4 py-1.5 rounded-md text-xs font-medium transition-all disabled:cursor-not-allowed disabled:opacity-50",
                     billingCycle === "yearly"
                       ? "bg-white text-black shadow-sm"
                       : "text-zinc-400 hover:text-white"
@@ -253,41 +338,49 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
                 Annual plans renew yearly while monthly credits still reset every billing cycle.
               </div>
             )}
+
+            {pricingIssues.length > 0 && (
+              <div className="mt-4 max-w-xl rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-[11px] text-amber-200">
+                Some Stripe plans are currently unavailable. Only plans with configured live Stripe prices can be purchased.
+              </div>
+            )}
           </DialogHeader>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
             {plans.map((plan) => {
               const Icon = plan.icon
               const price = plan.id === "free" ? "$0" : formatCurrency(plan.amount, plan.currency)
               const sublabel = plan.id === "free"
                 ? "No credit card required"
-                : billingCycle === "monthly"
-                  ? "Billed monthly"
-                  : `Billed annually${plan.yearlySavings > 0 ? ` · Save ${formatCurrency(plan.yearlySavings, plan.currency)}` : ""}`
+                : !plan.isConfiguredForCycle
+                  ? "Not configured in Stripe yet"
+                  : billingCycle === "monthly"
+                    ? "Billed monthly"
+                    : `Billed annually${plan.yearlySavings > 0 ? ` · Save ${formatCurrency(plan.yearlySavings, plan.currency)}` : ""}`
 
               return (
-                <div 
+                <div
                   key={plan.id}
                   className={cn(
-                    "relative flex flex-col p-6 rounded-2xl border transition-all duration-300",
+                    "relative flex flex-col rounded-2xl border p-6 transition-all duration-300",
                     plan.badge
-                      ? "bg-zinc-900 border-white/20 shadow-2xl scale-[1.02] z-10"
+                      ? "z-10 scale-[1.02] border-white/20 bg-zinc-900 shadow-2xl"
                       : plan.border
                         ? `bg-black ${plan.border} hover:border-white/30`
-                        : "bg-black border-white/5 hover:border-white/10"
+                        : "border-white/5 bg-black hover:border-white/10"
                   )}
                 >
                   {plan.badge && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-500 text-black text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-amber-500 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-black">
                       {plan.badge}
                     </div>
                   )}
 
                   <div className="mb-6">
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="mb-2 flex items-center gap-2">
                       {Icon && plan.bg && plan.color && (
-                        <div className={cn("p-1.5 rounded-lg", plan.bg)}>
-                          <Icon className={cn("w-4 h-4", plan.color)} />
+                        <div className={cn("rounded-lg p-1.5", plan.bg)}>
+                          <Icon className={cn("h-4 w-4", plan.color)} />
                         </div>
                       )}
                       <h3 className="text-lg font-bold">{plan.name}</h3>
@@ -295,39 +388,39 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
                     <div className="flex items-baseline gap-1">
                       <span className="text-3xl font-bold">{price}</span>
                       {plan.id !== "free" && (
-                        <span className="text-zinc-500 text-sm">
+                        <span className="text-sm text-zinc-500">
                           {billingCycle === "monthly" ? "/month" : "/year"}
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-zinc-500 mt-2 leading-relaxed">
+                    <p className="mt-2 text-xs leading-relaxed text-zinc-500">
                       {plan.description}
                     </p>
-                    <p className="text-[11px] text-zinc-600 mt-2">{sublabel}</p>
+                    <p className="mt-2 text-[11px] text-zinc-600">{sublabel}</p>
                   </div>
 
-                  <div className="space-y-3 mb-8 flex-1">
+                  <div className="mb-8 flex-1 space-y-3">
                     {plan.features.map((feature) => (
                       <div key={feature} className="flex items-start gap-2">
-                        <div className="mt-1 bg-white/10 rounded-full p-0.5">
-                          <Check className="w-2.5 h-2.5 text-white" />
+                        <div className="mt-1 rounded-full bg-white/10 p-0.5">
+                          <Check className="h-2.5 w-2.5 text-white" />
                         </div>
-                        <span className="text-xs text-zinc-400 leading-tight">{feature}</span>
+                        <span className="text-xs leading-tight text-zinc-400">{feature}</span>
                       </div>
                     ))}
                   </div>
 
-                  <Button 
+                  <Button
                     variant={plan.badge ? "default" : "outline"}
                     className={cn(
                       "w-full rounded-xl py-5 text-xs font-bold transition-all",
                       plan.badge
-                        ? "bg-white text-black hover:bg-zinc-200 border-none"
-                        : "bg-transparent border-white/20 text-white hover:bg-white/5 hover:border-white/30"
+                        ? "border-none bg-white text-black hover:bg-zinc-200"
+                        : "border-white/20 bg-transparent text-white hover:border-white/30 hover:bg-white/5"
                     )}
-                    disabled={plan.id === "free" || plan.isCurrentTier || isLoading !== null}
+                    disabled={plan.id === "free" || plan.isCurrentTier || isLoading !== null || !plan.isConfiguredForCycle}
                     onClick={() => {
-                      if (plan.id !== "free") {
+                      if (plan.id !== "free" && plan.isConfiguredForCycle) {
                         void onCheckout(plan.id)
                       }
                     }}
@@ -336,54 +429,71 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
                       ? "Current Plan"
                       : isLoading === plan.id
                         ? "Processing..."
-                        : plan.id === "free"
-                          ? "Included"
-                          : `Upgrade to ${plan.name}`}
-                    {!plan.isCurrentTier && plan.id !== "free" && isLoading !== plan.id && <ArrowRight className="w-3 h-3 ml-2" />}
+                        : !plan.isConfiguredForCycle
+                          ? "Unavailable"
+                          : plan.id === "free"
+                            ? "Included"
+                            : `Upgrade to ${plan.name}`}
+                    {!plan.isCurrentTier && plan.id !== "free" && isLoading !== plan.id && plan.isConfiguredForCycle && (
+                      <ArrowRight className="ml-2 h-3 w-3" />
+                    )}
                   </Button>
                 </div>
               )
             })}
           </div>
 
-          <div className="mt-10 pt-8 border-t border-white/5">
-            <div className="flex flex-col items-center gap-4">
-              <Button
-                variant="ghost"
-                onClick={() => setShowTopups(!showTopups)}
-                className="text-xs text-zinc-400 hover:text-white hover:bg-white/5"
-              >
-                <Plus className="w-3 h-3 mr-2" />
-                {showTopups ? "Hide top-up options" : "Need more credits? Buy a top-up"}
-              </Button>
+          <div className="mt-8 rounded-3xl border border-white/10 bg-zinc-950/80 p-5 sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Need extra credits?</h3>
+                <p className="mt-1 max-w-2xl text-sm leading-relaxed text-zinc-400">
+                  Buy a one-time credit pack when you need extra generations. Top-up credits do not expire with your monthly billing cycle.
+                </p>
+              </div>
+              <div className="text-[11px] text-zinc-500">
+                {isTopupLoading ? "Loading top-up packages..." : "One-time purchases via Stripe"}
+              </div>
+            </div>
 
-              {showTopups && (
-                <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
-                  {TOPUP_PACKAGES.map((pkg) => {
-                    return (
-                      <div
-                        key={pkg.id}
-                        className="flex flex-col items-center p-4 rounded-xl border border-white/10 bg-zinc-900/50 hover:border-white/20 transition-all"
-                      >
-                        <div className="flex items-center gap-1 mb-2">
-                          <Sparkles className="w-4 h-4 text-amber-500" />
-                          <span className="text-lg font-bold text-white">{pkg.credits}</span>
-                        </div>
-                        <span className="text-xs text-zinc-500 mb-3">credits</span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="w-full text-xs border-white/20 hover:bg-white/5"
-                          disabled={isLoading !== null}
-                          onClick={() => void onTopupCheckout(pkg.id)}
-                        >
-                          {isLoading === pkg.id ? "..." : formatCurrency(pkg.price, "usd")}
-                        </Button>
-                      </div>
-                    )
-                  })}
+            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {visibleTopupPackages.map((pkg) => (
+                <div
+                  key={pkg.id}
+                  className="rounded-2xl border border-white/10 bg-black/60 p-5"
+                >
+                  <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-zinc-500">
+                    Credit Pack
+                  </div>
+                  <div className="mt-3 text-2xl font-semibold text-white">
+                    {pkg.credits} credits
+                  </div>
+                  <p className="mt-1 text-sm text-zinc-400">
+                    {formatCurrency(pkg.price, "usd")} one-time purchase
+                  </p>
+                  <p className="mt-3 text-xs leading-relaxed text-zinc-500">
+                    Best for occasional extra runs without changing your subscription.
+                  </p>
+
+                  <Button
+                    variant="outline"
+                    className="mt-5 w-full rounded-xl border-white/20 bg-transparent text-white hover:border-white/30 hover:bg-white/5"
+                    disabled={isLoading !== null || !pkg.available}
+                    onClick={() => {
+                      if (pkg.available) {
+                        void onTopupCheckout(pkg.id)
+                      }
+                    }}
+                  >
+                    {isLoading === pkg.id
+                      ? "Processing..."
+                      : pkg.available
+                        ? "Buy top-up"
+                        : "Unavailable"}
+                    {isLoading !== pkg.id && pkg.available && <ArrowRight className="ml-2 h-3 w-3" />}
+                  </Button>
                 </div>
-              )}
+              ))}
             </div>
           </div>
         </div>

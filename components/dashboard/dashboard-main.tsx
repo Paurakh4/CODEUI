@@ -43,6 +43,7 @@ import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { useEditor } from "@/stores/editor-store"
 import type { SubscriptionTier } from "@/lib/pricing"
+import { cn } from "@/lib/utils"
 
 // Credit tier configurations (matching lib/pricing.ts)
 const TIER_CREDITS: Record<SubscriptionTier, number> = {
@@ -66,9 +67,17 @@ interface Project {
 
 interface DashboardMainProps {
   onStart: (prompt?: string, model?: string) => void
+  billingSyncState?: 'idle' | 'processing' | 'confirmed' | 'failed'
+  billingSyncMessage?: string | null
+  onRetryBillingSync?: () => void | Promise<void>
 }
 
-export function DashboardMain({ onStart }: DashboardMainProps) {
+export function DashboardMain({
+  onStart,
+  billingSyncState = 'idle',
+  billingSyncMessage = null,
+  onRetryBillingSync,
+}: DashboardMainProps) {
   const { data: session, update: updateSession } = useSession()
   const { state, setModel } = useEditor()
   const selectedModelId = state.selectedModel
@@ -85,6 +94,7 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
     monthlyCredits: number;
     topupCredits: number;
     totalCredits: number;
+    tier?: SubscriptionTier;
   } | null>(null)
   const hasUpdatedSession = useRef(false)
   
@@ -124,7 +134,8 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
           setRealTimeCredits({
             monthlyCredits: data.monthlyCredits,
             topupCredits: data.topupCredits,
-            totalCredits: data.totalCredits
+            totalCredits: data.totalCredits,
+            tier: data.tier,
           })
           
           // If session is stale, trigger an update (only once per mount to avoid loops)
@@ -132,7 +143,8 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
           if (
             !hasUpdatedSession.current &&
             (sessionUser.monthlyCredits !== data.monthlyCredits ||
-             sessionUser.topupCredits !== data.topupCredits)
+             sessionUser.topupCredits !== data.topupCredits ||
+             sessionUser.subscription !== data.tier)
           ) {
             hasUpdatedSession.current = true
             updateSession()
@@ -185,7 +197,7 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
     credits?: number
     subscription?: SubscriptionTier
   }
-  const userTier = sessionUser?.subscription || "free"
+  const userTier = realTimeCredits?.tier ?? sessionUser?.subscription ?? "free"
   const userMonthlyCredits = realTimeCredits?.monthlyCredits ?? sessionUser?.monthlyCredits ?? 0
   const userTopupCredits = realTimeCredits?.topupCredits ?? sessionUser?.topupCredits ?? 0
   const userTotalCredits = realTimeCredits?.totalCredits ?? sessionUser?.totalCredits ?? (userMonthlyCredits + userTopupCredits)
@@ -309,7 +321,7 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
         </div>
 
         {/* Navigation Items */}
-        <ScrollArea className="flex-1 px-2">
+        <ScrollArea className="flex-1 px-2 min-h-0">
           <div className="space-y-2 px-2 pt-1">
             <label htmlFor="project-search" className="text-[11px] font-medium text-zinc-500">
               Search projects
@@ -463,18 +475,15 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
                 </div>
                 <div className="flex items-center justify-between mt-2">
                   <p className="text-[10px] text-zinc-500">
-                    {userMonthlyCredits} monthly{userTopupCredits > 0 ? ` + ${userTopupCredits} bonus` : ''}
+                    {userMonthlyCredits} monthly credits
                   </p>
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded ${tierBadge.bg} ${tierBadge.color}`}>
-                    {maxCredits}/mo
-                  </span>
                 </div>
                  <Button 
                    variant="link" 
                    onClick={() => setIsPricingOpen(true)}
                    className="h-auto p-0 text-[10px] text-amber-500 hover:text-amber-400 font-medium mt-1"
                  >
-                     {userTier === 'free' ? 'Upgrade for more →' : 'Buy top-up credits →'}
+                     View plans →
                  </Button>
              </div>
          </div>
@@ -529,6 +538,37 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
             </div>
             <UserMenu />
         </header>
+
+        {billingSyncState !== 'idle' && billingSyncMessage && (
+          <div className="absolute top-16 left-1/2 z-20 w-[min(720px,calc(100%-2rem))] -translate-x-1/2 px-4">
+            <div className={cn(
+              "flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 shadow-lg backdrop-blur",
+              billingSyncState === 'processing' && "border-sky-500/20 bg-sky-500/10 text-sky-100",
+              billingSyncState === 'confirmed' && "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
+              billingSyncState === 'failed' && "border-rose-500/20 bg-rose-500/10 text-rose-100",
+            )}>
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] opacity-80">
+                  {billingSyncState === 'processing' && 'Upgrade processing'}
+                  {billingSyncState === 'confirmed' && 'Upgrade confirmed'}
+                  {billingSyncState === 'failed' && 'Upgrade needs attention'}
+                </div>
+                <div className="mt-1 text-sm leading-5 text-current/90">
+                  {billingSyncMessage}
+                </div>
+              </div>
+              {billingSyncState === 'failed' && onRetryBillingSync && (
+                <Button
+                  variant="outline"
+                  onClick={() => void onRetryBillingSync()}
+                  className="shrink-0 border-white/20 bg-black/20 text-white hover:bg-black/30"
+                >
+                  Retry check
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
 
         {view === 'dashboard' ? (
           <>
@@ -676,7 +716,7 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col w-full max-w-[1400px] mx-auto px-6 pt-24 pb-8 overflow-hidden">
+          <div className="flex-1 flex flex-col w-full max-w-[1400px] mx-auto px-6 pt-24 pb-8 min-h-0 overflow-y-auto">
             <div className="flex items-center gap-4 mb-8">
               <Button 
                 variant="ghost" 
@@ -692,7 +732,7 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
               </div>
             </div>
 
-            <ScrollArea className="flex-1 -mx-2 px-2">
+            <div className="-mx-2 px-2">
               {isLoadingProjects ? (
                 <div className="flex items-center justify-center py-16">
                   <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
@@ -719,7 +759,7 @@ export function DashboardMain({ onStart }: DashboardMainProps) {
                   </p>
                 </div>
               )}
-            </ScrollArea>
+            </div>
           </div>
         )}
       </main>

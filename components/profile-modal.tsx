@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useAccountModals } from "@/components/account-modal-provider";
 import { useToast } from "@/hooks/use-toast";
 
 interface ProfileModalProps {
@@ -62,6 +63,7 @@ interface ProfileResponse {
 
 export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
   const { update: updateSession } = useSession();
+  const { showPricing } = useAccountModals();
   const { toast } = useToast();
   const [profile, setProfile] = useState<ProfileResponse["profile"] | null>(null);
   const [displayName, setDisplayName] = useState("");
@@ -311,8 +313,16 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
                         {profile.credits.totalCredits}
                       </p>
                       <p className="mt-1 text-xs text-zinc-400">
-                        {profile.credits.monthlyCredits} monthly + {profile.credits.topupCredits} bonus
+                        {profile.credits.monthlyCredits} monthly credits and {profile.credits.topupCredits} top-up credits
                       </p>
+                      <Button
+                        type="button"
+                        variant="link"
+                        onClick={showPricing}
+                        className="mt-2 h-auto p-0 text-xs text-emerald-300 hover:text-emerald-200"
+                      >
+                        Buy top-up credits
+                      </Button>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-zinc-900/80 p-4">
