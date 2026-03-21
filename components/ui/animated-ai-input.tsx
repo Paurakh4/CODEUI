@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Bot, Check, ChevronDown, Paperclip, Loader2 } from "lucide-react";
+import { ArrowRight, Bot, Check, ChevronDown, Loader2, Paperclip, X } from "lucide-react";
 import { useState, useRef, useCallback, useEffect, type ChangeEvent } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -98,6 +98,7 @@ const OPENAI_ICON = (
 
 interface AI_PromptProps {
     onSend?: (message: string, model?: string) => void;
+    onCancel?: () => void;
     onFileSelect?: (event: ChangeEvent<HTMLInputElement>) => void;
     fileUploadAccept?: string;
     isFileUploadDisabled?: boolean;
@@ -105,17 +106,20 @@ interface AI_PromptProps {
     onModelChange?: (modelId: string) => void;
     availableModels?: Array<{id: string, name: string}>;
     isLoadingModels?: boolean;
+    isGenerating?: boolean;
 }
 
 export function AI_Prompt({ 
     onSend, 
+    onCancel,
     onFileSelect,
     fileUploadAccept,
     isFileUploadDisabled,
     initialModelId, 
     onModelChange,
     availableModels: propAvailableModels,
-    isLoadingModels: propIsLoadingModels
+    isLoadingModels: propIsLoadingModels,
+    isGenerating = false,
 }: AI_PromptProps) {
     const [value, setValue] = useState("");
     const { textareaRef, adjustHeight } = useAutoResizeTextarea({
@@ -184,12 +188,26 @@ export function AI_Prompt({
             });
     }, [propAvailableModels, initialModelId]);
 
+    const handleSubmit = () => {
+        if (!value.trim() || isGenerating) return;
+
+        onSend?.(value.trim(), selectedModelId);
+        setValue("");
+        adjustHeight(true);
+    };
+
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === "Enter" && !e.shiftKey && value.trim()) {
+        if (e.key !== "Enter" || e.shiftKey) return;
+
+        e.preventDefault();
+
+        if (isGenerating) {
+            return;
+        }
+
+        if (value.trim()) {
             e.preventDefault();
-            onSend?.(value.trim(), selectedModelId);
-            setValue("");
-            adjustHeight(true);
+            handleSubmit();
         }
     };
     
@@ -229,7 +247,7 @@ export function AI_Prompt({
                                             <Button
                                                 variant="ghost"
                                                 className="flex items-center gap-1 h-7 pl-1 pr-1.5 text-xs rounded-md dark:text-white hover:bg-black/10 dark:hover:bg-white/10 focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-blue-500"
-                                                disabled={isLoadingModels}
+                                                disabled={isLoadingModels || isGenerating}
                                             >
                                                 <AnimatePresence mode="wait">
                                                     <motion.div
@@ -299,8 +317,8 @@ export function AI_Prompt({
                                             "rounded-md p-1.5 bg-black/5 dark:bg-white/5",
                                             "hover:bg-black/10 dark:hover:bg-white/10 focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-blue-500",
                                             "text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white",
-                                            isFileUploadDisabled && "opacity-50 cursor-not-allowed pointer-events-none",
-                                            !isFileUploadDisabled && "cursor-pointer"
+                                            (isFileUploadDisabled || isGenerating) && "opacity-50 cursor-not-allowed pointer-events-none",
+                                            !isFileUploadDisabled && !isGenerating && "cursor-pointer"
                                         )}
                                         aria-label="Attach file"
                                     >
@@ -309,7 +327,7 @@ export function AI_Prompt({
                                             className="hidden"
                                             onChange={onFileSelect}
                                             accept={fileUploadAccept}
-                                            disabled={isFileUploadDisabled}
+                                            disabled={isFileUploadDisabled || isGenerating}
                                         />
                                         <Paperclip className="w-3.5 h-3.5 transition-colors" />
                                     </label>
@@ -318,25 +336,34 @@ export function AI_Prompt({
                                     type="button"
                                     className={cn(
                                         "rounded-md p-1.5 bg-black/5 dark:bg-white/5",
-                                        "hover:bg-black/10 dark:hover:bg-white/10 focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-blue-500"
+                                        "focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-blue-500",
+                                        isGenerating
+                                            ? "bg-rose-500/10 text-rose-500 hover:bg-rose-500/15 dark:text-rose-300"
+                                            : "hover:bg-black/10 dark:hover:bg-white/10"
                                     )}
-                                    aria-label="Send message"
-                                    disabled={!value.trim()}
+                                    aria-label={isGenerating ? "Cancel generation" : "Send message"}
+                                    disabled={!isGenerating && !value.trim()}
                                     onClick={() => {
-                                        if (!value.trim()) return;
-                                        onSend?.(value.trim(), selectedModelId);
-                                        setValue("");
-                                        adjustHeight(true);
+                                        if (isGenerating) {
+                                            onCancel?.();
+                                            return;
+                                        }
+
+                                        handleSubmit();
                                     }}
                                 >
-                                    <ArrowRight
-                                        className={cn(
-                                            "w-3.5 h-3.5 dark:text-white transition-opacity duration-200",
-                                            value.trim()
-                                                ? "opacity-100"
-                                                : "opacity-30"
-                                        )}
-                                    />
+                                    {isGenerating ? (
+                                        <X className="w-3.5 h-3.5 transition-opacity duration-200" />
+                                    ) : (
+                                        <ArrowRight
+                                            className={cn(
+                                                "w-3.5 h-3.5 dark:text-white transition-opacity duration-200",
+                                                value.trim()
+                                                    ? "opacity-100"
+                                                    : "opacity-30"
+                                            )}
+                                        />
+                                    )}
                                 </button>
                             </div>
                         </div>

@@ -9,6 +9,62 @@ import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useEditor } from "@/stores/editor-store"
 
+const createEditorWorker = () =>
+  new Worker(new URL("monaco-editor/esm/vs/editor/editor.worker.js", import.meta.url), {
+    type: "module",
+  })
+
+const createJsonWorker = () =>
+  new Worker(new URL("monaco-editor/esm/vs/language/json/json.worker.js", import.meta.url), {
+    type: "module",
+  })
+
+const createCssWorker = () =>
+  new Worker(new URL("monaco-editor/esm/vs/language/css/css.worker.js", import.meta.url), {
+    type: "module",
+  })
+
+const createHtmlWorker = () =>
+  new Worker(new URL("monaco-editor/esm/vs/language/html/html.worker.js", import.meta.url), {
+    type: "module",
+  })
+
+const createTypeScriptWorker = () =>
+  new Worker(new URL("monaco-editor/esm/vs/language/typescript/ts.worker.js", import.meta.url), {
+    type: "module",
+  })
+
+const monacoEnvironment = globalThis as typeof globalThis & {
+  MonacoEnvironment?: {
+    getWorker?: (_moduleId: string, label: string) => Worker
+  }
+}
+
+if (typeof window !== "undefined") {
+  monacoEnvironment.MonacoEnvironment = {
+    ...monacoEnvironment.MonacoEnvironment,
+    getWorker(_moduleId, label) {
+      switch (label) {
+        case "json":
+          return createJsonWorker()
+        case "css":
+        case "scss":
+        case "less":
+          return createCssWorker()
+        case "html":
+        case "handlebars":
+        case "razor":
+          return createHtmlWorker()
+        case "typescript":
+        case "javascript":
+          return createTypeScriptWorker()
+        default:
+          return createEditorWorker()
+      }
+    },
+  }
+}
+
 loader.config({ monaco })
 
 interface CodeEditorProps {

@@ -54,6 +54,7 @@ interface UseAIChatOptions {
   onThinkingUpdate?: (thinking: string) => void
   onProgressUpdate?: (progress: AIStreamProgress) => void
   onComplete?: (result: AICompletionResult) => void
+  onCancel?: () => void
   onPatch?: (filePath: string, searchBlock: string, replaceBlock: string) => boolean | void
   onFileUpdate?: (filePath: string) => void
   onProjectNameUpdate?: (name: string) => void
@@ -126,6 +127,25 @@ export function useAIChat(options: UseAIChatOptions = {}) {
     })
   }
 
+  const abortActiveRequest = useCallback((notifyCancel: boolean) => {
+    const hasActiveRequest = Boolean(abortControllerRef.current) || activeRequestIdRef.current !== null
+
+    abortControllerRef.current?.abort()
+    activeRequestIdRef.current = null
+    abortControllerRef.current = null
+    setIsGenerating(false)
+    setContent("")
+    setThinking("")
+    setError(null)
+    failedFilesRef.current.clear()
+    incompletePatchCountRef.current = 0
+    parserRef.current?.reset()
+
+    if (notifyCancel && hasActiveRequest) {
+      optionsRef.current.onCancel?.()
+    }
+  }, [])
+
   const sendMessage = useCallback(
     async ({
       prompt,
@@ -141,7 +161,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       conversationHistory,
     }: SendMessageOptions) => {
       if (abortControllerRef.current) {
-        abortControllerRef.current.abort()
+        abortActiveRequest(false)
       }
 
       const requestId = requestCounterRef.current + 1
@@ -164,8 +184,16 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       let latestProgress: AIStreamProgress | undefined
       let chunkCount = 0
 
+      const isRequestActive = () => {
+        return activeRequestIdRef.current === requestId && !abortController.signal.aborted
+      }
+
       const processSseBlocks = (blocks: string[]) => {
         for (const block of blocks) {
+          if (!isRequestActive()) {
+            return false
+          }
+
           if (!block.startsWith("data: ")) {
             continue
           }
@@ -174,6 +202,10 @@ export function useAIChat(options: UseAIChatOptions = {}) {
             const data = JSON.parse(block.slice(6))
 
             if (data.type === "meta") {
+              if (!isRequestActive()) {
+                return false
+              }
+
               responseMeta = mergeStreamMeta(responseMeta, data.data)
               logger.info("Received stream meta", {
                 phase: "stream",
@@ -184,6 +216,10 @@ export function useAIChat(options: UseAIChatOptions = {}) {
             }
 
             if (data.type === "progress") {
+              if (!isRequestActive()) {
+                return false
+              }
+
               latestProgress = data.data as AIStreamProgress
               if (latestProgress) {
                 optionsRef.current.onProgressUpdate?.(latestProgress)
@@ -196,8 +232,8 @@ export function useAIChat(options: UseAIChatOptions = {}) {
             }
 
             if (data.type === "content") {
-              if (activeRequestIdRef.current !== requestId) {
-                continue
+              if (!isRequestActive()) {
+                return false
               }
 
               chunkCount += 1
@@ -209,8 +245,8 @@ export function useAIChat(options: UseAIChatOptions = {}) {
             }
 
             if (data.type === "thinking") {
-              if (activeRequestIdRef.current !== requestId) {
-                continue
+              if (!isRequestActive()) {
+                return false
               }
 
               fullThinking += data.data
@@ -223,6 +259,8 @@ export function useAIChat(options: UseAIChatOptions = {}) {
             }
           }
         }
+
+        return true
       }
 
       logger.info("Starting AI request", {
@@ -268,20 +306,53 @@ export function useAIChat(options: UseAIChatOptions = {}) {
           throw new Error("No response body")
         }
 
+        const readChunk = () => {
+          if (!isRequestActive()) {
+            throw new DOMException("The request was aborted.", "AbortError")
+          }
+
+          return new Promise<ReadableStreamReadResult<Uint8Array>>((resolve, reject) => {
+            const handleAbort = () => {
+              cleanup()
+              void reader.cancel().catch(() => {})
+              reject(new DOMException("The request was aborted.", "AbortError"))
+            }
+
+            const cleanup = () => {
+              abortController.signal.removeEventListener("abort", handleAbort)
+            }
+
+            abortController.signal.addEventListener("abort", handleAbort, { once: true })
+
+            reader.read().then(
+              (result) => {
+                cleanup()
+                resolve(result)
+              },
+              (readError) => {
+                cleanup()
+                reject(readError)
+              },
+            )
+          })
+        }
+
         const decoder = new TextDecoder()
         let buffer = ""
 
         while (true) {
-          if (activeRequestIdRef.current !== requestId) {
+          if (!isRequestActive()) {
             logger.info("Cancelling stale request", { phase: "stream", requestId })
             await reader.cancel().catch(() => {})
             return null
           }
 
-          const { done, value } = await reader.read()
+          const { done, value } = await readChunk()
           if (done) {
             if (buffer.trim()) {
-              processSseBlocks(buffer.split("\n\n").filter(Boolean))
+              if (!processSseBlocks(buffer.split("\n\n").filter(Boolean))) {
+                return null
+              }
             }
             break
           }
@@ -289,10 +360,13 @@ export function useAIChat(options: UseAIChatOptions = {}) {
           buffer += decoder.decode(value, { stream: true })
           const blocks = buffer.split("\n\n")
           buffer = blocks.pop() || ""
-          processSseBlocks(blocks)
+          if (!processSseBlocks(blocks)) {
+            await reader.cancel().catch(() => {})
+            return null
+          }
         }
 
-        if (activeRequestIdRef.current !== requestId) {
+        if (!isRequestActive()) {
           return null
         }
 
@@ -361,26 +435,16 @@ export function useAIChat(options: UseAIChatOptions = {}) {
         }
       }
     },
-    [],
+    [abortActiveRequest],
   )
 
   const cancel = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-      activeRequestIdRef.current = null
-      abortControllerRef.current = null
-      setIsGenerating(false)
-    }
-  }, [])
+    abortActiveRequest(true)
+  }, [abortActiveRequest])
 
   const reset = useCallback(() => {
-    setContent("")
-    setThinking("")
-    setError(null)
-    failedFilesRef.current.clear()
-    incompletePatchCountRef.current = 0
-    cancel()
-  }, [cancel])
+    abortActiveRequest(false)
+  }, [abortActiveRequest])
 
   return {
     sendMessage,

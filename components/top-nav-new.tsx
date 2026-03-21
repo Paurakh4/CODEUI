@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/tooltip"
 import { useSession } from "next-auth/react"
 import { cn } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
 
 type ViewMode = "preview" | "design" | "code"
 type DeviceMode = "desktop" | "tablet" | "mobile"
@@ -88,8 +89,10 @@ export function TopNav({
   onEnhancedPromptsChange: _onEnhancedPromptsChange,
 }: TopNavProps) {
   const [copied, setCopied] = useState(false)
+  const copyResetTimeoutRef = useRef<number | null>(null)
   const { data: session, update: updateSession } = useSession()
   const { showPricing, showSettings } = useAccountModals()
+  const { toast } = useToast()
 
   // Credit system logic (matching dashboard-main.tsx)
   const [realTimeCredits, setRealTimeCredits] = useState<{
@@ -179,23 +182,67 @@ export function TopNav({
     { id: "mobile" as DeviceMode, label: "Mobile", icon: Smartphone },
   ]
 
-  const handleCopy = useCallback(() => {
-    // Copy current HTML to clipboard
-    navigator.clipboard.writeText(document.querySelector('iframe')?.contentDocument?.documentElement.outerHTML || '')
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  const getPreviewIframe = useCallback(() => {
+    return document.querySelector('[data-preview-frame="true"]') as HTMLIFrameElement | null
   }, [])
+
+  useEffect(() => {
+    return () => {
+      if (copyResetTimeoutRef.current !== null) {
+        window.clearTimeout(copyResetTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const handleCopy = useCallback(async () => {
+    try {
+      const iframe = getPreviewIframe()
+      const html = iframe?.contentDocument?.documentElement?.outerHTML?.trim()
+
+      if (!html) {
+        toast({
+          title: "Copy failed",
+          description: "Preview HTML is not ready yet.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      await navigator.clipboard.writeText(html)
+      setCopied(true)
+
+      if (copyResetTimeoutRef.current !== null) {
+        window.clearTimeout(copyResetTimeoutRef.current)
+      }
+
+      toast({
+        title: "Copied HTML",
+        description: "The current preview HTML was copied to your clipboard.",
+      })
+      copyResetTimeoutRef.current = window.setTimeout(() => {
+        setCopied(false)
+        copyResetTimeoutRef.current = null
+      }, 2200)
+    } catch (error) {
+      console.error("Failed to copy HTML:", error)
+      toast({
+        title: "Copy failed",
+        description: "The preview HTML could not be copied.",
+        variant: "destructive",
+      })
+    }
+  }, [getPreviewIframe, toast])
 
   const handleOpenInNewTab = useCallback(() => {
     // Open preview in new tab
-    const iframe = document.querySelector('iframe') as HTMLIFrameElement
+    const iframe = getPreviewIframe()
     if (iframe) {
       const htmlContent = iframe.contentDocument?.documentElement.outerHTML || ''
       const blob = new Blob([htmlContent], { type: 'text/html' })
       const url = URL.createObjectURL(blob)
       window.open(url, '_blank')
     }
-  }, [])
+  }, [getPreviewIframe])
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -203,20 +250,20 @@ export function TopNav({
         {/* Left Section */}
         <div className="flex items-center gap-1.5 flex-1">
           {/* Sidebar Toggle */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                className="p-1.5 h-6 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-200 transition-colors"
-                onClick={onToggleSidebar}
-                aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
-              >
-                <PanelLeft className="w-3.5 h-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              {sidebarOpen ? "Close sidebar" : "Open sidebar"}
-            </TooltipContent>
-          </Tooltip>
+          {!sidebarOpen && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  className="p-1.5 h-6 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-200 transition-colors"
+                  onClick={onToggleSidebar}
+                  aria-label="Open sidebar"
+                >
+                  <PanelLeft className="w-3.5 h-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Open sidebar</TooltipContent>
+            </Tooltip>
+          )}
 
           {/* View Mode Tabs */}
           <div className="flex items-center bg-zinc-900 rounded-lg p-0.5 border border-zinc-800">
@@ -249,7 +296,7 @@ export function TopNav({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center bg-zinc-900 rounded-lg p-0.5 border border-zinc-800">
+          <div className="hidden sm:flex items-center bg-zinc-900 rounded-lg p-0.5 border border-zinc-800">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -365,13 +412,19 @@ export function TopNav({
               <button
                 onClick={handleCopy}
                 aria-label="Copy HTML"
-                className="p-1.5 h-6 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-zinc-300 transition-colors"
+                className={cn(
+                  "flex items-center gap-1 rounded-lg px-2 h-7 transition-colors",
+                  copied
+                    ? "bg-emerald-500/10 text-emerald-300"
+                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800",
+                )}
               >
                 {copied ? (
                   <Check className="w-3.5 h-3.5 text-green-400" />
                 ) : (
                   <Copy className="w-3.5 h-3.5" />
                 )}
+                {copied && <span className="text-[11px] font-medium leading-none">Copied</span>}
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
@@ -385,11 +438,11 @@ export function TopNav({
             size="sm"
             onClick={onExport}
             aria-label="Export project"
-            className="h-6 hover:bg-zinc-700 text-xs border-zinc-800"
+            className="h-6 hover:bg-zinc-700 text-xs border-zinc-800 px-2 sm:px-3"
             style={{ backgroundColor: '#18181B', borderColor: '#27272A' }}
           >
-            <Download className="w-3.5 h-3.5 mr-1" />
-            Export
+            <Download className="w-3.5 h-3.5 sm:mr-1" />
+            <span className="hidden sm:inline">Export</span>
           </Button>
 
           {/* Open in New Tab */}

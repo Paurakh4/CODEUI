@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback, useRef, type ChangeEvent } from "react"
+import { startTransition, useEffect, useState, useCallback, useRef, type ChangeEvent } from "react"
 import { useRouter } from "next/navigation"
 import { TopNav } from "@/components/top-nav-new"
 import { VersionHistory, type Version as HistoryVersion } from "@/components/version-history"
@@ -9,7 +9,7 @@ import { PreviewFrame, type SelectedElementInfo } from "@/components/preview-fra
 import { CodeEditor } from "@/components/code-editor"
 import { StylePanel, type SelectedElement, type StyleProperty, type StyleChange } from "@/components/style-panel"
 import { TextShimmer } from "@/components/ui/text-shimmer";
-import { ChevronDown, ChevronLeft, X, ChevronUp, RotateCcw } from "lucide-react"
+import { ChevronDown, ChevronLeft, PanelLeftClose, X, ChevronUp, RotateCcw } from "lucide-react"
 import { SolarCodeSquareLinear } from "@/components/solar-code-square-linear"
 import { useSession } from "next-auth/react"
 import { useAuthDialog } from "@/components/auth-dialog-provider"
@@ -359,6 +359,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(true)
+
+  // Close sidebar on mobile by default after mount
+  useEffect(() => {
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(false)
+    }
+  }, [])
   const [viewMode, setViewMode] = useState<ViewMode>("preview")
   const [deviceMode, setDeviceMode] = useState<DeviceMode>("desktop")
   const [draftAiOutput, setDraftAiOutput] = useState("")
@@ -414,6 +421,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   const scopeRecoveryAttemptsRef = useRef(0)
   const [pendingRecovery, setPendingRecovery] = useState<PendingRecovery | null>(null)
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
+  const activeProjectKeyRef = useRef<string | null>(null)
   
   // Sync initialModel with global store
   useEffect(() => {
@@ -442,6 +450,47 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   
   const [isRestored, setIsRestored] = useState(false)
   const [isLoadingProject, setIsLoadingProject] = useState(false)
+
+  const resetTransientProjectState = useCallback(() => {
+    hasProcessedInitialPrompt.current = false
+    lastUserPromptRef.current = ""
+    recoveryInFlightRef.current = false
+    promptScopeRecoveryInFlightRef.current = false
+    scopeRecoveryAttemptsRef.current = 0
+
+    setPendingRecovery(null)
+    setMessages([])
+    setThinkingExpanded(true)
+    setSelectedElement(null)
+    setPanelPosition(null)
+    setDraftAiOutput("")
+    setHasGeneratedOnce(false)
+    setVersions([])
+    setCurrentVersionId(null)
+    setVersionHistoryOpen(false)
+    setPreviewHtmlContent(null)
+    setHasUnsavedChanges(false)
+    setProjectName("untitled-project")
+    setHtmlContent(LOADING_HTML)
+    htmlContentRef.current = LOADING_HTML
+    lastSavedContentRef.current = ""
+    setViewMode("preview")
+    setDeviceMode("desktop")
+    setSidebarOpen(true)
+    setIsRestored(false)
+    setApplyingPatch(false)
+  }, [setApplyingPatch])
+
+  useEffect(() => {
+    const nextProjectKey = projectId || "new"
+    if (activeProjectKeyRef.current === nextProjectKey) {
+      return
+    }
+
+    activeProjectKeyRef.current = nextProjectKey
+    resetTransientProjectState()
+    setIsLoadingProject(Boolean(projectId && projectId !== "new" && session?.user?.id))
+  }, [projectId, resetTransientProjectState, session?.user?.id])
 
   const applyChangeToIframe = useCallback((selector: string, property: string, value: StyleProperty) => {
     const iframe = previewRef.current
@@ -597,9 +646,14 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         const project = data.project
         if (project) {
           setProjectName(project.name || "Untitled Project")
-          if (project.htmlContent) {
+          if (typeof project.htmlContent === "string" && project.htmlContent.trim().length > 0) {
             setHtmlContent(project.htmlContent)
+            htmlContentRef.current = project.htmlContent
             lastSavedContentRef.current = project.htmlContent
+          } else {
+            setHtmlContent(LOADING_HTML)
+            htmlContentRef.current = LOADING_HTML
+            lastSavedContentRef.current = ""
           }
           // Restore messages from MongoDB
           if (project.messages && project.messages.length > 0) {
@@ -613,6 +667,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
             }))
             setMessages(restoredMessages)
             setHasGeneratedOnce(true)
+          } else {
+            setHasGeneratedOnce(false)
           }
         }
       } catch (error) {
@@ -835,6 +891,36 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       })
     },
     onProgressUpdate: updateAssistantProgress,
+    onCancel: () => {
+      recoveryInFlightRef.current = false
+      promptScopeRecoveryInFlightRef.current = false
+      scopeRecoveryAttemptsRef.current = 0
+      setPendingRecovery(null)
+      setDraftAiOutput("")
+      setApplyingPatch(false)
+      setViewMode("preview")
+      setMessages((prev) => {
+        const lastMessage = prev[prev.length - 1]
+        if (!lastMessage || lastMessage.role !== "assistant" || !lastMessage.isThinking) {
+          return prev
+        }
+
+        return prev.map((message, index) =>
+          index === prev.length - 1
+            ? {
+                ...message,
+                isThinking: false,
+                content: message.content || "Generation cancelled.",
+                progressLabel: undefined,
+              }
+            : message,
+        )
+      })
+      toast({
+        title: "Generation cancelled",
+        description: "The current generation was stopped.",
+      })
+    },
     onProjectNameUpdate: (name) => {
       const normalizedName = normalizeProjectName(name)
       setProjectName(normalizedName)
@@ -1415,14 +1501,16 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   }, [createCheckpoint, toast, versions])
 
   const handleElementSelect = useCallback((info: SelectedElementInfo) => {
-    setSelectedElement({
-      id: info.selector,
-      type: info.type,
-      styles: info.styles,
-      properties: info.properties,
-      clickPosition: info.clickPosition
+    startTransition(() => {
+      setSelectedElement({
+        id: info.selector,
+        type: info.type,
+        styles: info.styles,
+        properties: info.properties,
+        clickPosition: info.clickPosition
+      })
+      setPanelPosition(info.clickPosition)
     })
-    setPanelPosition(info.clickPosition)
   }, [])
 
   // Calculate panel position to keep it within viewport
@@ -1715,30 +1803,22 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   const renderContent = () => {
     switch (viewMode) {
       case "preview":
-        return (
-          <PreviewFrame
-            htmlContent={previewHtmlContent ?? htmlContent}
-            deviceMode={deviceMode}
-            className="h-full"
-            forwardedRef={previewRef}
-            isStyleUpdate={isStyleUpdate.current}
-          />
-        )
       case "design":
         const panelPos = panelPosition ? calculatePanelPosition(panelPosition) : null
+        const isDesignCanvasMode = viewMode === "design"
         return (
           <div className="flex h-full min-h-0 relative overflow-hidden">
             <PreviewFrame
-              htmlContent={htmlContent}
+              htmlContent={isDesignCanvasMode ? htmlContent : (previewHtmlContent ?? htmlContent)}
               deviceMode={deviceMode}
               className="flex-1"
-              isDesignMode
-              onElementSelect={handleElementSelect}
-              onTextChange={handleTextChange}
+              isDesignMode={isDesignCanvasMode}
+              onElementSelect={isDesignCanvasMode ? handleElementSelect : undefined}
+              onTextChange={isDesignCanvasMode ? handleTextChange : undefined}
               forwardedRef={previewRef}
               isStyleUpdate={isStyleUpdate.current}
             />
-            {selectedElement && panelPos && (
+            {isDesignCanvasMode && selectedElement && panelPos && (
               <div 
                 className="fixed z-50"
                 style={{
@@ -1790,14 +1870,14 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       {/* Sidebar */}
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-[380px]",
-          "flex flex-col bg-[#0a0a0a]",
-          "transition-transform duration-200 ease-out",
+          "fixed inset-y-0 left-0 z-50 w-full sm:w-[380px] sm:py-3 sm:pl-3",
+          "transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        {/* Sidebar Header */}
-        <div className="h-10 px-4 flex items-center justify-between">
+        <div className="flex h-full w-full flex-col bg-[#0a0a0a] sm:border border-zinc-800/80 sm:rounded-[24px] overflow-hidden sm:shadow-2xl">
+          {/* Sidebar Header */}
+        <div className="h-10 px-4 flex items-center justify-between mt-1 sm:mt-0">
           <div className="flex items-center gap-3">
             <button
               className="group p-1 rounded-md flex items-center justify-center relative"
@@ -1829,13 +1909,23 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
             </div>
           </div>
           
-          <button
-            onClick={handleResetChat}
-            className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors"
-            title="Reset Chat"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors"
+              title="Collapse sidebar"
+              aria-label="Collapse sidebar"
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleResetChat}
+              className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors"
+              title="Reset Chat"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Chat Messages */}
@@ -1935,6 +2025,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         <div className="p-4 border-t border-zinc-800">
           <AI_Prompt 
             onSend={handleSend}
+            onCancel={cancelAI}
             onFileSelect={handleUploadMedia}
             fileUploadAccept="image/*,video/*,audio/*"
             isFileUploadDisabled={isUploadingMedia || !session?.user?.id || !projectId || projectId === "new"}
@@ -1942,14 +2033,16 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
             onModelChange={setModel}
             availableModels={state.availableModels}
             isLoadingModels={state.isLoadingModels}
+            isGenerating={isGenerating}
           />
+        </div>
         </div>
       </div>
 
       {/* Main Content */}
       <div
         className={cn(
-          "flex-1 flex flex-col min-w-0 transition-all duration-200",
+          "flex-1 flex flex-col min-w-0 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
           sidebarOpen ? "lg:ml-[380px]" : ""
         )}
       >

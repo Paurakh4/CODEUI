@@ -44,6 +44,7 @@ import Link from "next/link"
 import { useEditor } from "@/stores/editor-store"
 import type { SubscriptionTier } from "@/lib/pricing"
 import { cn } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
 
 // Credit tier configurations (matching lib/pricing.ts)
 const TIER_CREDITS: Record<SubscriptionTier, number> = {
@@ -72,6 +73,9 @@ interface DashboardMainProps {
   onRetryBillingSync?: () => void | Promise<void>
 }
 
+const PROJECT_CARD_DESKTOP_PREVIEW_WIDTH = 1440
+const PROJECT_CARD_DESKTOP_PREVIEW_HEIGHT = 900
+
 export function DashboardMain({
   onStart,
   billingSyncState = 'idle',
@@ -80,11 +84,19 @@ export function DashboardMain({
 }: DashboardMainProps) {
   const { data: session, update: updateSession } = useSession()
   const { state, setModel } = useEditor()
+  const { toast } = useToast()
   const selectedModelId = state.selectedModel
   const availableModels = state.availableModels
   const isLoadingModels = state.isLoadingModels
   const [view, setView] = useState<'dashboard' | 'projects'>('dashboard')
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  
+  // Close sidebar on mobile by default after mount
+  useEffect(() => {
+    if (window.innerWidth < 768) {
+      setIsSidebarOpen(false)
+    }
+  }, [])
   const [promptValue, setPromptValue] = useState("")
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
   const [isPricingOpen, setIsPricingOpen] = useState(false)
@@ -168,10 +180,35 @@ export function DashboardMain({
     textarea.style.height = `${newHeight}px`
   }, [])
 
+  const focusPromptInput = useCallback(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    textarea.focus()
+    const caretPosition = textarea.value.length
+    textarea.setSelectionRange(caretPosition, caretPosition)
+    adjustHeight()
+  }, [adjustHeight])
+
   const handleSend = () => {
     if (!promptValue.trim()) return
     onStart(promptValue.trim(), selectedModelId)
   }
+
+  const startLandingPage = useCallback(() => {
+    onStart(
+      "Create a modern landing page with a hero section, features grid, and clear call-to-action.",
+      selectedModelId,
+    )
+  }, [onStart, selectedModelId])
+
+  const openCreditsInfo = useCallback(() => {
+    setIsPricingOpen(true)
+    toast({
+      title: "Credits overview",
+      description: "Monthly credits reset each billing cycle. Top-up credits stay available until you use them.",
+    })
+  }, [toast])
 
   const getModelIcon = (modelId: string) => {
     if (modelId.includes('gemini') || modelId.includes('google')) return <Sparkles className="w-3.5 h-3.5" />
@@ -279,10 +316,18 @@ export function DashboardMain({
 
   return (
     <div className="flex h-screen bg-black text-white font-sans selection:bg-white/20">
+      {/* Sidebar Overlay for Mobile */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-30 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+      
       {/* Sidebar */}
       <aside 
         className={`
-          flex-shrink-0 flex flex-col border-r border-white/10 bg-black transition-all duration-300 ease-in-out overflow-hidden
+          fixed md:relative z-40 h-full flex-shrink-0 flex flex-col border-r border-white/10 bg-black transition-all duration-300 ease-in-out overflow-hidden
           ${isSidebarOpen ? 'w-[280px]' : 'w-0 border-r-0'}
         `}
       >
@@ -338,7 +383,7 @@ export function DashboardMain({
                   setTimeout(() => setIsSearchFocused(false), 120)
                 }}
                 placeholder="Search by project name"
-                className="w-auto h-9 bg-zinc-900 border border-white/10 rounded-md pl-9 pr-3 text-sm text-zinc-200 placeholder:text-zinc-500 outline-none focus-visible:ring-1 focus-visible:ring-zinc-500"
+                className="w-full h-9 bg-zinc-900 border border-white/10 rounded-md pl-9 pr-3 text-sm text-zinc-200 placeholder:text-zinc-500 outline-none focus-visible:ring-1 focus-visible:ring-zinc-500"
                 aria-label="Search projects"
               />
               {isSearchFocused && searchQuery.trim().length > 0 && (
@@ -453,6 +498,7 @@ export function DashboardMain({
                         <TooltipTrigger asChild>
                           <button
                             aria-label="How credits work"
+                            onClick={openCreditsInfo}
                             className="text-zinc-500 hover:text-zinc-300 transition-colors"
                           >
                             <Info className="w-3 h-3" />
@@ -505,12 +551,12 @@ export function DashboardMain({
           </div>
         )}
         {/* Top Navigation */}
-        <header className="absolute top-0 right-0 p-4 z-20 flex items-center gap-3">
+        <header className="absolute top-0 right-0 p-4 z-20 flex items-center gap-2 sm:gap-3">
             <Button 
               variant="ghost" 
               size="sm" 
               onClick={() => setIsPricingOpen(true)}
-              className="text-zinc-400 hover:text-white hover:bg-zinc-900 h-8 text-xs"
+              className="hidden sm:flex text-zinc-400 hover:text-white hover:bg-zinc-900 h-8 text-xs"
             >
               Upgrade
             </Button>
@@ -518,13 +564,13 @@ export function DashboardMain({
               variant="ghost" 
               size="sm" 
               onClick={() => setIsFeedbackOpen(true)}
-              className="text-zinc-400 hover:text-white hover:bg-zinc-900 h-8 text-xs"
+              className="hidden sm:flex text-zinc-400 hover:text-white hover:bg-zinc-900 h-8 text-xs"
             >
               Feedback
             </Button>
             <div 
               onClick={() => setIsPricingOpen(true)}
-              className="flex items-center gap-2 bg-zinc-900/50 hover:bg-zinc-900 rounded-full px-3 py-1 border border-white/10 transition-colors cursor-pointer group"
+              className="flex items-center gap-2 bg-zinc-900/50 hover:bg-zinc-900 rounded-full px-3 py-1.5 sm:py-1 border border-white/10 transition-colors cursor-pointer group"
             >
                 {userTier === 'proplus' ? (
                   <Crown className="w-3.5 h-3.5 text-purple-500 group-hover:scale-110 transition-transform" />
@@ -533,7 +579,7 @@ export function DashboardMain({
                 )}
                 <div className="flex items-center gap-1">
                     <span className="text-xs font-bold text-zinc-100">{userTotalCredits}</span>
-                    <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-tight">Credits</span>
+                    <span className="hidden sm:inline text-[10px] text-zinc-500 font-medium uppercase tracking-tight">Credits</span>
                 </div>
             </div>
             <UserMenu />
@@ -573,17 +619,17 @@ export function DashboardMain({
         {view === 'dashboard' ? (
           <>
             {/* Center Content */}
-            <div className="flex-1 flex flex-col items-center justify-center w-full max-w-4xl mx-auto px-6 z-10 pt-20">
+            <div className="flex-1 flex flex-col items-center justify-center w-full max-w-4xl mx-auto px-4 sm:px-6 z-10 pt-20 sm:pt-24 mt-10 md:mt-0">
                 {/* Background Logo Effect */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-5">
-                     <div className="text-[400px] font-bold tracking-tighter select-none">CodeUI</div>
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-5 overflow-hidden">
+                     <div className="text-[200px] sm:text-[300px] md:text-[400px] font-bold tracking-tighter select-none">CodeUI</div>
                 </div>
 
-                <div className="w-full max-w-3xl space-y-8 relative">
-                    <h1 className="text-4xl font-semibold text-center tracking-tight">What do you want to create?</h1>
+                <div className="w-full max-w-3xl space-y-6 sm:space-y-8 relative">
+                    <h1 className="text-3xl sm:text-4xl font-semibold text-center tracking-tight px-2">What do you want to create?</h1>
                     
                     {/* Input Area */}
-                    <div className="relative group">
+                    <div className="relative group px-1 sm:px-0">
                         <div className="absolute -inset-0.5 bg-gradient-to-r from-white/20 to-white/10 rounded-xl blur opacity-30 group-hover:opacity-50 transition duration-500"></div>
                         <div className="relative bg-black border border-white/10 rounded-xl overflow-hidden shadow-2xl">
                             <textarea 
@@ -600,9 +646,27 @@ export function DashboardMain({
                             />
                             <div className="flex items-center justify-between px-3 py-2 border-t border-white/5 bg-white/[0.02]">
                                 <div className="flex items-center gap-2">
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-lg">
-                                        <Plus className="w-5 h-5" />
-                                    </Button>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-lg">
+                                          <Plus className="w-5 h-5" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="start" className="w-56 bg-zinc-950 border-white/10 text-zinc-300">
+                                        <DropdownMenuItem onSelect={focusPromptInput} className="cursor-pointer gap-2 focus:bg-zinc-900 focus:text-white">
+                                          <Plus className="w-4 h-4" />
+                                          <span>Continue writing prompt</span>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onSelect={startLandingPage} className="cursor-pointer gap-2 focus:bg-zinc-900 focus:text-white">
+                                          <LayoutTemplate className="w-4 h-4" />
+                                          <span>Use landing page starter</span>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onSelect={() => onStart(undefined, selectedModelId)} className="cursor-pointer gap-2 focus:bg-zinc-900 focus:text-white">
+                                          <Code className="w-4 h-4" />
+                                          <span>Create blank project</span>
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
                                     <div className="h-4 w-px bg-white/10 mx-1"></div>
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
@@ -663,24 +727,25 @@ export function DashboardMain({
                         <ActionButton 
                           icon={<LayoutTemplate className="w-4 h-4" />} 
                           label="Landing Page" 
-                          onClick={() => onStart("Create a modern landing page with a hero section, features grid, and clear call-to-action.", selectedModelId)}
+                          onClick={startLandingPage}
                         />
                     </div>
                 </div>
             </div>
 
             {/* Bottom Projects Section */}
-            <div className="w-full max-w-[1400px] mx-auto px-6 pb-8 pt-12 z-10">
-                <div className="flex items-center justify-between mb-6">
+            <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 pb-8 pt-10 sm:pt-12 z-10">
+                <div className="flex items-center justify-between mb-4 sm:mb-6">
                     <div>
-                        <h2 className="text-lg font-semibold mb-1">My Projects</h2>
-                        <p className="text-sm text-zinc-500">Explore what you have built with CodeUI.</p>
+                        <h2 className="text-base sm:text-lg font-semibold mb-0.5 sm:mb-1">My Projects</h2>
+                        <p className="text-xs sm:text-sm text-zinc-500">Explore what you have built with CodeUI.</p>
                     </div>
-                    {projects.length > 0 && (
+                    {visibleProjects.length > 0 && (
                       <Button 
                         variant="ghost" 
+                        size="sm"
                         onClick={() => setView('projects')}
-                        className="text-sm text-zinc-400 hover:text-white hover:bg-zinc-900 group"
+                        className="text-xs sm:text-sm text-zinc-400 hover:text-white hover:bg-zinc-900 group"
                       >
                           Browse All <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-0.5 transition-transform" />
                       </Button>
@@ -691,8 +756,8 @@ export function DashboardMain({
                   <div className="flex items-center justify-center py-16">
                     <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
                   </div>
-                ) : projects.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                ) : visibleProjects.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                       {dashboardProjects.map((project) => (
                           <ProjectCard 
                             key={project.id} 
@@ -716,29 +781,29 @@ export function DashboardMain({
             </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col w-full max-w-[1400px] mx-auto px-6 pt-24 pb-8 min-h-0 overflow-y-auto">
-            <div className="flex items-center gap-4 mb-8">
+          <div className="flex-1 flex flex-col w-full max-w-[1400px] mx-auto px-4 sm:px-6 pt-20 sm:pt-24 pb-8 min-h-0 overflow-y-auto">
+            <div className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-8 mt-4 md:mt-0">
               <Button 
                 variant="ghost" 
                 size="icon" 
                 onClick={() => setView('dashboard')}
-                className="h-9 w-9 text-zinc-400 hover:text-white hover:bg-zinc-900 border border-white/10"
+                className="h-8 w-8 sm:h-9 sm:w-9 text-zinc-400 hover:text-white hover:bg-zinc-900 border border-white/10 shrink-0"
               >
-                <ArrowLeft className="w-5 h-5" />
+                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
               </Button>
               <div>
-                <h1 className="text-2xl font-bold tracking-tight">My Projects</h1>
-                <p className="text-sm text-zinc-500">A collection of everything you've created.</p>
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight">My Projects</h1>
+                <p className="text-xs sm:text-sm text-zinc-500">A collection of everything you've created.</p>
               </div>
             </div>
 
-            <div className="-mx-2 px-2">
+            <div className="-mx-1 px-1 sm:-mx-2 sm:px-2">
               {isLoadingProjects ? (
                 <div className="flex items-center justify-center py-16">
                   <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
                 </div>
               ) : visibleProjects.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 pb-8">
                   {visibleProjects.map((project) => (
                     <ProjectCard 
                       key={project.id} 
@@ -807,13 +872,9 @@ function ProjectCard({ project, onDelete, isDeleting = false }: {
         {/* Preview Image */}
         <div className={`aspect-video w-full relative transition-all duration-300 ${hasPreviewHtml ? "bg-zinc-950" : `${bgGradient} grayscale group-hover:grayscale-0`}`}>
           {hasPreviewHtml ? (
-            <iframe
-              title={`${project.name} preview`}
-              srcDoc={project.htmlContent}
-              sandbox="allow-scripts"
-              loading="lazy"
-              tabIndex={-1}
-              className="absolute inset-0 h-full w-full border-0 bg-white pointer-events-none"
+            <ProjectCardPreview
+              htmlContent={project.htmlContent!}
+              projectName={project.name}
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
@@ -884,6 +945,64 @@ function ProjectCard({ project, onDelete, isDeleting = false }: {
         </div>
       </div>
     </Link>
+  )
+}
+
+function ProjectCardPreview({ htmlContent, projectName }: { htmlContent: string; projectName: string }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [previewScale, setPreviewScale] = useState(0.1)
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const updateScale = () => {
+      const { width, height } = container.getBoundingClientRect()
+      if (width <= 0 || height <= 0) return
+
+      const nextScale = Math.min(
+        width / PROJECT_CARD_DESKTOP_PREVIEW_WIDTH,
+        height / PROJECT_CARD_DESKTOP_PREVIEW_HEIGHT,
+      )
+
+      setPreviewScale((currentScale) =>
+        Math.abs(currentScale - nextScale) < 0.001 ? currentScale : nextScale,
+      )
+    }
+
+    updateScale()
+
+    const observer = new ResizeObserver(() => {
+      updateScale()
+    })
+
+    observer.observe(container)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [])
+
+  return (
+    <div ref={containerRef} className="absolute inset-0 overflow-hidden bg-zinc-950">
+      <div
+        className="absolute left-1/2 top-0 origin-top"
+        style={{
+          width: PROJECT_CARD_DESKTOP_PREVIEW_WIDTH,
+          height: PROJECT_CARD_DESKTOP_PREVIEW_HEIGHT,
+          transform: `translateX(-50%) scale(${previewScale})`,
+        }}
+      >
+        <iframe
+          title={`${projectName} preview`}
+          srcDoc={htmlContent}
+          sandbox="allow-scripts"
+          loading="lazy"
+          tabIndex={-1}
+          className="block h-full w-full border-0 bg-white pointer-events-none"
+        />
+      </div>
+    </div>
   )
 }
 

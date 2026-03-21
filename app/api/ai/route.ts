@@ -108,6 +108,7 @@ interface StreamOpenRouterOptions {
   thresholdChars: number
   onContent: (content: string) => void
   onThinking: (thinking: string) => void
+  signal?: AbortSignal
 }
 
 interface StreamOpenRouterResult {
@@ -122,6 +123,7 @@ const UPSTREAM_MAX_TOKENS = 16_000
 const DEFAULT_CONTINUATION_THRESHOLD_TOKENS = 8_000
 const DEFAULT_MAX_CONTINUATIONS = 3
 const DEFAULT_CONTINUATION_CONTEXT_BUFFER_TOKENS = 4_000
+const DEFAULT_UPSTREAM_READ_TIMEOUT_MS = 45_000
 const logger = createRepromptLogger("api-ai-route")
 
 function parsePositiveInteger(value: string | undefined, fallback: number, min = 1, max = Number.MAX_SAFE_INTEGER) {
@@ -152,6 +154,13 @@ const CONTINUATION_CONTEXT_BUFFER_TOKENS = parsePositiveInteger(
   DEFAULT_CONTINUATION_CONTEXT_BUFFER_TOKENS,
   1_000,
   12_000,
+)
+
+const UPSTREAM_READ_TIMEOUT_MS = parsePositiveInteger(
+  process.env.CODEUI_UPSTREAM_READ_TIMEOUT_MS,
+  DEFAULT_UPSTREAM_READ_TIMEOUT_MS,
+  5_000,
+  120_000,
 )
 
 function hasCompleteHtmlDocument(content: string): boolean {
@@ -251,11 +260,67 @@ function extractOpenRouterDelta(rawData: string): { done: boolean; content?: str
   }
 }
 
+function createAbortError(): DOMException {
+  return new DOMException("The operation was aborted.", "AbortError")
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError"
+}
+
+function throwIfAborted(signal?: AbortSignal) {
+  if (signal?.aborted) {
+    throw createAbortError()
+  }
+}
+
+async function readStreamChunkWithTimeout(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  signal?: AbortSignal,
+): Promise<ReadableStreamReadResult<Uint8Array>> {
+  throwIfAborted(signal)
+
+  let timeoutId: NodeJS.Timeout | null = null
+  let abortHandler: (() => void) | undefined
+
+  const pendingReads: Array<Promise<ReadableStreamReadResult<Uint8Array>>> = [reader.read()]
+
+  pendingReads.push(
+    new Promise<ReadableStreamReadResult<Uint8Array>>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(`Upstream AI stream timed out after ${UPSTREAM_READ_TIMEOUT_MS}ms`))
+      }, UPSTREAM_READ_TIMEOUT_MS)
+    }),
+  )
+
+  if (signal) {
+    pendingReads.push(
+      new Promise<ReadableStreamReadResult<Uint8Array>>((_, reject) => {
+        abortHandler = () => reject(createAbortError())
+        signal.addEventListener("abort", abortHandler, { once: true })
+      }),
+    )
+  }
+
+  try {
+    return await Promise.race(pendingReads)
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId)
+    }
+
+    if (signal && abortHandler) {
+      signal.removeEventListener("abort", abortHandler)
+    }
+  }
+}
+
 async function streamOpenRouterResponse({
   response,
   thresholdChars,
   onContent,
   onThinking,
+  signal,
 }: StreamOpenRouterOptions): Promise<StreamOpenRouterResult> {
   const reader = response.body?.getReader()
   if (!reader) {
@@ -302,7 +367,17 @@ async function streamOpenRouterResponse({
   }
 
   while (true) {
-    const { done, value } = await reader.read()
+    throwIfAborted(signal)
+
+    let nextChunk: ReadableStreamReadResult<Uint8Array>
+    try {
+      nextChunk = await readStreamChunkWithTimeout(reader, signal)
+    } catch (error) {
+      await reader.cancel().catch(() => {})
+      throw error
+    }
+
+    const { done, value } = nextChunk
 
     if (done) {
       if (buffer.trim()) {
@@ -436,6 +511,7 @@ async function refundCreditsIfNeeded(creditContext: CreditContext | null, reason
 
 export async function POST(req: NextRequest) {
   const requestId = req.headers.get("x-codeui-request-id") || crypto.randomUUID()
+  const requestSignal = req.signal
 
   try {
     const session = await auth()
@@ -668,6 +744,7 @@ export async function POST(req: NextRequest) {
           const candidateResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
             headers: openRouterHeaders,
+            signal: requestSignal,
             body: JSON.stringify({
               ...requestBase,
               messages: partMessages,
@@ -709,6 +786,10 @@ export async function POST(req: NextRequest) {
             }
           }
         } catch (fetchError) {
+          if (isAbortError(fetchError)) {
+            throw fetchError
+          }
+
           logger.warn("OpenRouter network error on model attempt", {
             phase: "upstream",
             requestId,
@@ -751,10 +832,33 @@ export async function POST(req: NextRequest) {
         let totalEmittedContentLength = 0
         let continuationCount = 0
         let totalParts = 0
+        let requestAborted = requestSignal.aborted
         const modelsUsed = new Set<string>()
         let lastModelUsed = initialUpstreamRequest.modelUsed
 
+        const closeController = () => {
+          try {
+            controller.close()
+          } catch {
+            // Ignore double-close errors during abort/teardown.
+          }
+        }
+
+        const handleAbort = () => {
+          requestAborted = true
+          logger.info("Client disconnected from AI stream", {
+            phase: "stream",
+            requestId,
+          })
+        }
+
+        requestSignal.addEventListener("abort", handleAbort, { once: true })
+
         const emitEvent = (type: string, data: unknown) => {
+          if (requestAborted) {
+            return
+          }
+
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type, data })}\n\n`))
         }
 
@@ -818,6 +922,8 @@ export async function POST(req: NextRequest) {
 
         try {
           while (activeResponse && totalParts < MAX_CONTINUATIONS + 1) {
+            throwIfAborted(requestSignal)
+
             totalParts += 1
             lastModelUsed = activeModelUsed
             modelsUsed.add(activeModelUsed)
@@ -838,6 +944,7 @@ export async function POST(req: NextRequest) {
             const partResult = await streamOpenRouterResponse({
               response: activeResponse,
               thresholdChars: continuationThresholdChars,
+              signal: requestSignal,
               onContent: (content) => {
                 aggregatedContent += content
                 totalEmittedContentLength += content.length
@@ -848,10 +955,15 @@ export async function POST(req: NextRequest) {
               },
             })
 
+            if (requestAborted) {
+              closeController()
+              return
+            }
+
             if (partResult.contentLength === 0 && totalEmittedContentLength === 0) {
               await maybeRefundForEmptyStream("empty-stream")
               emitEvent("error", "Empty or insufficient response from AI")
-              controller.close()
+              closeController()
               return
             }
 
@@ -872,7 +984,7 @@ export async function POST(req: NextRequest) {
                 totalContentLength: totalEmittedContentLength,
                 thresholdReached: continuationCount > 0,
               })
-              controller.close()
+              closeController()
               return
             }
 
@@ -904,7 +1016,7 @@ export async function POST(req: NextRequest) {
                 totalContentLength: totalEmittedContentLength,
                 thresholdReached: true,
               })
-              controller.close()
+              closeController()
               return
             }
 
@@ -921,8 +1033,13 @@ export async function POST(req: NextRequest) {
             totalContentLength: totalEmittedContentLength,
             thresholdReached: continuationCount > 0,
           })
-          controller.close()
+          closeController()
         } catch (error) {
+          if (isAbortError(error) || requestSignal.aborted) {
+            closeController()
+            return
+          }
+
           logger.error("Stream error", {
             phase: "stream",
             requestId,
@@ -931,10 +1048,12 @@ export async function POST(req: NextRequest) {
           await maybeRefundForEmptyStream("stream-error")
           try {
             emitEvent("error", error instanceof Error ? error.message : "AI stream error")
-            controller.close()
+            closeController()
           } catch {
             controller.error(error)
           }
+        } finally {
+          requestSignal.removeEventListener("abort", handleAbort)
         }
       },
     })
