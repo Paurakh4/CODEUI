@@ -24,6 +24,97 @@ export interface PreviewFrameProps {
   isStyleUpdate?: boolean
 }
 
+const TRACKED_STYLE_PROPERTIES = [
+  "width",
+  "height",
+  "minWidth",
+  "maxWidth",
+  "minHeight",
+  "maxHeight",
+  "marginTop",
+  "marginRight",
+  "marginBottom",
+  "marginLeft",
+  "paddingTop",
+  "paddingRight",
+  "paddingBottom",
+  "paddingLeft",
+  "display",
+  "position",
+  "top",
+  "right",
+  "bottom",
+  "left",
+  "flexDirection",
+  "justifyContent",
+  "alignItems",
+  "gap",
+  "fontFamily",
+  "fontSize",
+  "fontWeight",
+  "lineHeight",
+  "letterSpacing",
+  "textAlign",
+  "color",
+  "backgroundColor",
+  "opacity",
+  "borderRadius",
+  "borderStyle",
+  "borderWidth",
+  "borderColor",
+  "overflow",
+  "boxShadow",
+] as const
+
+type TrackedStyleProperty = (typeof TRACKED_STYLE_PROPERTIES)[number]
+
+export function extractSelectedElementStyles(
+  element: HTMLElement,
+  iframeWindow: Window,
+): Record<string, string | number> {
+  const computed = iframeWindow.getComputedStyle(element)
+
+  return TRACKED_STYLE_PROPERTIES.reduce<Record<string, string | number>>((styles, property) => {
+    const rawValue = (computed as CSSStyleDeclaration & Record<TrackedStyleProperty, string>)[property] ?? ""
+
+    if (property === "color" || property === "backgroundColor" || property === "borderColor") {
+      styles[property] = rgbToHex(rawValue)
+      return styles
+    }
+
+    styles[property] = rawValue
+    return styles
+  }, {})
+}
+
+export function extractSelectedElementProperties(element: HTMLElement): Record<string, any> {
+  const tagName = element.tagName.toLowerCase()
+
+  return {
+    id: element.id,
+    className: element.className,
+    tagName,
+    textContent: element.textContent ?? "",
+    href: element.getAttribute("href") ?? "",
+    src: element.getAttribute("src") ?? "",
+    alt: element.getAttribute("alt") ?? "",
+  }
+}
+
+export function extractSelectedElementInfo(
+  element: HTMLElement,
+  iframeWindow: Window,
+  clickPosition: { x: number; y: number },
+): SelectedElementInfo {
+  return {
+    selector: getElementPath(element),
+    type: element.tagName.toLowerCase(),
+    styles: extractSelectedElementStyles(element, iframeWindow),
+    properties: extractSelectedElementProperties(element),
+    clickPosition,
+  }
+}
+
 const deviceDimensions: Record<DeviceMode, { width: number; height: number }> = {
   desktop: { width: 1065, height: 740 },
   tablet: { width: 768, height: 1024 },
@@ -496,9 +587,6 @@ export function PreviewFrame({
         e.stopPropagation()
         const selectHandler = onElementSelectRef.current
         if (target && selectHandler) {
-          // Create a unique selector for the element
-          const path = getElementPath(target)
-          
           // Get click position relative to the iframe container
           const iframeRect = iframe.getBoundingClientRect()
           const clickPosition = {
@@ -509,47 +597,8 @@ export function PreviewFrame({
           // Extract styles - use iframe's contentWindow for getComputedStyle
           const iframeWindow = iframe.contentWindow
           if (!iframeWindow) return
-          
-          const computed = iframeWindow.getComputedStyle(target)
-          const styles: Record<string, string | number> = {
-            width: computed.width,
-            height: computed.height,
-            marginTop: parseFloat(computed.marginTop),
-            marginRight: parseFloat(computed.marginRight),
-            marginBottom: parseFloat(computed.marginBottom),
-            marginLeft: parseFloat(computed.marginLeft),
-            paddingTop: parseFloat(computed.paddingTop),
-            paddingRight: parseFloat(computed.paddingRight),
-            paddingBottom: parseFloat(computed.paddingBottom),
-            paddingLeft: parseFloat(computed.paddingLeft),
-            fontFamily: computed.fontFamily,
-            fontSize: parseFloat(computed.fontSize),
-            fontWeight: parseFloat(computed.fontWeight),
-            textAlign: computed.textAlign,
-            color: rgbToHex(computed.color),
-            backgroundColor: rgbToHex(computed.backgroundColor),
-            opacity: parseFloat(computed.opacity),
-            borderRadius: parseFloat(computed.borderRadius),
-            borderStyle: computed.borderStyle,
-            borderWidth: parseFloat(computed.borderWidth),
-            borderColor: rgbToHex(computed.borderColor),
-          }
 
-          // Extract attributes
-          const properties = {
-            id: target.id,
-            className: target.className,
-            tagName: target.tagName.toLowerCase(),
-            textContent: target.textContent ?? "",
-          }
-
-          selectHandler({
-            selector: path,
-            type: target.tagName.toLowerCase(),
-            styles,
-            properties,
-            clickPosition
-          })
+          selectHandler(extractSelectedElementInfo(target, iframeWindow, clickPosition))
         }
       }
 

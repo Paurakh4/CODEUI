@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { TopNav } from "@/components/top-nav-new"
 import { VersionHistory, type Version as HistoryVersion } from "@/components/version-history"
 import { AI_Prompt } from "@/components/ui/animated-ai-input"
-import { PreviewFrame, type SelectedElementInfo } from "@/components/preview-frame"
+import { PreviewFrame, extractSelectedElementInfo, type SelectedElementInfo } from "@/components/preview-frame"
 import { CodeEditor } from "@/components/code-editor"
 import { StylePanel, type SelectedElement, type StyleProperty, type StyleChange } from "@/components/style-panel"
 import { TextShimmer } from "@/components/ui/text-shimmer";
@@ -509,6 +509,72 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       element.style[property as any] = value?.toString() ?? ""
     } catch {
       // Ignore selector errors
+    }
+  }, [])
+
+  const commitHtmlContentUpdate = useCallback((nextHtml: string, options?: { styleUpdate?: boolean }) => {
+    htmlContentRef.current = nextHtml
+    lastAppliedHtml.current = nextHtml
+    isStyleUpdate.current = options?.styleUpdate === true
+    setHtmlContent(nextHtml)
+    setHasUnsavedChanges(true)
+  }, [])
+
+  const syncSelectedElementFromIframe = useCallback((
+    target: string | HTMLElement,
+    clickPosition?: { x: number; y: number },
+  ) => {
+    const iframe = previewRef.current
+    const doc = iframe?.contentDocument
+    const iframeWindow = iframe?.contentWindow
+    if (!doc || !iframeWindow) return null
+
+    const element = typeof target === "string"
+      ? (doc.querySelector(target) as HTMLElement | null)
+      : target
+
+    if (!element) return null
+
+    const snapshot = extractSelectedElementInfo(
+      element,
+      iframeWindow,
+      clickPosition ?? panelPosition ?? { x: 0, y: 0 },
+    )
+
+    setSelectedElement((prev) => ({
+      id: snapshot.selector,
+      type: snapshot.type,
+      styles: snapshot.styles,
+      properties: snapshot.properties,
+      clickPosition: clickPosition ?? prev?.clickPosition ?? snapshot.clickPosition,
+    }))
+
+    return snapshot
+  }, [panelPosition])
+
+  const applyElementProperties = useCallback((element: HTMLElement, properties?: SelectedElement["properties"]) => {
+    if (!properties) return
+
+    if (properties.id) {
+      element.id = properties.id
+    } else {
+      element.removeAttribute("id")
+    }
+
+    if (properties.className) {
+      element.className = properties.className
+    } else {
+      element.removeAttribute("class")
+    }
+
+    const attributeKeys: Array<"href" | "src" | "alt"> = ["href", "src", "alt"]
+    for (const key of attributeKeys) {
+      const value = properties[key]
+      if (value) {
+        element.setAttribute(key, value)
+      } else {
+        element.removeAttribute(key)
+      }
     }
   }, [])
 
@@ -1554,15 +1620,10 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   const handleLiveStyleChange = useCallback((property: string, value: StyleProperty) => {
     if (!selectedElement) return
 
-    // Update local state for inputs
-    setSelectedElement(prev => prev ? ({
-      ...prev,
-      styles: { ...prev.styles, [property]: value }
-    }) : null)
-
     // Direct DOM update
     applyChangeToIframe(selectedElement.id, property, value)
-  }, [applyChangeToIframe, selectedElement])
+    syncSelectedElementFromIframe(selectedElement.id, selectedElement.clickPosition)
+  }, [applyChangeToIframe, selectedElement, syncSelectedElementFromIframe])
 
   // Apply style to DOM and update HTML
   const applyStyleToDOM = useCallback((
@@ -1572,7 +1633,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     recordHistory: boolean = true
   ) => {
     try {
-      const baseHtml = htmlContentRef.current || htmlContent
+      const baseHtml = lastAppliedHtml.current || htmlContentRef.current || htmlContent
       const parser = new DOMParser()
       const doc = parser.parseFromString(baseHtml, "text/html")
       const element = doc.querySelector(selector)
@@ -1585,10 +1646,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         htmlElement.style[property as any] = value.toString()
         
         const newHtml = doc.documentElement.outerHTML
-        isStyleUpdate.current = true
-        setHtmlContent(newHtml)
-        lastAppliedHtml.current = newHtml
-        setHasUnsavedChanges(true)
+        commitHtmlContentUpdate(newHtml, { styleUpdate: true })
         
         // Record in history if needed
         if (recordHistory) {
@@ -1609,7 +1667,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       console.error("Failed to update style", e)
     }
     return false
-  }, [htmlContent, styleHistoryActions])
+  }, [commitHtmlContentUpdate, htmlContent, styleHistoryActions])
 
   // Reset style update flag after render
   useEffect(() => {
@@ -1619,19 +1677,16 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   const handleStyleChange = useCallback((property: string, value: StyleProperty, validated?: boolean) => {
     if (!selectedElement) return
 
-    // Update local state immediately for responsive UI
-    setSelectedElement(prev => prev ? ({
-      ...prev,
-      styles: { ...prev.styles, [property]: value }
-    }) : null)
-
     // Apply to DOM
-    applyStyleToDOM(selectedElement.id, property, value, validated === true)
-  }, [selectedElement, applyStyleToDOM])
+    const didApply = applyStyleToDOM(selectedElement.id, property, value, validated === true)
+    if (didApply) {
+      syncSelectedElementFromIframe(selectedElement.id, selectedElement.clickPosition)
+    }
+  }, [selectedElement, applyStyleToDOM, syncSelectedElementFromIframe])
 
   const handleTextChange = useCallback((selector: string, text: string) => {
     try {
-      const baseHtml = htmlContentRef.current || htmlContent
+      const baseHtml = lastAppliedHtml.current || htmlContentRef.current || htmlContent
       const parser = new DOMParser()
       const doc = parser.parseFromString(baseHtml, "text/html")
       const element = doc.querySelector(selector)
@@ -1643,9 +1698,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       element.textContent = text
 
       const newHtml = doc.documentElement.outerHTML
-      isStyleUpdate.current = true
-      setHtmlContent(newHtml)
-      setHasUnsavedChanges(true)
+      commitHtmlContentUpdate(newHtml, { styleUpdate: true })
 
       const textChange: StyleChange = {
         id: Date.now().toString(),
@@ -1658,18 +1711,12 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       styleHistoryActions.pushChange(textChange)
 
       if (selectedElement?.id === selector) {
-        setSelectedElement((prev) => prev ? {
-          ...prev,
-          properties: {
-            ...prev.properties,
-            textContent: text,
-          },
-        } : null)
+        syncSelectedElementFromIframe(selector, selectedElement.clickPosition)
       }
     } catch (e) {
       console.error("Failed to update text", e)
     }
-  }, [htmlContent, selectedElement, styleHistoryActions])
+  }, [commitHtmlContentUpdate, htmlContent, selectedElement, styleHistoryActions, syncSelectedElementFromIframe])
 
   // Undo handler
   const handleUndo = useCallback(() => {
@@ -1694,9 +1741,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       }
       
       const newHtml = doc.documentElement.outerHTML
-      isStyleUpdate.current = true
-      setHtmlContent(newHtml)
-      setHasUnsavedChanges(true)
+      commitHtmlContentUpdate(newHtml, { styleUpdate: true })
 
       // Apply to iframe for immediate UI update
       for (const change of undoneChanges) {
@@ -1704,25 +1749,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         applyChangeToIframe(change.selector, change.property, value)
       }
       
-      // Update selected element styles
       if (selectedElement) {
-        const updatedStyles = { ...selectedElement.styles }
-        const updatedProperties = { ...selectedElement.properties }
-        for (const change of undoneChanges) {
-          if (change.selector === selectedElement.id) {
-            if (change.property === TEXT_CONTENT_PROPERTY) {
-              updatedProperties.textContent = change.oldValue?.toString() ?? ""
-            } else {
-              updatedStyles[change.property] = change.oldValue
-            }
-          }
-        }
-        setSelectedElement(prev => prev ? { ...prev, styles: updatedStyles, properties: updatedProperties } : null)
+        syncSelectedElementFromIframe(selectedElement.id, selectedElement.clickPosition)
       }
     } catch (e) {
       console.error("Failed to undo", e)
     }
-  }, [applyChangeToIframe, styleHistoryActions, htmlContent, selectedElement])
+  }, [applyChangeToIframe, commitHtmlContentUpdate, styleHistoryActions, htmlContent, selectedElement, syncSelectedElementFromIframe])
 
   // Redo handler
   const handleRedo = useCallback(() => {
@@ -1747,9 +1780,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       }
       
       const newHtml = doc.documentElement.outerHTML
-      isStyleUpdate.current = true
-      setHtmlContent(newHtml)
-      setHasUnsavedChanges(true)
+      commitHtmlContentUpdate(newHtml, { styleUpdate: true })
 
       // Apply to iframe for immediate UI update
       for (const change of redoneChanges) {
@@ -1757,47 +1788,42 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         applyChangeToIframe(change.selector, change.property, value)
       }
       
-      // Update selected element styles
       if (selectedElement) {
-        const updatedStyles = { ...selectedElement.styles }
-        const updatedProperties = { ...selectedElement.properties }
-        for (const change of redoneChanges) {
-          if (change.selector === selectedElement.id) {
-            if (change.property === TEXT_CONTENT_PROPERTY) {
-              updatedProperties.textContent = change.newValue?.toString() ?? ""
-            } else {
-              updatedStyles[change.property] = change.newValue
-            }
-          }
-        }
-        setSelectedElement(prev => prev ? { ...prev, styles: updatedStyles, properties: updatedProperties } : null)
+        syncSelectedElementFromIframe(selectedElement.id, selectedElement.clickPosition)
       }
     } catch (e) {
       console.error("Failed to redo", e)
     }
-  }, [applyChangeToIframe, styleHistoryActions, htmlContent, selectedElement])
+  }, [applyChangeToIframe, commitHtmlContentUpdate, styleHistoryActions, htmlContent, selectedElement, syncSelectedElementFromIframe])
 
   const handleElementChange = useCallback((element: SelectedElement) => {
     if (!selectedElement) return
-    
-    setSelectedElement(element)
 
     try {
       const parser = new DOMParser()
-      const doc = parser.parseFromString(htmlContent, "text/html")
-      const domElement = doc.querySelector(selectedElement.id)
+      const baseHtml = lastAppliedHtml.current || htmlContentRef.current || htmlContent
+      const doc = parser.parseFromString(baseHtml, "text/html")
+      const domElement = doc.querySelector(selectedElement.id) as HTMLElement | null
+      const liveElement = previewRef.current?.contentDocument?.querySelector(selectedElement.id) as HTMLElement | null
       
       if (domElement) {
-        if (element.properties?.id) domElement.id = element.properties.id
-        if (element.properties?.className) domElement.className = element.properties.className
-        
-        setHtmlContent(doc.documentElement.outerHTML)
-        setHasUnsavedChanges(true)
+        applyElementProperties(domElement, element.properties)
+        if (liveElement) {
+          applyElementProperties(liveElement, element.properties)
+        }
+
+        commitHtmlContentUpdate(doc.documentElement.outerHTML)
+
+        if (liveElement) {
+          syncSelectedElementFromIframe(liveElement, selectedElement.clickPosition)
+        } else {
+          setSelectedElement(element)
+        }
       }
     } catch (e) {
       console.error("Failed to update element properties", e)
     }
-  }, [htmlContent, selectedElement])
+  }, [applyElementProperties, commitHtmlContentUpdate, htmlContent, selectedElement, syncSelectedElementFromIframe])
 
   // Render content based on view mode
   const renderContent = () => {

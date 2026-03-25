@@ -1268,6 +1268,15 @@ export function StylePanel({
                 options={POSITION_OPTIONS}
               />
             </div>
+            <div className="space-y-3">
+              <p className="text-[10px] font-bold tracking-widest text-amber-500/60 uppercase">Offsets</p>
+              <div className="grid grid-cols-4 gap-2">
+                <StyledInput label="Top" value={selectedElement.styles.top?.toString() || ''} onChange={(v) => handleStyleChange('top', v)} onImmediateChange={(v) => handleImmediateStyleChange('top', v)} property="top" compact />
+                <StyledInput label="Right" value={selectedElement.styles.right?.toString() || ''} onChange={(v) => handleStyleChange('right', v)} onImmediateChange={(v) => handleImmediateStyleChange('right', v)} property="right" compact />
+                <StyledInput label="Bottom" value={selectedElement.styles.bottom?.toString() || ''} onChange={(v) => handleStyleChange('bottom', v)} onImmediateChange={(v) => handleImmediateStyleChange('bottom', v)} property="bottom" compact />
+                <StyledInput label="Left" value={selectedElement.styles.left?.toString() || ''} onChange={(v) => handleStyleChange('left', v)} onImmediateChange={(v) => handleImmediateStyleChange('left', v)} property="left" compact />
+              </div>
+            </div>
             <StyledDropdown
               label="Flex Direction"
               value={selectedElement.styles.flexDirection?.toString() || ''}

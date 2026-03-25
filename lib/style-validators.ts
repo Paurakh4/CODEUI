@@ -522,6 +522,10 @@ export const STYLE_VALIDATORS: Record<string, StyleValidator> = {
   maxWidth: validateDimension,
   minHeight: validateDimension,
   maxHeight: validateDimension,
+  top: validateDimension,
+  right: validateDimension,
+  bottom: validateDimension,
+  left: validateDimension,
 
   // Spacing
   margin: validateSpacing,
