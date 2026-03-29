@@ -13,11 +13,12 @@ import { ChevronDown, ChevronLeft, PanelLeftClose, X, ChevronUp, RotateCcw } fro
 import { SolarCodeSquareLinear } from "@/components/solar-code-square-linear"
 import { useSession } from "next-auth/react"
 import { useAuthDialog } from "@/components/auth-dialog-provider"
-import { useAIChat, type AIStreamProgress } from "@/hooks/use-ai-chat"
+import { extractHtml, useAIChat, type AIStreamProgress } from "@/hooks/use-ai-chat"
 import { useStyleHistory } from "@/hooks/use-style-history"
 import { useEditor } from "@/stores/editor-store"
 import { useToast } from "@/hooks/use-toast"
 import { StreamParser } from "@/lib/parsers/stream-parser"
+import { getElementPropertyFields } from "@/lib/design-element-properties"
 import { validatePromptScope } from "@/lib/prompt-scope"
 import { cn } from "@/lib/utils"
 import { convertHtmlToReactComponent, sanitizeFileName } from "@/lib/utils/export"
@@ -86,6 +87,7 @@ interface PendingRecovery {
 }
 
 const MONGO_OBJECT_ID_REGEX = /^[a-f\d]{24}$/i
+const STREAM_PROTOCOL_MARKER_REGEX = /(?:^|\n)\s*(?:<<<<<<<|=======|>>>>>>>)/m
 
 const coerceVersionId = (value: unknown): string => {
   if (typeof value === "string" && value.trim()) return value
@@ -335,6 +337,35 @@ function formatMissingScopeMessage(missingRequirements: string[]): string {
   return `The generated UI still missed some requested core features, including ${preview}.`
 }
 
+function hasStreamProtocolMarkers(value: string): boolean {
+  return STREAM_PROTOCOL_MARKER_REGEX.test(value)
+}
+
+function getRenderableStreamingHtml(value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed || hasStreamProtocolMarkers(trimmed)) {
+    return null
+  }
+
+  const completeHtml = extractHtml(trimmed)
+  if (completeHtml) {
+    return completeHtml
+  }
+
+  const fencedMatch = trimmed.match(/^```html?\s*([\s\S]*)$/i)
+  const candidate = (fencedMatch ? fencedMatch[1] : trimmed).replace(/\s*```$/, "").trim()
+  if (!candidate) {
+    return null
+  }
+
+  const firstDocumentIndex = candidate.search(/<!DOCTYPE|<html\b/i)
+  if (firstDocumentIndex >= 0) {
+    return candidate.slice(firstDocumentIndex).trim()
+  }
+
+  return candidate.startsWith("<") ? candidate : null
+}
+
 interface EditorLayoutNewProps {
   initialPrompt?: string
   initialModel?: string
@@ -437,7 +468,10 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   const pendingStyleUpdate = useRef<{ property: string; value: StyleProperty } | null>(null)
   const lastAppliedHtml = useRef<string>("")
   const previewRef = useRef<HTMLIFrameElement>(null)
-  const isStyleUpdate = useRef(false)
+  const [previewUpdateSignal, setPreviewUpdateSignal] = useState<{ token: number; mode: "full" | "style" }>({
+    token: 0,
+    mode: "full",
+  })
   
   // MongoDB sync refs
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -474,6 +508,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     setHtmlContent(LOADING_HTML)
     htmlContentRef.current = LOADING_HTML
     lastSavedContentRef.current = ""
+    setPreviewUpdateSignal({ token: 0, mode: "full" })
     setViewMode("preview")
     setDeviceMode("desktop")
     setSidebarOpen(true)
@@ -515,7 +550,10 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   const commitHtmlContentUpdate = useCallback((nextHtml: string, options?: { styleUpdate?: boolean }) => {
     htmlContentRef.current = nextHtml
     lastAppliedHtml.current = nextHtml
-    isStyleUpdate.current = options?.styleUpdate === true
+    setPreviewUpdateSignal((prev) => ({
+      token: prev.token + 1,
+      mode: options?.styleUpdate === true ? "style" : "full",
+    }))
     setHtmlContent(nextHtml)
     setHasUnsavedChanges(true)
   }, [])
@@ -567,13 +605,39 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       element.removeAttribute("class")
     }
 
-    const attributeKeys: Array<"href" | "src" | "alt"> = ["href", "src", "alt"]
-    for (const key of attributeKeys) {
-      const value = properties[key]
-      if (value) {
-        element.setAttribute(key, value)
+    for (const field of getElementPropertyFields(element.tagName.toLowerCase())) {
+      if (field.key === "id" || field.key === "className") continue
+
+      const attributeName = field.attributeName ?? field.key
+      const value = properties[field.key]
+
+      if (field.control === "boolean") {
+        const isEnabled = value === true || value === "true"
+        const propertyName = field.propertyName ?? field.key
+
+        if (propertyName in element) {
+          try {
+            ;(element as unknown as Record<string, boolean>)[propertyName] = isEnabled
+          } catch {
+            // Ignore readonly DOM property assignments
+          }
+        }
+
+        if (isEnabled) {
+          element.setAttribute(attributeName, "")
+        } else {
+          element.removeAttribute(attributeName)
+        }
+
+        continue
+      }
+
+      const normalizedValue = value?.toString() ?? ""
+
+      if (normalizedValue) {
+        element.setAttribute(attributeName, normalizedValue)
       } else {
-        element.removeAttribute(key)
+        element.removeAttribute(attributeName)
       }
     }
   }, [])
@@ -1403,9 +1467,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
   // Handle code editor changes
   const handleCodeChange = useCallback((value: string) => {
-    setHtmlContent(value)
-    setHasUnsavedChanges(true)
-  }, [])
+    commitHtmlContentUpdate(value)
+  }, [commitHtmlContentUpdate])
 
   // Handle reset chat
   const handleResetChat = useCallback(async () => {
@@ -1669,11 +1732,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     return false
   }, [commitHtmlContentUpdate, htmlContent, styleHistoryActions])
 
-  // Reset style update flag after render
-  useEffect(() => {
-    isStyleUpdate.current = false
-  })
-
   const handleStyleChange = useCallback((property: string, value: StyleProperty, validated?: boolean) => {
     if (!selectedElement) return
 
@@ -1827,22 +1885,27 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
   // Render content based on view mode
   const renderContent = () => {
+    const hasProtocolDraft = hasStreamProtocolMarkers(draftAiOutput)
+    const liveDraftHtml = getRenderableStreamingHtml(draftAiOutput)
+
     switch (viewMode) {
       case "preview":
       case "design":
         const panelPos = panelPosition ? calculatePanelPosition(panelPosition) : null
         const isDesignCanvasMode = viewMode === "design"
+        const livePreviewHtml = previewHtmlContent ?? (isGenerating ? liveDraftHtml : null) ?? htmlContent
         return (
           <div className="flex h-full min-h-0 relative overflow-hidden">
             <PreviewFrame
-              htmlContent={isDesignCanvasMode ? htmlContent : (previewHtmlContent ?? htmlContent)}
+              htmlContent={isDesignCanvasMode ? htmlContent : livePreviewHtml}
               deviceMode={deviceMode}
               className="flex-1"
               isDesignMode={isDesignCanvasMode}
               onElementSelect={isDesignCanvasMode ? handleElementSelect : undefined}
               onTextChange={isDesignCanvasMode ? handleTextChange : undefined}
               forwardedRef={previewRef}
-              isStyleUpdate={isStyleUpdate.current}
+              previewUpdateToken={previewUpdateSignal.token}
+              previewUpdateMode={previewUpdateSignal.mode}
             />
             {isDesignCanvasMode && selectedElement && panelPos && (
               <div 
@@ -1868,13 +1931,10 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           </div>
         )
       case "code":
-        const isSurgical = draftAiOutput.includes("<<<<<<< SEARCH") || 
-                          draftAiOutput.includes("<<<<<<< UPDATE_FILE") ||
-                          draftAiOutput.includes("<<<<<<< PROJECT_NAME") ||
-                          draftAiOutput.includes("<<<<<<< NEW_FILE");
+        const liveEditorValue = liveDraftHtml || draftAiOutput || htmlContent
         return (
           <CodeEditor
-            value={isGenerating && !isSurgical ? (draftAiOutput || htmlContent) : htmlContent}
+            value={isGenerating && !hasProtocolDraft ? liveEditorValue : htmlContent}
             onChange={handleCodeChange}
             readOnly={isGenerating}
             className="h-full"

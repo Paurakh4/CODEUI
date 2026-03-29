@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef, useEffect, useState, useCallback } from "react"
+import { getElementPropertyFields, type ElementPropertyMap } from "@/lib/design-element-properties"
 import { cn } from "@/lib/utils"
 import { Grip, Loader2, LocateFixed, RefreshCw } from "lucide-react"
 import { DeviceMode } from "@/stores/editor-store"
@@ -9,7 +10,7 @@ export interface SelectedElementInfo {
   selector: string;
   type: string;
   styles: Record<string, string | number>;
-  properties: Record<string, any>;
+  properties: ElementPropertyMap;
   clickPosition: { x: number; y: number };
 }
 
@@ -21,7 +22,8 @@ export interface PreviewFrameProps {
   onTextChange?: (selector: string, text: string) => void
   isDesignMode?: boolean
   forwardedRef?: React.RefObject<HTMLIFrameElement | null>
-  isStyleUpdate?: boolean
+  previewUpdateToken?: number
+  previewUpdateMode?: "full" | "style"
 }
 
 const TRACKED_STYLE_PROPERTIES = [
@@ -87,18 +89,35 @@ export function extractSelectedElementStyles(
   }, {})
 }
 
-export function extractSelectedElementProperties(element: HTMLElement): Record<string, any> {
+export function extractSelectedElementProperties(element: HTMLElement): ElementPropertyMap {
   const tagName = element.tagName.toLowerCase()
 
-  return {
-    id: element.id,
-    className: element.className,
+  const properties: ElementPropertyMap = {
     tagName,
-    textContent: element.textContent ?? "",
-    href: element.getAttribute("href") ?? "",
-    src: element.getAttribute("src") ?? "",
-    alt: element.getAttribute("alt") ?? "",
   }
+
+  for (const field of getElementPropertyFields(tagName)) {
+    if (field.key === "id") {
+      properties[field.key] = element.id
+      continue
+    }
+
+    if (field.key === "className") {
+      properties[field.key] = element.className
+      continue
+    }
+
+    const attributeName = field.attributeName ?? field.key
+
+    if (field.control === "boolean") {
+      properties[field.key] = element.hasAttribute(attributeName)
+      continue
+    }
+
+    properties[field.key] = element.getAttribute(attributeName) ?? ""
+  }
+
+  return properties
 }
 
 export function extractSelectedElementInfo(
@@ -168,7 +187,8 @@ export function PreviewFrame({
   onTextChange,
   isDesignMode = false,
   forwardedRef,
-  isStyleUpdate = false,
+  previewUpdateToken = 0,
+  previewUpdateMode = "full",
 }: PreviewFrameProps) {
   const localIframeRef = useRef<HTMLIFrameElement>(null)
   const iframeRef = forwardedRef || localIframeRef
@@ -176,6 +196,7 @@ export function PreviewFrame({
   const interactionRef = useRef<CanvasInteraction | null>(null)
   const onElementSelectRef = useRef(onElementSelect)
   const onTextChangeRef = useRef(onTextChange)
+  const lastHandledPreviewUpdateTokenRef = useRef(0)
   const [isLoading, setIsLoading] = useState(true)
   const [reloadToken, setReloadToken] = useState(0)
   const [canvasOffset, setCanvasOffset] = useState<CanvasPoint>({ x: 0, y: 0 })
@@ -402,8 +423,18 @@ export function PreviewFrame({
     const iframe = iframeRef.current
     if (!iframe) return
 
-    // If this is just a style update that was applied manually to the DOM, skip reload
-    if (isStyleUpdate) return
+    const hasNewPreviewUpdate = previewUpdateToken !== 0 && lastHandledPreviewUpdateTokenRef.current !== previewUpdateToken
+    const shouldSkipReload = hasNewPreviewUpdate && previewUpdateMode === "style"
+
+    if (hasNewPreviewUpdate) {
+      lastHandledPreviewUpdateTokenRef.current = previewUpdateToken
+    }
+
+    // Style-only updates are already reflected in the live iframe DOM.
+    if (shouldSkipReload) {
+      setIsLoading(false)
+      return
+    }
     
     setIsLoading(true)
     
@@ -421,7 +452,7 @@ export function PreviewFrame({
     return () => {
       iframe.onload = null
     }
-  }, [htmlContent, isStyleUpdate, reloadToken])
+  }, [htmlContent, previewUpdateMode, previewUpdateToken, reloadToken])
 
   // Refresh the preview
   const handleRefresh = useCallback(() => {

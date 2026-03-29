@@ -1,6 +1,14 @@
 "use client"
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react"
+import {
+  getElementPropertyFields,
+  getElementPropertySections,
+  type ElementPropertyField,
+  type ElementPropertyMap,
+  type ElementPropertySection,
+  type ElementPropertyValue,
+} from "@/lib/design-element-properties"
 import { cn } from "@/lib/utils"
 import { validateStyleValue, type ValidationResult } from "@/lib/style-validators"
 import { 
@@ -44,15 +52,7 @@ export interface SelectedElement {
   id: string
   type: string
   styles: Record<string, StyleProperty>
-  properties?: {
-    id?: string
-    className?: string
-    textContent?: string
-    href?: string
-    src?: string
-    alt?: string
-    [key: string]: string | undefined
-  }
+  properties?: ElementPropertyMap
   clickPosition?: { x: number; y: number }
 }
 
@@ -189,25 +189,25 @@ function SectionHeader({ title, icon, isExpanded, onToggle }: SectionHeaderProps
     <button
       type="button"
       onClick={onToggle}
-      className="group w-full flex items-center gap-3 px-5 py-3.5 transition-all duration-300 hover:bg-stone-800/30"
+      className="group w-full flex items-center gap-3 px-4 py-3 transition-colors duration-200 hover:bg-stone-800/40"
     >
       <div className={cn(
-        "flex items-center justify-center w-7 h-7 rounded-md transition-all duration-300",
+        "flex items-center justify-center transition-colors duration-200",
         isExpanded 
-          ? "bg-gradient-to-br from-amber-500/20 to-orange-600/20 text-amber-400" 
-          : "bg-stone-800/50 text-stone-500 group-hover:text-stone-400"
+          ? "text-stone-200" 
+          : "text-stone-500 group-hover:text-stone-400"
       )}>
         {icon}
       </div>
       <span className={cn(
-        "flex-1 text-left text-[13px] font-medium tracking-wide transition-colors duration-300",
+        "flex-1 text-left text-[12px] font-medium transition-colors duration-200",
         isExpanded ? "text-stone-200" : "text-stone-400 group-hover:text-stone-300"
       )}>
         {title}
       </span>
       <ChevronDown className={cn(
-        "w-4 h-4 text-stone-600 transition-all duration-300 group-hover:text-stone-500",
-        isExpanded && "rotate-180 text-amber-500/60"
+        "w-3.5 h-3.5 text-stone-500 transition-transform duration-200",
+        isExpanded && "rotate-180 text-stone-300"
       )} />
     </button>
   )
@@ -231,13 +231,13 @@ function Section({ name, title, icon, isExpanded, onToggle, children }: SectionP
         "overflow-hidden transition-all duration-400 ease-out",
         isExpanded ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"
       )}>
-        <div className="px-5 pb-5 pt-1 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+        <div className="px-4 pb-4 pt-1 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
           {children}
         </div>
       </div>
       
       {/* Elegant divider */}
-      <div className="mx-5 h-px bg-gradient-to-r from-transparent via-stone-700/50 to-transparent" />
+      <div className="mx-4 h-px bg-stone-800/60" />
     </div>
   )
 }
@@ -330,15 +330,15 @@ function StyledInput({ label, value, onChange, onImmediateChange, placeholder, u
 
   return (
     <div className={cn("flex flex-col gap-1.5", compact && "flex-1")}>
-      <label className="text-[10px] font-semibold tracking-widest text-stone-500 uppercase">
+      <label className="text-[11px] font-medium text-stone-400 capitalize">
         {label}
       </label>
       <div className="relative">
         <div className={cn(
-          "relative group rounded-lg transition-all duration-300",
+          "relative group rounded-md transition-all duration-200 bg-stone-800/40",
           isFocused 
-            ? "ring-2 ring-amber-500/30 ring-offset-1 ring-offset-stone-900" 
-            : "hover:ring-1 hover:ring-stone-600"
+            ? "ring-1 ring-stone-500/50 bg-stone-800"
+            : "hover:bg-stone-800/80"
         )}>
           <input
             type="text"
@@ -349,12 +349,12 @@ function StyledInput({ label, value, onChange, onImmediateChange, placeholder, u
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             className={cn(
-              "w-full h-9 px-3 text-[13px] font-medium",
-              "bg-stone-800/60 text-stone-200 placeholder:text-stone-600",
-              "border rounded-lg",
-              "focus:outline-none focus:bg-stone-800",
-              "transition-all duration-300",
-              getBorderColor() || "border-stone-700/50"
+              "w-full h-7 px-2.5 text-[12px] font-mono",
+              "bg-transparent text-stone-200 placeholder:text-stone-600",
+              "border border-transparent rounded-md",
+              "focus:outline-none",
+              "transition-all duration-200",
+              getBorderColor()
             )}
           />
           {unit && (
@@ -483,15 +483,16 @@ function ColorInput({ label, value, onChange, onImmediateChange, property }: Col
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-[10px] font-semibold tracking-widest text-stone-500 uppercase">
+      <label className="text-[11px] font-medium text-stone-400 capitalize">
         {label}
       </label>
       <div className="relative">
         <div className={cn(
-          "flex items-center gap-2 p-1.5 rounded-lg transition-all duration-300",
-          "bg-stone-800/60 border",
+          "flex items-center gap-2 p-1 rounded-md transition-all duration-200",
+          "bg-stone-800/40 border",
           getBorderColor(),
-          isFocused && "ring-2 ring-amber-500/30 ring-offset-1 ring-offset-stone-900"
+          "hover:bg-stone-800/80",
+          isFocused && "bg-stone-800 ring-1 ring-stone-500/50"
         )}>
           <div className="relative w-7 h-7 rounded-md overflow-hidden shadow-inner">
             <div 
@@ -560,17 +561,17 @@ interface StyledDropdownProps {
 function StyledDropdown({ label, value, onChange, options }: StyledDropdownProps) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-[10px] font-semibold tracking-widest text-stone-500 uppercase">
+      <label className="text-[11px] font-medium text-stone-400 capitalize">
         {label}
       </label>
       <select
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
         className={cn(
-          "h-9 px-3 text-[13px] font-medium appearance-none cursor-pointer",
-          "bg-stone-800/60 text-stone-200 border border-stone-700/50 rounded-lg",
-          "focus:outline-none focus:ring-2 focus:ring-amber-500/30",
-          "hover:border-stone-600 transition-all duration-300",
+          "h-7 px-2.5 text-[12px] font-mono appearance-none cursor-pointer",
+          "bg-stone-800/40 text-stone-200 border border-transparent rounded-md",
+          "focus:outline-none focus:ring-1 focus:ring-stone-500/50",
+          "hover:bg-stone-800/80 transition-all duration-200",
           "bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2378716c%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')]",
           "bg-no-repeat bg-[right_0.75rem_center]"
         )}
@@ -650,7 +651,7 @@ function StyledSlider({ label, value, onChange, onChangeComplete, min = 0, max =
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <label className="text-[10px] font-semibold tracking-widest text-stone-500 uppercase">
+        <label className="text-[11px] font-medium text-stone-400 capitalize">
           {label}
         </label>
         <div className="flex items-center gap-1.5">
@@ -673,7 +674,7 @@ function StyledSlider({ label, value, onChange, onChangeComplete, min = 0, max =
                 ;(e.target as HTMLInputElement).blur()
               }
             }}
-            className="h-6 w-14 rounded-md border border-stone-700/60 bg-stone-800/70 px-1.5 text-right text-[11px] font-semibold text-stone-200 outline-none transition-all focus:ring-2 focus:ring-amber-500/30"
+            className="h-6 w-14 rounded-md border border-transparent bg-stone-800/40 px-1.5 text-right text-[11px] font-mono text-stone-200 outline-none transition-all focus:bg-stone-800 focus:ring-1 focus:ring-stone-500/50 hover:bg-stone-800/80"
           />
           {!!unit && (
             <span className={cn(
@@ -689,7 +690,7 @@ function StyledSlider({ label, value, onChange, onChangeComplete, min = 0, max =
         <div 
           className={cn(
             "absolute left-0 top-0 h-full rounded-full transition-all",
-            isDragging ? "bg-gradient-to-r from-amber-400 to-orange-400 duration-75" : "bg-gradient-to-r from-amber-500/80 to-orange-500/80 duration-150"
+            isDragging ? "bg-stone-300 duration-75" : "bg-stone-400/80 duration-150"
           )}
           style={{ width: `${percentage}%` }}
         />
@@ -722,14 +723,14 @@ interface ValuePresetRowProps {
 function ValuePresetRow({ label, values, unit = '', onSelect }: ValuePresetRowProps) {
   return (
     <div className="space-y-2">
-      <p className="text-[10px] font-bold tracking-widest text-amber-500/60 uppercase">{label}</p>
+      <p className="text-[11px] font-medium text-stone-400 capitalize">{label}</p>
       <div className="grid grid-cols-6 gap-1.5">
         {values.map((preset) => (
           <button
             type="button"
             key={`${label}-${preset}`}
             onClick={() => onSelect(preset)}
-            className="h-7 rounded-md border border-stone-700/60 bg-stone-800/40 px-2 text-[11px] font-semibold text-stone-300 transition-all hover:border-stone-600 hover:bg-stone-800/70 hover:text-stone-100"
+            className="h-6 rounded-md border border-transparent bg-stone-800/40 px-2 text-[11px] font-mono text-stone-300 transition-all hover:bg-stone-800/80 hover:text-stone-100 focus:ring-1 focus:ring-stone-500/50"
           >
             {preset}{unit}
           </button>
@@ -762,7 +763,7 @@ function StyledTextArea({ label, value, onChange, placeholder, rows = 2 }: Style
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-[10px] font-semibold tracking-widest text-stone-500 uppercase">
+      <label className="text-[11px] font-medium text-stone-400 capitalize">
         {label}
       </label>
       <textarea
@@ -773,13 +774,48 @@ function StyledTextArea({ label, value, onChange, placeholder, rows = 2 }: Style
         placeholder={placeholder}
         rows={rows}
         className={cn(
-          "w-full px-3 py-2 text-[13px] font-mono resize-none",
-          "bg-stone-800/60 text-stone-200 placeholder:text-stone-600",
-          "border border-stone-700/50 rounded-lg",
-          "focus:outline-none focus:ring-2 focus:ring-amber-500/30",
-          "transition-all duration-300"
+          "w-full px-2.5 py-2 text-[12px] font-mono resize-none",
+          "bg-stone-800/40 text-stone-200 placeholder:text-stone-600",
+          "border border-transparent rounded-md",
+          "focus:outline-none focus:bg-stone-800 focus:ring-1 focus:ring-stone-500/50",
+          "transition-all duration-200 hover:bg-stone-800/80"
         )}
       />
+    </div>
+  )
+}
+
+interface StyledToggleProps {
+  label: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+}
+
+function StyledToggle({ label, checked, onChange }: StyledToggleProps) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-stone-800/70 bg-stone-900/60 px-3 py-2">
+      <label className="text-[11px] font-medium text-stone-300 capitalize">
+        {label}
+      </label>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={cn(
+          "relative h-6 w-11 rounded-full border transition-all duration-200",
+          checked
+            ? "border-stone-500 bg-stone-200"
+            : "border-stone-700 bg-stone-800/80 hover:bg-stone-700/80"
+        )}
+      >
+        <span
+          className={cn(
+            "absolute top-0.5 h-4 w-4 rounded-full transition-all duration-200",
+            checked ? "left-[22px] bg-stone-950" : "left-0.5 bg-stone-300"
+          )}
+        />
+      </button>
     </div>
   )
 }
@@ -800,10 +836,10 @@ function AlignmentButtons({ label, value, onChange }: AlignmentButtonsProps) {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-[10px] font-semibold tracking-widest text-stone-500 uppercase">
+      <label className="text-[11px] font-medium text-stone-400 capitalize">
         {label}
       </label>
-      <div className="flex gap-1 p-1 bg-stone-800/60 rounded-lg border border-stone-700/50">
+      <div className="flex gap-1 p-1 bg-stone-800/40 rounded-md">
         {options.map(opt => (
           <button
             type="button"
@@ -812,7 +848,7 @@ function AlignmentButtons({ label, value, onChange }: AlignmentButtonsProps) {
             className={cn(
               "flex-1 flex items-center justify-center py-2 rounded-md transition-all duration-200",
               value === opt.value 
-                ? "bg-gradient-to-br from-amber-500/20 to-orange-600/20 text-amber-400 shadow-inner" 
+                ? "bg-stone-700/50 text-stone-200 shadow-sm" 
                 : "text-stone-500 hover:text-stone-300 hover:bg-stone-700/30"
             )}
           >
@@ -883,6 +919,20 @@ const OVERFLOW_OPTIONS: DropdownOption[] = [
   { value: 'auto', label: 'Auto' },
 ]
 
+const STYLE_SECTION_ORDER = ['size', 'spacing', 'layout', 'typography', 'colors', 'border', 'effects']
+
+const PROPERTY_SECTION_ORDER: ElementPropertySection[] = ['attributes', 'link', 'image', 'button', 'field', 'media', 'list']
+
+const PROPERTY_SECTION_TITLES: Record<ElementPropertySection, string> = {
+  attributes: 'Attributes',
+  link: 'Link',
+  image: 'Image',
+  button: 'Button',
+  field: 'Form Field',
+  media: 'Media',
+  list: 'List',
+}
+
 // ============================================================================
 // SECTION ICONS MAPPING
 // ============================================================================
@@ -898,6 +948,10 @@ const SECTION_ICONS: Record<string, React.ReactNode> = {
   attributes: <span className="font-mono text-xs font-bold">#</span>,
   link: <Link2 className="w-4 h-4" />,
   image: <ImageIcon className="w-4 h-4" />,
+  button: <span className="font-mono text-[10px] font-bold uppercase">btn</span>,
+  field: <span className="font-mono text-xs font-bold">f(x)</span>,
+  media: <span className="font-mono text-xs font-bold">▶</span>,
+  list: <span className="font-mono text-xs font-bold">1.</span>,
 }
 
 function extractNumericValue(value: StyleProperty | undefined, fallback = 0) {
@@ -1018,15 +1072,32 @@ export function StylePanel({
     immediateStyleChange(property, value, true)
   }, [onLiveStyleChange, immediateStyleChange])
 
-  const handlePropertyChange = useCallback((key: string, value: string) => {
-    elementChangeHandlers.debounced({
+  const handleElementPropertyChange = useCallback((key: string, value: ElementPropertyValue, immediate: boolean = false) => {
+    const nextElement: SelectedElement = {
       ...selectedElement,
       properties: {
         ...selectedElement.properties,
         [key]: value,
       },
-    })
+    }
+
+    if (immediate) {
+      elementChangeHandlers.immediate(nextElement)
+      return
+    }
+
+    elementChangeHandlers.debounced(nextElement)
   }, [selectedElement, elementChangeHandlers])
+
+  const handlePropertyChange = useCallback((key: string, value: string) => {
+    handleElementPropertyChange(key, value)
+  }, [handleElementPropertyChange])
+
+  const handleBooleanPropertyChange = useCallback((key: string, value: boolean) => {
+    handleElementPropertyChange(key, value, true)
+  }, [handleElementPropertyChange])
+
+  const elementTagName = useMemo(() => selectedElement.type.toLowerCase(), [selectedElement.type])
 
   const applyBoxSpacingPreset = useCallback((propertyPrefix: 'margin' | 'padding', rawValue: number) => {
     const value = toCssLength(rawValue)
@@ -1037,18 +1108,62 @@ export function StylePanel({
   }, [handleImmediateStyleChange])
 
   const visibleSections = useMemo(() => {
-    const type = selectedElement.type.toLowerCase()
-    const sections = ['size', 'spacing', 'layout', 'typography', 'colors', 'border', 'effects', 'attributes']
-    
-    if (['a', 'link'].includes(type)) {
-      sections.push('link')
+    return [...STYLE_SECTION_ORDER, ...getElementPropertySections(elementTagName)]
+  }, [elementTagName])
+
+  const propertySections = useMemo(() => {
+    return PROPERTY_SECTION_ORDER.reduce<Record<ElementPropertySection, ElementPropertyField[]>>((sections, section) => {
+      sections[section] = getElementPropertyFields(elementTagName, section)
+      return sections
+    }, {
+      attributes: [],
+      link: [],
+      image: [],
+      button: [],
+      field: [],
+      media: [],
+      list: [],
+    })
+  }, [elementTagName])
+
+  const renderPropertyField = useCallback((field: ElementPropertyField) => {
+    const rawValue = selectedElement.properties?.[field.key]
+
+    if (field.control === 'boolean') {
+      const checked = rawValue === true || rawValue === 'true'
+      return (
+        <StyledToggle
+          key={`${field.section}-${field.key}`}
+          label={field.label}
+          checked={checked}
+          onChange={(value) => handleBooleanPropertyChange(field.key, value)}
+        />
+      )
     }
-    if (['img', 'image'].includes(type)) {
-      sections.push('image')
+
+    if (field.control === 'dropdown') {
+      return (
+        <StyledDropdown
+          key={`${field.section}-${field.key}`}
+          label={field.label}
+          value={rawValue?.toString() || ''}
+          onChange={(value) => handleElementPropertyChange(field.key, value, true)}
+          options={field.options || []}
+        />
+      )
     }
-    
-    return sections
-  }, [selectedElement.type])
+
+    return (
+      <StyledInput
+        key={`${field.section}-${field.key}`}
+        label={field.label}
+        value={rawValue?.toString() || ''}
+        onChange={(value) => handlePropertyChange(field.key, value)}
+        placeholder={field.placeholder}
+        showValidation={false}
+      />
+    )
+  }, [handleBooleanPropertyChange, handleElementPropertyChange, handlePropertyChange, selectedElement.properties])
 
   return (
     <div
@@ -1057,9 +1172,9 @@ export function StylePanel({
         transform: `translate(${position.x}px, ${position.y}px)`,
       }}
       className={cn(
-        "w-80 max-h-[540px] rounded-2xl flex flex-col overflow-hidden",
-        "bg-gradient-to-b from-stone-900 via-stone-900 to-stone-950",
-        "border border-stone-700/40 shadow-2xl shadow-black/40",
+        "w-80 max-h-[540px] rounded-xl flex flex-col overflow-hidden",
+        "bg-stone-950/95 backdrop-blur-xl",
+        "border border-stone-800 shadow-2xl shadow-black/60",
         "animate-in fade-in slide-in-from-right-4 duration-300",
         isDragging && "cursor-grabbing select-none",
         className
@@ -1069,23 +1184,19 @@ export function StylePanel({
       <div 
         onMouseDown={handleMouseDown}
         className={cn(
-          "relative px-4 py-2.5 border-b border-stone-800/60",
+          "relative px-4 py-3 border-b border-stone-800/60",
           isDragging ? "cursor-grabbing" : "cursor-grab"
         )}
       >
-        {/* Subtle gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-r from-amber-500/5 via-transparent to-orange-500/5 pointer-events-none" />
-        
         <div className="relative flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="relative">
-              <div className="w-2 h-2 rounded-full bg-gradient-to-br from-amber-400 to-orange-500" />
-              <div className="absolute inset-0 w-2 h-2 rounded-full bg-amber-400 animate-ping opacity-30" />
+              <div className="w-2 h-2 rounded-full bg-stone-500" />
             </div>
             <span className="text-xs font-semibold text-stone-300 tracking-wide">
               {selectedElement.type}
             </span>
-            <span className="text-[9px] text-stone-600 font-medium">drag to move</span>
+            <span className="text-[10px] text-stone-500 font-medium">drag to move</span>
           </div>
           
           <div className="flex items-center gap-1">
@@ -1098,7 +1209,7 @@ export function StylePanel({
               className={cn(
                 "p-1.5 rounded-md transition-all duration-200",
                 canUndo 
-                  ? "text-stone-400 hover:text-stone-200 hover:bg-stone-800/60 active:scale-95" 
+                  ? "text-stone-400 hover:text-stone-200 hover:bg-stone-800/40 active:scale-95" 
                   : "text-stone-700 cursor-not-allowed"
               )}
             >
@@ -1112,7 +1223,7 @@ export function StylePanel({
               className={cn(
                 "p-1.5 rounded-md transition-all duration-200",
                 canRedo 
-                  ? "text-stone-400 hover:text-stone-200 hover:bg-stone-800/60 active:scale-95" 
+                  ? "text-stone-400 hover:text-stone-200 hover:bg-stone-800/40 active:scale-95" 
                   : "text-stone-700 cursor-not-allowed"
               )}
             >
@@ -1126,8 +1237,8 @@ export function StylePanel({
               onClick={onClose}
               className={cn(
                 "p-1.5 rounded-md transition-all duration-200",
-                "text-stone-500 hover:text-stone-300",
-                "hover:bg-stone-800/60 active:scale-95"
+                "text-stone-400 hover:text-stone-200",
+                "hover:bg-stone-800/40 active:scale-95"
               )}
             >
               <X className="w-3.5 h-3.5" />
@@ -1139,14 +1250,14 @@ export function StylePanel({
           <button
             type="button"
             onClick={() => expandSections(visibleSections)}
-            className="h-7 rounded-md border border-stone-700/60 bg-stone-800/40 px-2.5 text-[10px] font-semibold tracking-wide text-stone-300 transition-all hover:border-stone-600 hover:bg-stone-800/70 hover:text-stone-100"
+            className="h-6 rounded-md bg-stone-800/40 px-2.5 text-[10px] font-medium text-stone-400 transition-colors hover:bg-stone-800/80 hover:text-stone-200"
           >
             Expand All
           </button>
           <button
             type="button"
             onClick={collapseAllSections}
-            className="h-7 rounded-md border border-stone-700/60 bg-stone-800/40 px-2.5 text-[10px] font-semibold tracking-wide text-stone-300 transition-all hover:border-stone-600 hover:bg-stone-800/70 hover:text-stone-100"
+            className="h-6 rounded-md bg-stone-800/40 px-2.5 text-[10px] font-medium text-stone-400 transition-colors hover:bg-stone-800/80 hover:text-stone-200"
           >
             Collapse All
           </button>
@@ -1219,7 +1330,7 @@ export function StylePanel({
               onSelect={(value) => applyBoxSpacingPreset('margin', value)}
             />
             <div className="space-y-3">
-              <p className="text-[10px] font-bold tracking-widest text-amber-500/60 uppercase">Margin</p>
+              <p className="text-[11px] font-medium text-stone-400 capitalize">Margin</p>
               <div className="grid grid-cols-4 gap-2">
                 <StyledInput label="Top" value={selectedElement.styles.marginTop?.toString() || ''} onChange={(v) => handleStyleChange('marginTop', v)} onImmediateChange={(v) => handleImmediateStyleChange('marginTop', v)} property="marginTop" compact />
                 <StyledInput label="Right" value={selectedElement.styles.marginRight?.toString() || ''} onChange={(v) => handleStyleChange('marginRight', v)} onImmediateChange={(v) => handleImmediateStyleChange('marginRight', v)} property="marginRight" compact />
@@ -1234,7 +1345,7 @@ export function StylePanel({
               onSelect={(value) => applyBoxSpacingPreset('padding', value)}
             />
             <div className="space-y-3">
-              <p className="text-[10px] font-bold tracking-widest text-amber-500/60 uppercase">Padding</p>
+              <p className="text-[11px] font-medium text-stone-400 capitalize">Padding</p>
               <div className="grid grid-cols-4 gap-2">
                 <StyledInput label="Top" value={selectedElement.styles.paddingTop?.toString() || ''} onChange={(v) => handleStyleChange('paddingTop', v)} onImmediateChange={(v) => handleImmediateStyleChange('paddingTop', v)} property="paddingTop" compact />
                 <StyledInput label="Right" value={selectedElement.styles.paddingRight?.toString() || ''} onChange={(v) => handleStyleChange('paddingRight', v)} onImmediateChange={(v) => handleImmediateStyleChange('paddingRight', v)} property="paddingRight" compact />
@@ -1269,7 +1380,7 @@ export function StylePanel({
               />
             </div>
             <div className="space-y-3">
-              <p className="text-[10px] font-bold tracking-widest text-amber-500/60 uppercase">Offsets</p>
+              <p className="text-[11px] font-medium text-stone-400 capitalize">Offsets</p>
               <div className="grid grid-cols-4 gap-2">
                 <StyledInput label="Top" value={selectedElement.styles.top?.toString() || ''} onChange={(v) => handleStyleChange('top', v)} onImmediateChange={(v) => handleImmediateStyleChange('top', v)} property="top" compact />
                 <StyledInput label="Right" value={selectedElement.styles.right?.toString() || ''} onChange={(v) => handleStyleChange('right', v)} onImmediateChange={(v) => handleImmediateStyleChange('right', v)} property="right" compact />
@@ -1501,71 +1612,26 @@ export function StylePanel({
           </Section>
         )}
 
-        {/* Attributes Section */}
-        {visibleSections.includes('attributes') && (
-          <Section
-            name="attributes"
-            title="Attributes"
-            icon={SECTION_ICONS.attributes}
-            isExpanded={isExpanded('attributes')}
-            onToggle={() => toggleSection('attributes')}
-          >
-            <StyledInput
-              label="ID"
-              value={selectedElement.properties?.id || ''}
-              onChange={(v) => handlePropertyChange('id', v)}
-              placeholder="element-id"
-            />
-            <StyledInput
-              label="Class"
-              value={selectedElement.properties?.className || ''}
-              onChange={(v) => handlePropertyChange('className', v)}
-              placeholder="class-names"
-            />
-          </Section>
-        )}
+        {PROPERTY_SECTION_ORDER.map((section) => {
+          const fields = propertySections[section]
 
-        {/* Link Section */}
-        {visibleSections.includes('link') && (
-          <Section
-            name="link"
-            title="Link"
-            icon={SECTION_ICONS.link}
-            isExpanded={isExpanded('link')}
-            onToggle={() => toggleSection('link')}
-          >
-            <StyledInput
-              label="Href"
-              value={selectedElement.properties?.href || ''}
-              onChange={(v) => handlePropertyChange('href', v)}
-              placeholder="https://..."
-            />
-          </Section>
-        )}
+          if (!visibleSections.includes(section) || fields.length === 0) {
+            return null
+          }
 
-        {/* Image Section */}
-        {visibleSections.includes('image') && (
-          <Section
-            name="image"
-            title="Image"
-            icon={SECTION_ICONS.image}
-            isExpanded={isExpanded('image')}
-            onToggle={() => toggleSection('image')}
-          >
-            <StyledInput
-              label="Source"
-              value={selectedElement.properties?.src || ''}
-              onChange={(v) => handlePropertyChange('src', v)}
-              placeholder="image url..."
-            />
-            <StyledInput
-              label="Alt Text"
-              value={selectedElement.properties?.alt || ''}
-              onChange={(v) => handlePropertyChange('alt', v)}
-              placeholder="description..."
-            />
-          </Section>
-        )}
+          return (
+            <Section
+              key={section}
+              name={section}
+              title={PROPERTY_SECTION_TITLES[section]}
+              icon={SECTION_ICONS[section]}
+              isExpanded={isExpanded(section)}
+              onToggle={() => toggleSection(section)}
+            >
+              {fields.map(renderPropertyField)}
+            </Section>
+          )
+        })}
         
         {/* Bottom padding for scroll */}
         <div className="h-4" />
