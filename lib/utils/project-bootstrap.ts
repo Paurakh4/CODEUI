@@ -5,9 +5,43 @@ interface PendingProjectStart {
 }
 
 const PENDING_PROJECT_START_TTL_MS = 10 * 60 * 1000
+const replayablePendingProjectStarts = new Map<string, PendingProjectStart>()
+const replayablePendingProjectCleanupTimers = new Map<string, number>()
 
 function getPendingProjectStartKey(projectId: string): string {
   return `pending_project_start_${projectId}`
+}
+
+function clearReplayablePendingProjectStartCleanup(projectId: string) {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  const cleanupTimer = replayablePendingProjectCleanupTimers.get(projectId)
+  if (cleanupTimer !== undefined) {
+    window.clearTimeout(cleanupTimer)
+    replayablePendingProjectCleanupTimers.delete(projectId)
+  }
+}
+
+function clearReplayablePendingProjectStart(projectId: string) {
+  replayablePendingProjectStarts.delete(projectId)
+  clearReplayablePendingProjectStartCleanup(projectId)
+}
+
+function scheduleReplayablePendingProjectStartCleanup(projectId: string) {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  clearReplayablePendingProjectStartCleanup(projectId)
+
+  const cleanupTimer = window.setTimeout(() => {
+    replayablePendingProjectStarts.delete(projectId)
+    replayablePendingProjectCleanupTimers.delete(projectId)
+  }, 0)
+
+  replayablePendingProjectCleanupTimers.set(projectId, cleanupTimer)
 }
 
 function normalizePendingProjectStart(value: unknown): PendingProjectStart | null {
@@ -28,6 +62,8 @@ export function storePendingProjectStart(projectId: string, payload: { prompt?: 
   if (typeof window === "undefined") return
   if (!payload.prompt && !payload.model) return
 
+  clearReplayablePendingProjectStart(projectId)
+
   const record: PendingProjectStart = {
     prompt: payload.prompt,
     model: payload.model,
@@ -42,19 +78,38 @@ export function consumePendingProjectStart(projectId: string): { prompt?: string
 
   const key = getPendingProjectStartKey(projectId)
   const rawValue = window.sessionStorage.getItem(key)
-  if (!rawValue) return null
+
+  if (!rawValue) {
+    const replayableRecord = replayablePendingProjectStarts.get(projectId)
+    if (!replayableRecord) return null
+
+    clearReplayablePendingProjectStart(projectId)
+    return {
+      prompt: replayableRecord.prompt,
+      model: replayableRecord.model,
+    }
+  }
 
   window.sessionStorage.removeItem(key)
 
   try {
     const normalized = normalizePendingProjectStart(JSON.parse(rawValue))
-    if (!normalized) return null
+    if (!normalized) {
+      clearReplayablePendingProjectStart(projectId)
+      return null
+    }
+
+    // React Strict Mode may remount the project page immediately in development.
+    // Keep one short-lived in-memory replay so the second mount can still hydrate.
+    replayablePendingProjectStarts.set(projectId, normalized)
+    scheduleReplayablePendingProjectStartCleanup(projectId)
 
     return {
       prompt: normalized.prompt,
       model: normalized.model,
     }
   } catch {
+    clearReplayablePendingProjectStart(projectId)
     return null
   }
 }

@@ -168,8 +168,8 @@ export function AI_Prompt({
                                 return currentModelId;
                             }
 
-                            const godMode = models.find((m: { id: string }) => m.id === CODEUI_GOD_MODE_MODEL_ID);
-                            return godMode ? godMode.id : models[0].id;
+                            const previewModel = models.find((m: { id: string }) => m.id === CODEUI_GOD_MODE_MODEL_ID);
+                            return previewModel ? previewModel.id : models[0].id;
                         });
                     }
                 }
@@ -178,7 +178,7 @@ export function AI_Prompt({
                 console.error('Failed to fetch models:', err);
                 // Fallback to default models
                 setLocalAvailableModels([
-                    { id: CODEUI_GOD_MODE_MODEL_ID, name: "CODEUI GOD MODE" },
+                    { id: CODEUI_GOD_MODE_MODEL_ID, name: "Gemini 3 Flash Preview" },
                     { id: "deepseek/deepseek-chat", name: "DeepSeek V3" },
                     { id: "deepseek/deepseek-r1", name: "DeepSeek R1" },
                 ]);

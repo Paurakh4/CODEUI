@@ -436,7 +436,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
           variant: "destructive",
         })
         const fallbackModels = [
-          { id: CODEUI_GOD_MODE_MODEL_ID, name: "CODEUI GOD MODE" },
+          { id: CODEUI_GOD_MODE_MODEL_ID, name: "Gemini 3 Flash Preview" },
           { id: "deepseek/deepseek-chat", name: "DeepSeek V3" },
           { id: "deepseek/deepseek-r1", name: "DeepSeek R1" },
         ]
@@ -454,10 +454,10 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    const godMode = state.availableModels.find(
+    const previewModel = state.availableModels.find(
       (model) => model.id === CODEUI_GOD_MODE_MODEL_ID
     )
-    const fallbackModel = godMode?.id || state.availableModels[0]?.id
+    const fallbackModel = previewModel?.id || state.availableModels[0]?.id
 
     if (fallbackModel) {
       dispatch({ type: "SET_MODEL", payload: fallbackModel })

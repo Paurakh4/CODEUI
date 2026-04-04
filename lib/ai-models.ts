@@ -77,7 +77,7 @@ const ALL_MODELS: AIModel[] = [
   },
   {
     id: CODEUI_GOD_MODE_MODEL_ID,
-    name: "CODEUI GOD MODE",
+    name: "Gemini 3 Flash Preview",
     provider: "Google",
     description: "Latest Gemini model preview",
     contextLength: 2000000,
@@ -142,7 +142,7 @@ export function isModelEnabled(id: string): boolean {
 
 /**
  * Get default model ID
- * Prefers CODEUI GOD MODE when available, otherwise first enabled model.
+ * Prefers Gemini 3 Flash Preview when available, otherwise first enabled model.
  */
 export function getDefaultModelId(): string {
   const enabled = getEnabledModels()
@@ -159,7 +159,7 @@ export function getDefaultModelId(): string {
  * Priority:
  * 1) Requested/enforced primary model (if enabled)
  * 2) Default model
- * 3) CODEUI GOD MODE model
+ * 3) Gemini 3 Flash Preview model
  * 4) Remaining enabled models (prefer different providers first)
  */
 export function getModelFallbackChain(primaryModelId?: string): string[] {

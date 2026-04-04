@@ -446,6 +446,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   const [messages, setMessages] = useState<Message[]>([])
   const [thinkingExpanded, setThinkingExpanded] = useState(true)
   const hasProcessedInitialPrompt = useRef(false)
+  const initialPromptStartTimerRef = useRef<number | null>(null)
   const lastUserPromptRef = useRef("")
   const recoveryInFlightRef = useRef(false)
   const promptScopeRecoveryInFlightRef = useRef(false)
@@ -479,13 +480,18 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   const lastSavedContentRef = useRef<string>("")
 
   // Auth
-  const { data: session } = useSession()
+  const { data: session, status: sessionStatus } = useSession()
   const { showSignIn } = useAuthDialog()
   
   const [isRestored, setIsRestored] = useState(false)
   const [isLoadingProject, setIsLoadingProject] = useState(false)
 
   const resetTransientProjectState = useCallback(() => {
+    if (initialPromptStartTimerRef.current !== null) {
+      window.clearTimeout(initialPromptStartTimerRef.current)
+      initialPromptStartTimerRef.current = null
+    }
+
     hasProcessedInitialPrompt.current = false
     lastUserPromptRef.current = ""
     recoveryInFlightRef.current = false
@@ -796,7 +802,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
               isThinking: false,
             }))
             setMessages(restoredMessages)
-            setHasGeneratedOnce(true)
+            setHasGeneratedOnce(project.messages.some((message: { role: string }) => message.role === "assistant"))
           } else {
             setHasGeneratedOnce(false)
           }
@@ -849,6 +855,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
   // Load state from localStorage (fallback for new projects or when no projectId)
   useEffect(() => {
+    if (projectId && projectId !== "new" && sessionStatus === "loading") return
+
     // Skip localStorage restore if we're loading from MongoDB
     if (projectId && projectId !== "new" && session?.user?.id) return
     
@@ -875,7 +883,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       }
     }
     setIsRestored(true)
-  }, [storageKey, projectId, session?.user?.id])
+  }, [storageKey, projectId, session?.user?.id, sessionStatus])
 
   // Save state to localStorage
   useEffect(() => {
@@ -905,15 +913,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       setPreviewHtmlContent(null)
     }
   }, [previewHtmlContent, versionHistoryOpen])
-
-  // Auto-save to MongoDB when content changes (debounced)
-  useEffect(() => {
-    if (!isRestored || isLoadingProject) return
-    if (!projectId || projectId === "new") return
-    if (!hasUnsavedChanges) return
-    
-    debouncedSave(htmlContent)
-  }, [htmlContent, hasUnsavedChanges, isRestored, isLoadingProject, projectId, debouncedSave])
 
   // Load default preview template (Cinematheque) once on mount.
   useEffect(() => {
@@ -1008,6 +1007,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     onContentUpdate: (content) => {
       // Stream output into Monaco (not into chat)
       setDraftAiOutput(content)
+
+      const streamingHtml = getRenderableStreamingHtml(content)
+      if (streamingHtml) {
+        commitHtmlContentUpdate(streamingHtml)
+      }
     },
     onThinkingUpdate: (thinkingContent) => {
       setMessages((prev) => {
@@ -1068,9 +1072,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       const result = parser.applyPatch(htmlContentRef.current, search, replace, filePath)
       
       if (result.success) {
-        htmlContentRef.current = result.content
-        setHtmlContent(result.content)
-        setHasUnsavedChanges(true)
+        commitHtmlContentUpdate(result.content)
         return true
       } else {
         console.warn(`Patch failed for ${filePath}: ${result.error}`)
@@ -1107,9 +1109,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           : originalPrompt
 
         if (hasPromptScopeIssues && hasCompleteHtml) {
-          setHtmlContent(extractedHtml)
-          htmlContentRef.current = extractedHtml
-          setHasUnsavedChanges(true)
+          commitHtmlContentUpdate(extractedHtml)
           scopeRecoveryAttemptsRef.current += 1
         }
 
@@ -1150,9 +1150,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           promptScopeValidation.missingRequirements,
         )
 
-        setHtmlContent(extractedHtml)
-        htmlContentRef.current = extractedHtml
-        setHasUnsavedChanges(true)
+        commitHtmlContentUpdate(extractedHtml)
         scopeRecoveryAttemptsRef.current += 1
         setPendingRecovery({
           prompt: recoveryPrompt,
@@ -1200,15 +1198,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       }
 
       if (hasPromptScopeIssues && hasCompleteHtml && scopeRecoveryAttemptsRef.current > 0) {
-        setHtmlContent(extractedHtml)
-        htmlContentRef.current = extractedHtml
-        setHasUnsavedChanges(true)
+        commitHtmlContentUpdate(extractedHtml)
       }
 
       if (hasCompleteHtml) {
-        setHtmlContent(extractedHtml)
-        htmlContentRef.current = extractedHtml
-        setHasUnsavedChanges(true)
+        commitHtmlContentUpdate(extractedHtml)
 
         if (hasPatchFailures) {
           toast({
@@ -1220,9 +1214,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         // If it was a follow-up, patches were applied in real-time via onPatch.
         // If it was the first generation, or if the AI decided to send full content anyway
         if ((!isFollowUp || extractedHtml) && extractedHtml && (extractedHtml.includes("<!DOCTYPE") || extractedHtml.includes("<html"))) {
-          setHtmlContent(extractedHtml)
-          htmlContentRef.current = extractedHtml
-          setHasUnsavedChanges(true)
+          commitHtmlContentUpdate(extractedHtml)
         }
       }
 
@@ -1278,6 +1270,15 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     },
   })
 
+  // Auto-save to MongoDB when content changes (debounced)
+  useEffect(() => {
+    if (!isRestored || isLoadingProject || isGenerating) return
+    if (!projectId || projectId === "new") return
+    if (!hasUnsavedChanges) return
+
+    debouncedSave(htmlContent)
+  }, [htmlContent, hasUnsavedChanges, isGenerating, isRestored, isLoadingProject, projectId, debouncedSave])
+
   useEffect(() => {
     if (!pendingRecovery || isGenerating) return
 
@@ -1317,9 +1318,18 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   ])
 
   // Handle sending a message
-  const handleSend = useCallback(
-    async (message: string, model?: string) => {
-      if (!message.trim()) return
+  const startGeneration = useCallback(
+    async ({
+      message,
+      model,
+      useExistingUserMessage = false,
+    }: {
+      message: string
+      model?: string
+      useExistingUserMessage?: boolean
+    }) => {
+      const trimmedMessage = message.trim()
+      if (!trimmedMessage) return
 
       recoveryInFlightRef.current = false
       promptScopeRecoveryInFlightRef.current = false
@@ -1336,40 +1346,23 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         return
       }
 
-      const isFollowUp = messages.length > 0
+      const historySource = useExistingUserMessage ? messages.slice(0, -1) : messages
+      const isFollowUp = historySource.length > 0
       const shouldApplyFallbackName = !isFollowUp && isDefaultProjectName(projectName)
       if (shouldApplyFallbackName) {
-        const fallbackName = deriveProjectNameFromPrompt(message)
+        const fallbackName = deriveProjectNameFromPrompt(trimmedMessage)
         if (!isDefaultProjectName(fallbackName)) {
           setProjectName(fallbackName)
           saveProjectToMongo(htmlContentRef.current, fallbackName)
         }
       }
 
-      await createCheckpoint(`Before AI: ${message.slice(0, 120)}`, {
+      await createCheckpoint(`Before AI: ${trimmedMessage.slice(0, 120)}`, {
         silent: true,
         kind: "auto",
         trigger: "before-ai",
       })
 
-      // Add user message
-      const userMessage: Message = {
-        id: Date.now().toString(),
-        content: message,
-        role: "user",
-        timestamp: new Date(),
-      }
-      setMessages((prev) => [...prev, userMessage])
-      
-      // Save user message to MongoDB
-      saveMessageToMongo({ role: "user", content: message })
-      lastUserPromptRef.current = message
-
-      // Show generation in Monaco
-      setViewMode("code")
-      setDraftAiOutput("")
-
-      // Add placeholder assistant message
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: "",
@@ -1378,11 +1371,27 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         isThinking: true,
         progressLabel: "Analyzing request...",
       }
-      setMessages((prev) => [...prev, assistantMessage])
 
-      // Send to AI
+      if (useExistingUserMessage) {
+        setMessages((prev) => [...prev, assistantMessage])
+      } else {
+        const userMessage: Message = {
+          id: Date.now().toString(),
+          content: trimmedMessage,
+          role: "user",
+          timestamp: new Date(),
+        }
+
+        setMessages((prev) => [...prev, userMessage, assistantMessage])
+        saveMessageToMongo({ role: "user", content: trimmedMessage })
+      }
+
+      lastUserPromptRef.current = trimmedMessage
+      setViewMode("code")
+      setDraftAiOutput("")
+
       setApplyingPatch(true)
-      const conversationHistory = messages
+      const conversationHistory = historySource
         .filter((entry) => entry.content.trim().length > 0)
         .slice(-6)
         .map((entry) => ({
@@ -1412,7 +1421,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
       try {
         await sendAIMessage({
-          prompt: message,
+          prompt: trimmedMessage,
           currentHtml: isFollowUp ? htmlContentRef.current : undefined,
           selectedElement: selectedElementHtml,
           isFollowUp,
@@ -1443,7 +1452,16 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       state.secondaryColor,
       state.theme,
       projectName,
+      saveMessageToMongo,
+      toast,
     ]
+  )
+
+  const handleSend = useCallback(
+    async (message: string, model?: string) => {
+      await startGeneration({ message, model })
+    },
+    [startGeneration]
   )
 
   // Handle random prompt
@@ -1454,16 +1472,67 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
   // Handle initial prompt from landing page
   useEffect(() => {
-    // Only send initial prompt if:
-    // 1. State restoration is complete
-    // 2. We have an initial prompt
-    // 3. We haven't processed it yet
-    // 4. There are no existing messages (meaning this is a fresh start, not a refresh)
-    if (isRestored && initialPrompt && !hasProcessedInitialPrompt.current && messages.length === 0) {
-      hasProcessedInitialPrompt.current = true
-      handleSend(initialPrompt, initialModel)
+    const fallbackOrphanedPrompt =
+      messages.length === 1 &&
+      messages[0]?.role === "user" &&
+      !hasGeneratedOnce
+        ? messages[0].content.trim()
+        : ""
+    const promptToAutoStart = initialPrompt?.trim() || fallbackOrphanedPrompt
+    const hasRetryableOrphanedInitialUserMessage =
+      messages.length === 1 &&
+      messages[0]?.role === "user" &&
+      messages[0]?.content.trim() === promptToAutoStart &&
+      !hasGeneratedOnce &&
+      !isGenerating
+
+    if (
+      !isRestored ||
+      !promptToAutoStart ||
+      (hasProcessedInitialPrompt.current && !hasRetryableOrphanedInitialUserMessage) ||
+      isLoadingProject
+    ) {
+      return
     }
-  }, [isRestored, initialPrompt, initialModel, messages.length]) // Depend on isRestored
+
+    if (sessionStatus === "loading") {
+      return
+    }
+
+    const hasOrphanedInitialUserMessage =
+      hasRetryableOrphanedInitialUserMessage
+
+    if (messages.length > 0 && !hasOrphanedInitialUserMessage) {
+      return
+    }
+
+    if (!session) {
+      hasProcessedInitialPrompt.current = true
+      showSignIn()
+      return
+    }
+
+    if (initialPromptStartTimerRef.current !== null) {
+      window.clearTimeout(initialPromptStartTimerRef.current)
+    }
+
+    initialPromptStartTimerRef.current = window.setTimeout(() => {
+      initialPromptStartTimerRef.current = null
+      hasProcessedInitialPrompt.current = true
+      void startGeneration({
+        message: promptToAutoStart,
+        model: initialModel,
+        useExistingUserMessage: hasOrphanedInitialUserMessage,
+      })
+    }, 0)
+
+    return () => {
+      if (initialPromptStartTimerRef.current !== null) {
+        window.clearTimeout(initialPromptStartTimerRef.current)
+        initialPromptStartTimerRef.current = null
+      }
+    }
+  }, [hasGeneratedOnce, initialPrompt, initialModel, isGenerating, isLoadingProject, isRestored, messages, session, sessionStatus, showSignIn, startGeneration])
 
   // Handle code editor changes
   const handleCodeChange = useCallback((value: string) => {
@@ -1938,6 +2007,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
             onChange={handleCodeChange}
             readOnly={isGenerating}
             className="h-full"
+            modelPath={`/project/${projectId || "new"}/index.html`}
           />
         )
     }

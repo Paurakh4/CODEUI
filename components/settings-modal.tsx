@@ -180,24 +180,24 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl border-white/10 bg-zinc-950 p-0 text-zinc-100 sm:max-w-4xl">
-        <DialogHeader className="border-b border-white/10 px-6 py-5 text-left">
+      <DialogContent className="max-w-4xl border-border bg-background p-0 text-foreground sm:max-w-4xl">
+        <DialogHeader className="border-b border-border px-6 py-5 text-left">
           <DialogTitle className="text-2xl font-semibold tracking-tight">
             Settings
           </DialogTitle>
-          <DialogDescription className="text-zinc-400">
+          <DialogDescription className="text-muted-foreground">
             Sync your appearance, AI defaults, and account preferences across sessions.
           </DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
           <div className="flex min-h-[420px] items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
           <Tabs defaultValue="appearance" className="min-h-[520px]">
-            <div className="border-b border-white/10 px-6 py-4">
-              <TabsList className="bg-zinc-900 text-zinc-400">
+            <div className="border-b border-border px-6 py-4">
+              <TabsList className="bg-muted text-muted-foreground">
                 <TabsTrigger value="appearance">Appearance</TabsTrigger>
                 <TabsTrigger value="ai">AI Defaults</TabsTrigger>
                 <TabsTrigger value="preferences">Preferences</TabsTrigger>
@@ -206,11 +206,11 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
             <ScrollArea className="max-h-[60vh] px-6 py-6">
               <TabsContent value="appearance" className="mt-0 space-y-6">
-                <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5">
-                  <Label className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                <div className="rounded-2xl border border-border bg-muted/60 p-5">
+                  <Label className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                     Theme
                   </Label>
-                  <div className="mt-3 flex items-center gap-2 rounded-xl border border-white/10 bg-zinc-950/80 p-1">
+                  <div className="mt-3 flex items-center gap-2 rounded-xl border border-border bg-background/80 p-1">
                     {(["dark", "light"] as const).map((themeOption) => (
                       <button
                         key={themeOption}
@@ -224,8 +224,8 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                         className={cn(
                           "flex-1 rounded-lg px-4 py-2 text-sm font-medium capitalize transition-colors",
                           draft.theme === themeOption
-                            ? "bg-zinc-800 text-zinc-100"
-                            : "text-zinc-500 hover:text-zinc-200"
+                            ? "bg-accent text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
                         )}
                       >
                         {themeOption}
@@ -235,13 +235,13 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 </div>
 
                 <div className="grid gap-6 lg:grid-cols-2">
-                  <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5">
+                  <div className="rounded-2xl border border-border bg-muted/60 p-5">
                     <div className="flex items-center justify-between">
-                      <Label className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                      <Label className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                         Primary Color
                       </Label>
                       <div
-                        className="h-6 w-6 rounded-md border border-white/10"
+                        className="h-6 w-6 rounded-md border border-border"
                         style={{ backgroundColor: selectedPrimaryColor?.value }}
                       />
                     </div>
@@ -260,7 +260,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                           className={cn(
                             "h-7 w-7 rounded-md transition-transform hover:scale-110",
                             draft.primaryColor === color.name &&
-                              "ring-2 ring-white ring-offset-2 ring-offset-zinc-950"
+                              "ring-2 ring-primary ring-offset-2 ring-offset-background"
                           )}
                           style={{ backgroundColor: color.value }}
                         />
@@ -268,13 +268,13 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5">
+                  <div className="rounded-2xl border border-border bg-muted/60 p-5">
                     <div className="flex items-center justify-between">
-                      <Label className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                      <Label className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                         Secondary Color
                       </Label>
                       <div
-                        className="h-6 w-6 rounded-md border border-white/10"
+                        className="h-6 w-6 rounded-md border border-border"
                         style={{ backgroundColor: selectedSecondaryColor?.value }}
                       />
                     </div>
@@ -293,7 +293,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                           className={cn(
                             "h-7 w-7 rounded-md transition-transform hover:scale-110",
                             draft.secondaryColor === color.name &&
-                              "ring-2 ring-white ring-offset-2 ring-offset-zinc-950"
+                              "ring-2 ring-primary ring-offset-2 ring-offset-background"
                           )}
                           style={{ backgroundColor: color.value }}
                         />
@@ -302,22 +302,22 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5">
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                <div className="rounded-2xl border border-border bg-muted/60 p-5">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                     <Palette className="h-4 w-4" />
                     Preview
                   </div>
                   <div
-                    className="mt-4 rounded-2xl border border-white/10 p-5 text-white"
+                    className="mt-4 rounded-2xl border border-border p-5 text-foreground"
                     style={{
                       background: `linear-gradient(135deg, ${selectedPrimaryColor?.value} 0%, ${selectedSecondaryColor?.dark} 100%)`,
                     }}
                   >
-                    <p className="text-xs uppercase tracking-[0.18em] text-white/70">
+                    <p className="text-xs uppercase tracking-[0.18em] text-foreground/70">
                       Workspace Accent Preview
                     </p>
                     <p className="mt-2 text-2xl font-semibold">CodeUI Preferences</p>
-                    <p className="mt-1 max-w-md text-sm text-white/80">
+                    <p className="mt-1 max-w-md text-sm text-foreground/80">
                       Keep the same visual system available everywhere you sign in.
                     </p>
                   </div>
@@ -325,12 +325,12 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
               </TabsContent>
 
               <TabsContent value="ai" className="mt-0 space-y-6">
-                <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5">
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                <div className="rounded-2xl border border-border bg-muted/60 p-5">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                     <Sparkles className="h-4 w-4" />
                     Default Model
                   </div>
-                  <p className="mt-2 text-sm text-zinc-400">
+                  <p className="mt-2 text-sm text-muted-foreground">
                     This becomes your default starting model each time you open the editor.
                   </p>
                   <div className="mt-4">
@@ -346,13 +346,13 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5">
-                  <div className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-zinc-950/80 p-4">
+                <div className="rounded-2xl border border-border bg-muted/60 p-5">
+                  <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-background/80 p-4">
                     <div>
-                      <Label className="text-sm font-medium text-zinc-100">
+                      <Label className="text-sm font-medium text-foreground">
                         Enhanced Prompts
                       </Label>
-                      <p className="mt-1 text-sm text-zinc-400">
+                      <p className="mt-1 text-sm text-muted-foreground">
                         Start generations with richer prompting guidance turned on.
                       </p>
                     </div>
@@ -370,18 +370,18 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
               </TabsContent>
 
               <TabsContent value="preferences" className="mt-0 space-y-6">
-                <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5">
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                <div className="rounded-2xl border border-border bg-muted/60 p-5">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                     <Mailbox className="h-4 w-4" />
                     Contact Preferences
                   </div>
                   <div className="mt-4 space-y-3">
-                    <div className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-zinc-950/80 p-4">
+                    <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-background/80 p-4">
                       <div>
-                        <Label className="text-sm font-medium text-zinc-100">
+                        <Label className="text-sm font-medium text-foreground">
                           Product Updates
                         </Label>
-                        <p className="mt-1 text-sm text-zinc-400">
+                        <p className="mt-1 text-sm text-muted-foreground">
                           Receive release notes and important product changes.
                         </p>
                       </div>
@@ -398,12 +398,12 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                         }
                       />
                     </div>
-                    <div className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-zinc-950/80 p-4">
+                    <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-background/80 p-4">
                       <div>
-                        <Label className="text-sm font-medium text-zinc-100">
+                        <Label className="text-sm font-medium text-foreground">
                           Marketing Emails
                         </Label>
-                        <p className="mt-1 text-sm text-zinc-400">
+                        <p className="mt-1 text-sm text-muted-foreground">
                           Hear about launches, experiments, and special offers.
                         </p>
                       </div>
@@ -423,17 +423,17 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-5">
-                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                <div className="rounded-2xl border border-border bg-muted/60 p-5">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                     <Shield className="h-4 w-4" />
                     Privacy
                   </div>
-                  <div className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-zinc-950/80 p-4">
+                  <div className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-border bg-background/80 p-4">
                     <div>
-                      <Label className="text-sm font-medium text-zinc-100">
+                      <Label className="text-sm font-medium text-foreground">
                         Private Projects by Default
                       </Label>
-                      <p className="mt-1 text-sm text-zinc-400">
+                      <p className="mt-1 text-sm text-muted-foreground">
                         New projects inherit this privacy setting unless you override it manually.
                       </p>
                     </div>
@@ -456,12 +456,12 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
           </Tabs>
         )}
 
-        <DialogFooter className="border-t border-white/10 px-6 py-4">
+        <DialogFooter className="border-t border-border px-6 py-4">
           <Button
             type="button"
             variant="ghost"
             onClick={() => onOpenChange(false)}
-            className="text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+            className="text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             Close
           </Button>
@@ -469,7 +469,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             type="button"
             onClick={handleSave}
             disabled={isSaving || isLoading}
-            className="bg-white text-black hover:bg-zinc-200"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {isSaving ? (
               <>

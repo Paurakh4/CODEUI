@@ -1,9 +1,8 @@
 "use client"
 
-import { useRef, useCallback, useEffect } from "react"
+import { useRef, useCallback, useEffect, useState } from "react"
 import Editor, { loader } from "@monaco-editor/react"
 import type { OnMount, BeforeMount } from "@monaco-editor/react"
-import * as monaco from "monaco-editor"
 import type { editor } from "monaco-editor"
 import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -40,32 +39,50 @@ const monacoEnvironment = globalThis as typeof globalThis & {
   }
 }
 
-if (typeof window !== "undefined") {
-  monacoEnvironment.MonacoEnvironment = {
-    ...monacoEnvironment.MonacoEnvironment,
-    getWorker(_moduleId, label) {
-      switch (label) {
-        case "json":
-          return createJsonWorker()
-        case "css":
-        case "scss":
-        case "less":
-          return createCssWorker()
-        case "html":
-        case "handlebars":
-        case "razor":
-          return createHtmlWorker()
-        case "typescript":
-        case "javascript":
-          return createTypeScriptWorker()
-        default:
-          return createEditorWorker()
-      }
-    },
-  }
-}
+let monacoSetupPromise: Promise<void> | null = null
+let monacoConfigured = false
 
-loader.config({ monaco })
+function ensureMonacoConfigured(): Promise<void> {
+  if (typeof window === "undefined") {
+    return Promise.resolve()
+  }
+
+  if (monacoConfigured) {
+    return Promise.resolve()
+  }
+
+  if (!monacoSetupPromise) {
+    monacoSetupPromise = import("monaco-editor").then((monacoModule) => {
+      monacoEnvironment.MonacoEnvironment = {
+        ...monacoEnvironment.MonacoEnvironment,
+        getWorker(_moduleId, label) {
+          switch (label) {
+            case "json":
+              return createJsonWorker()
+            case "css":
+            case "scss":
+            case "less":
+              return createCssWorker()
+            case "html":
+            case "handlebars":
+            case "razor":
+              return createHtmlWorker()
+            case "typescript":
+            case "javascript":
+              return createTypeScriptWorker()
+            default:
+              return createEditorWorker()
+          }
+        },
+      }
+
+      loader.config({ monaco: monacoModule })
+      monacoConfigured = true
+    })
+  }
+
+  return monacoSetupPromise
+}
 
 interface CodeEditorProps {
   value: string
@@ -73,6 +90,7 @@ interface CodeEditorProps {
   language?: string
   readOnly?: boolean
   className?: string
+  modelPath?: string
 }
 
 export function CodeEditor({
@@ -81,9 +99,35 @@ export function CodeEditor({
   language = "html",
   readOnly = false,
   className,
+  modelPath = "/project/index.html",
 }: CodeEditorProps) {
   const { state } = useEditor()
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
+  const isProgrammaticSyncRef = useRef(false)
+  const valueRef = useRef(value)
+  const [isMonacoReady, setIsMonacoReady] = useState(() => typeof window !== "undefined" && monacoConfigured)
+
+  useEffect(() => {
+    valueRef.current = value
+  }, [value])
+
+  useEffect(() => {
+    let cancelled = false
+
+    void ensureMonacoConfigured()
+      .then(() => {
+        if (!cancelled) {
+          setIsMonacoReady(true)
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to configure Monaco", error)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (process.env.NODE_ENV !== "development") {
@@ -148,6 +192,20 @@ export function CodeEditor({
   const handleEditorMount: OnMount = useCallback((editor, monaco) => {
     editorRef.current = editor
 
+    // Sync value on mount — keepCurrentModel may load a stale cached model
+    const model = editor.getModel()
+    if (model && model.getValue() !== valueRef.current) {
+      isProgrammaticSyncRef.current = true
+      const selection = editor.getSelection()
+      const scrollTop = editor.getScrollTop()
+      model.setValue(valueRef.current)
+      if (selection) editor.setSelection(selection)
+      editor.setScrollTop(scrollTop)
+      queueMicrotask(() => {
+        isProgrammaticSyncRef.current = false
+      })
+    }
+
     // Enable Emmet for HTML - Tailwind CSS class suggestions
     monaco.languages.registerCompletionItemProvider("html", {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -195,6 +253,10 @@ export function CodeEditor({
 
   const handleEditorChange = useCallback(
     (value: string | undefined) => {
+      if (isProgrammaticSyncRef.current) {
+        return
+      }
+
       if (onChange && value !== undefined) {
         onChange(value)
       }
@@ -202,12 +264,49 @@ export function CodeEditor({
     [onChange]
   )
 
+  useEffect(() => {
+    const editorInstance = editorRef.current
+    const model = editorInstance?.getModel()
+
+    if (!editorInstance || !model) {
+      return
+    }
+
+    if (model.getValue() === value) {
+      return
+    }
+
+    isProgrammaticSyncRef.current = true
+
+    const selection = editorInstance.getSelection()
+    const scrollTop = editorInstance.getScrollTop()
+    const scrollLeft = editorInstance.getScrollLeft()
+
+    model.setValue(value)
+
+    if (selection) {
+      editorInstance.setSelection(selection)
+    }
+
+    editorInstance.setScrollTop(scrollTop)
+    editorInstance.setScrollLeft(scrollLeft)
+
+    queueMicrotask(() => {
+      isProgrammaticSyncRef.current = false
+    })
+  }, [value])
+
   return (
     <div className={cn("w-full h-full", className)}>
+      {!isMonacoReady ? (
+        <div className="flex items-center justify-center h-full bg-zinc-950">
+          <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+        </div>
+      ) : (
       <Editor
         height="100%"
         defaultLanguage={language}
-        path="/project/index.html"
+        path={modelPath}
         value={value}
         onChange={handleEditorChange}
         beforeMount={handleBeforeMount}
@@ -261,6 +360,7 @@ export function CodeEditor({
           occurrencesHighlight: "off",
         }}
       />
+      )}
     </div>
   )
 }

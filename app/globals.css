@@ -200,6 +200,13 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Text shimmer animation */
 @keyframes text-shimmer {
   /* Animate the first (moving) layer only, keep the fallback color layer fixed */

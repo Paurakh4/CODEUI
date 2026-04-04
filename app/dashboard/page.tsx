@@ -205,7 +205,18 @@ function DashboardContent() {
     }
 
     storePendingProjectStart(id, { prompt, model })
-    router.push(`/project/${id}`)
+    const nextParams = new URLSearchParams()
+
+    if (prompt) {
+      nextParams.set("prompt", prompt)
+    }
+
+    if (model) {
+      nextParams.set("model", model)
+    }
+
+    const nextQuery = nextParams.toString()
+    router.push(nextQuery ? `/project/${id}?${nextQuery}` : `/project/${id}`)
   }
 
   return (

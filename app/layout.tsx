@@ -7,6 +7,7 @@ import { AuthDialogProvider } from '@/components/auth-dialog-provider'
 import { AccountModalProvider } from '@/components/account-modal-provider'
 import { EditorProvider } from '@/stores/editor-store'
 import { Toaster } from '@/components/ui/toaster'
+import { PageTransitionWrapper } from '@/components/animations/page-transition-wrapper'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -32,7 +33,9 @@ export default function RootLayout({
             <AuthDialogProvider>
               <EditorProvider>
                 <AccountModalProvider>
-                  {children}
+                  <PageTransitionWrapper>
+                    {children}
+                  </PageTransitionWrapper>
                   <Toaster />
                 </AccountModalProvider>
               </EditorProvider>
