@@ -103,13 +103,19 @@ export function CodeEditor({
 }: CodeEditorProps) {
   const { state } = useEditor()
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
+  const blurDisposableRef = useRef<{ dispose(): void } | null>(null)
   const isProgrammaticSyncRef = useRef(false)
+  const onChangeRef = useRef(onChange)
   const valueRef = useRef(value)
   const [isMonacoReady, setIsMonacoReady] = useState(() => typeof window !== "undefined" && monacoConfigured)
 
   useEffect(() => {
     valueRef.current = value
   }, [value])
+
+  useEffect(() => {
+    onChangeRef.current = onChange
+  }, [onChange])
 
   useEffect(() => {
     let cancelled = false
@@ -189,8 +195,26 @@ export function CodeEditor({
     })
   }, [])
 
+  const flushEditorValue = useCallback(() => {
+    if (isProgrammaticSyncRef.current) {
+      return
+    }
+
+    const nextValue = editorRef.current?.getModel()?.getValue()
+    if (nextValue === undefined || nextValue === valueRef.current) {
+      return
+    }
+
+    valueRef.current = nextValue
+    onChangeRef.current?.(nextValue)
+  }, [])
+
   const handleEditorMount: OnMount = useCallback((editor, monaco) => {
     editorRef.current = editor
+    blurDisposableRef.current?.dispose()
+    blurDisposableRef.current = editor.onDidBlurEditorText(() => {
+      flushEditorValue()
+    })
 
     // Sync value on mount — keepCurrentModel may load a stale cached model
     const model = editor.getModel()
@@ -249,7 +273,7 @@ export function CodeEditor({
 
     // Format on paste
     editor.getModel()?.updateOptions({ tabSize: 2 })
-  }, [])
+  }, [flushEditorValue])
 
   const handleEditorChange = useCallback(
     (value: string | undefined) => {
@@ -295,6 +319,15 @@ export function CodeEditor({
       isProgrammaticSyncRef.current = false
     })
   }, [value])
+
+  useEffect(() => {
+    return () => {
+      flushEditorValue()
+      blurDisposableRef.current?.dispose()
+      blurDisposableRef.current = null
+      editorRef.current = null
+    }
+  }, [flushEditorValue])
 
   return (
     <div className={cn("w-full h-full", className)}>

@@ -20,6 +20,7 @@ export interface PreviewFrameProps {
   className?: string
   onElementSelect?: (element: SelectedElementInfo) => void
   onTextChange?: (selector: string, text: string) => void
+  onTextEditStart?: () => void
   isDesignMode?: boolean
   forwardedRef?: React.RefObject<HTMLIFrameElement | null>
   previewUpdateToken?: number
@@ -185,6 +186,7 @@ export function PreviewFrame({
   className,
   onElementSelect,
   onTextChange,
+  onTextEditStart,
   isDesignMode = false,
   forwardedRef,
   previewUpdateToken = 0,
@@ -196,6 +198,7 @@ export function PreviewFrame({
   const interactionRef = useRef<CanvasInteraction | null>(null)
   const onElementSelectRef = useRef(onElementSelect)
   const onTextChangeRef = useRef(onTextChange)
+  const onTextEditStartRef = useRef(onTextEditStart)
   const lastHandledPreviewUpdateTokenRef = useRef(0)
   const [isLoading, setIsLoading] = useState(true)
   const [reloadToken, setReloadToken] = useState(0)
@@ -370,7 +373,8 @@ export function PreviewFrame({
   useEffect(() => {
     onElementSelectRef.current = onElementSelect
     onTextChangeRef.current = onTextChange
-  }, [onElementSelect, onTextChange])
+    onTextEditStartRef.current = onTextEditStart
+  }, [onElementSelect, onTextChange, onTextEditStart])
 
   const startPanInteraction = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return
@@ -500,6 +504,14 @@ export function PreviewFrame({
       let highlightedElement: HTMLElement | null = null
       let previousOutline = ""
       let previousOutlineOffset = ""
+      let selectionTimeoutId: number | null = null
+
+      const clearPendingSelection = () => {
+        if (selectionTimeoutId !== null) {
+          window.clearTimeout(selectionTimeoutId)
+          selectionTimeoutId = null
+        }
+      }
 
       const clearHighlightedElement = () => {
         if (!highlightedElement) return
@@ -590,6 +602,9 @@ export function PreviewFrame({
           stopEditing()
         }
 
+        clearPendingSelection()
+        onTextEditStartRef.current?.()
+
         editingElement = element
         editingSelector = getElementPath(element)
         originalText = element.textContent ?? ""
@@ -616,21 +631,24 @@ export function PreviewFrame({
 
         e.preventDefault()
         e.stopPropagation()
-        const selectHandler = onElementSelectRef.current
-        if (target && selectHandler) {
-          // Get click position relative to the iframe container
-          const iframeRect = iframe.getBoundingClientRect()
-          const clickPosition = {
-            x: e.clientX + iframeRect.left,
-            y: e.clientY + iframeRect.top
-          }
-          
-          // Extract styles - use iframe's contentWindow for getComputedStyle
+        if (!target || e.detail > 1) return
+
+        const iframeRect = iframe.getBoundingClientRect()
+        const clickPosition = {
+          x: e.clientX + iframeRect.left,
+          y: e.clientY + iframeRect.top,
+        }
+
+        clearPendingSelection()
+        selectionTimeoutId = window.setTimeout(() => {
+          selectionTimeoutId = null
+
+          const selectHandler = onElementSelectRef.current
           const iframeWindow = iframe.contentWindow
-          if (!iframeWindow) return
+          if (!selectHandler || !iframeWindow) return
 
           selectHandler(extractSelectedElementInfo(target, iframeWindow, clickPosition))
-        }
+        }, 250)
       }
 
       const handleMouseOver = (e: MouseEvent) => {
@@ -661,6 +679,7 @@ export function PreviewFrame({
 
         e.preventDefault()
         e.stopPropagation()
+        clearPendingSelection()
         startEditing(editable)
       }
 
@@ -687,6 +706,7 @@ export function PreviewFrame({
       doc.addEventListener("keydown", handleKeyDown, true)
 
       cleanupFn = () => {
+        clearPendingSelection()
         clearHighlightedElement()
         doc.removeEventListener("click", handleClick)
         doc.removeEventListener("mouseover", handleMouseOver)

@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import { Project } from "@/lib/models";
+import { areLikelyDuplicateAssistantMessages } from "@/lib/utils/chat-message-dedupe";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -65,6 +66,23 @@ export async function POST(request: Request, { params }: RouteParams) {
       thinkingContent: body.thinkingContent,
       createdAt: new Date(),
     };
+
+    const existingProject = await Project.findOne(
+      { _id: id, userId: session.user.id },
+      { messages: { $slice: -1 } }
+    ).lean();
+
+    if (!existingProject) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    const lastMessage = existingProject.messages?.[0];
+    if (areLikelyDuplicateAssistantMessages(lastMessage, message)) {
+      return NextResponse.json(
+        { message: lastMessage, deduplicated: true },
+        { status: 200 }
+      );
+    }
 
     const project = await Project.findOneAndUpdate(
       { _id: id, userId: session.user.id },

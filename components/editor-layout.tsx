@@ -20,6 +20,8 @@ import { useToast } from "@/hooks/use-toast"
 import { StreamParser } from "@/lib/parsers/stream-parser"
 import { getElementPropertyFields } from "@/lib/design-element-properties"
 import { validatePromptScope } from "@/lib/prompt-scope"
+import { isFullDocumentRecoveryMode, resolveRecoveryMode, type RecoveryMode } from "@/lib/recovery-mode"
+import { dedupeAdjacentAssistantMessages } from "@/lib/utils/chat-message-dedupe"
 import { cn } from "@/lib/utils"
 import { convertHtmlToReactComponent, sanitizeFileName } from "@/lib/utils/export"
 import { deriveProjectNameFromPrompt, isDefaultProjectName, normalizeProjectName } from "@/lib/utils/project-name"
@@ -83,7 +85,9 @@ interface PendingRecovery {
   model?: string
   reason?: string
   baseHtml?: string
+  selectedElement?: string
   isPromptScopeRecovery?: boolean
+  mode: RecoveryMode
 }
 
 const MONGO_OBJECT_ID_REGEX = /^[a-f\d]{24}$/i
@@ -454,6 +458,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   const [pendingRecovery, setPendingRecovery] = useState<PendingRecovery | null>(null)
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
   const activeProjectKeyRef = useRef<string | null>(null)
+  const messagesRef = useRef<Message[]>([])
   
   // Sync initialModel with global store
   useEffect(() => {
@@ -462,6 +467,10 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     }
   }, [initialModel, setModel])
 
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
+
   // Style History for undo/redo
   const [styleHistoryState, styleHistoryActions] = useStyleHistory(30)
   
@@ -469,6 +478,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   const pendingStyleUpdate = useRef<{ property: string; value: StyleProperty } | null>(null)
   const lastAppliedHtml = useRef<string>("")
   const previewRef = useRef<HTMLIFrameElement>(null)
+  const activeAiRequestRef = useRef<{ isFollowUp: boolean; recoveryMode?: RecoveryMode }>({ isFollowUp: false })
   const [previewUpdateSignal, setPreviewUpdateSignal] = useState<{ token: number; mode: "full" | "style" }>({
     token: 0,
     mode: "full",
@@ -562,6 +572,25 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     }))
     setHtmlContent(nextHtml)
     setHasUnsavedChanges(true)
+  }, [])
+
+  const resetActiveAiRequest = useCallback(() => {
+    activeAiRequestRef.current = { isFollowUp: false }
+  }, [])
+
+  const extractSelectedElementHtmlFromContent = useCallback((sourceHtml: string, selector?: string | null) => {
+    if (!sourceHtml || !selector) {
+      return undefined
+    }
+
+    try {
+      const parser = new DOMParser()
+      const doc = parser.parseFromString(sourceHtml, "text/html")
+      return doc.querySelector(selector)?.outerHTML
+    } catch (e) {
+      console.error("Failed to extract selected element HTML", e)
+      return undefined
+    }
   }, [])
 
   const syncSelectedElementFromIframe = useCallback((
@@ -793,16 +822,16 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           }
           // Restore messages from MongoDB
           if (project.messages && project.messages.length > 0) {
-            const restoredMessages = project.messages.map((m: { role: string; content: string; thinkingContent?: string; createdAt: string }, index: number) => ({
+            const restoredMessages = dedupeAdjacentAssistantMessages(project.messages.map((m: { role: string; content: string; thinkingContent?: string; createdAt: string }, index: number) => ({
               id: `mongo_${index}_${Date.now()}`,
               role: m.role,
               content: m.content,
               thinkingContent: m.thinkingContent,
               timestamp: new Date(m.createdAt),
               isThinking: false,
-            }))
+            })))
             setMessages(restoredMessages)
-            setHasGeneratedOnce(project.messages.some((message: { role: string }) => message.role === "assistant"))
+            setHasGeneratedOnce(restoredMessages.some((message) => message.role === "assistant"))
           } else {
             setHasGeneratedOnce(false)
           }
@@ -868,10 +897,10 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         if (parsed.projectName) setProjectName(parsed.projectName)
         // Convert date strings back to Date objects for messages
         if (parsed.messages) {
-          const restoredMessages = parsed.messages.map((m: any) => ({
+          const restoredMessages = dedupeAdjacentAssistantMessages(parsed.messages.map((m: any) => ({
             ...m,
             timestamp: new Date(m.timestamp)
-          }))
+          })))
           setMessages(restoredMessages)
         }
         if (parsed.viewMode) setViewMode(parsed.viewMode)
@@ -947,15 +976,18 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
   const finalizeAssistantMessage = useCallback(
     (content: string) => {
-      setMessages((prev) => {
-        const lastMessage = prev[prev.length - 1]
-        if (lastMessage && lastMessage.role === "assistant") {
-          saveMessageToMongo({
-            role: "assistant",
+      const lastMessage = messagesRef.current[messagesRef.current.length - 1]
+      const assistantMessageToPersist = lastMessage && lastMessage.role === "assistant"
+        ? {
+            role: "assistant" as const,
             content,
             thinkingContent: lastMessage.thinkingContent,
-          })
+          }
+        : null
 
+      setMessages((prev) => {
+        const currentLastMessage = prev[prev.length - 1]
+        if (currentLastMessage && currentLastMessage.role === "assistant") {
           return prev.map((m, i) =>
             i === prev.length - 1
               ? { ...m, isThinking: false, content, progressLabel: undefined }
@@ -964,6 +996,10 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         }
         return prev
       })
+
+      if (assistantMessageToPersist) {
+        void saveMessageToMongo(assistantMessageToPersist)
+      }
     },
     [saveMessageToMongo]
   )
@@ -1009,7 +1045,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       setDraftAiOutput(content)
 
       const streamingHtml = getRenderableStreamingHtml(content)
-      if (streamingHtml) {
+      const activeRequest = activeAiRequestRef.current
+      if (streamingHtml && (!activeRequest.isFollowUp || isFullDocumentRecoveryMode(activeRequest.recoveryMode))) {
         commitHtmlContentUpdate(streamingHtml)
       }
     },
@@ -1026,6 +1063,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     },
     onProgressUpdate: updateAssistantProgress,
     onCancel: () => {
+      resetActiveAiRequest()
       recoveryInFlightRef.current = false
       promptScopeRecoveryInFlightRef.current = false
       scopeRecoveryAttemptsRef.current = 0
@@ -1080,16 +1118,21 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       }
     },
     onComplete: (result) => {
+      const activeRequest = activeAiRequestRef.current
+      const requestRecoveryMode = result.recoveryMode ?? activeRequest.recoveryMode
+      resetActiveAiRequest()
+
       const { extractedHtml, failedFiles, recoveryMode, incompletePatches, validationError } = result
-      const isFollowUp = hasGeneratedOnce
+      const isFollowUp = activeRequest.isFollowUp
       const hasPatchFailures = !!failedFiles?.length
       const hasCompleteHtml = isCompleteHtmlDocument(extractedHtml)
+      const hasUnexpectedFullDocument = isFollowUp && !isFullDocumentRecoveryMode(requestRecoveryMode) && hasCompleteHtml
       const finalHtmlForValidation = hasCompleteHtml ? extractedHtml : htmlContentRef.current
       const promptScopeValidation = validatePromptScope(lastUserPromptRef.current, finalHtmlForValidation)
       const hasPromptScopeIssues = !promptScopeValidation.valid
       const canRetryPromptScope = hasPromptScopeIssues && scopeRecoveryAttemptsRef.current < MAX_SCOPE_RECOVERY_ATTEMPTS
       const hasProtocolIssues = Boolean(validationError) || (incompletePatches || 0) > 0
-      const shouldRecoverForOutputIssues = (hasPatchFailures || hasProtocolIssues) && !hasCompleteHtml
+      const shouldRecoverForOutputIssues = hasUnexpectedFullDocument || ((hasPatchFailures || hasProtocolIssues) && !hasCompleteHtml)
       const shouldRecoverForPromptScope = hasPromptScopeIssues && canRetryPromptScope
       const shouldRecover = shouldRecoverForOutputIssues || shouldRecoverForPromptScope
       const scopeFailureMessage = formatMissingScopeMessage(promptScopeValidation.missingRequirements)
@@ -1097,8 +1140,12 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       if (shouldRecover && !recoveryMode) {
         const failedFileSummary = (failedFiles || []).join(", ") || "index.html"
         const originalPrompt = lastUserPromptRef.current || "the requested changes"
+        const nextRecoveryMode = resolveRecoveryMode(isFollowUp)
+        const recoveryBaseHtml = hasCompleteHtml ? extractedHtml : htmlContentRef.current
         const recoveryReason = hasPromptScopeIssues
           ? `Missing requested UI scope: ${promptScopeValidation.missingRequirements.join(", ")}`
+          : hasUnexpectedFullDocument
+            ? "Received a full-document response for a targeted follow-up edit"
           : validationError
             ? validationError
             : incompletePatches
@@ -1118,14 +1165,18 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           failedFiles: failedFiles || [],
           model: state.selectedModel,
           reason: recoveryReason,
-          baseHtml: hasCompleteHtml ? extractedHtml : htmlContentRef.current,
+          baseHtml: recoveryBaseHtml,
+          selectedElement: extractSelectedElementHtmlFromContent(recoveryBaseHtml, selectedElement?.id),
           isPromptScopeRecovery: hasPromptScopeIssues,
+          mode: nextRecoveryMode,
         })
 
         if (hasPromptScopeIssues) {
           updateAssistantProgress({
             stage: "continuing",
-            message: "Expanding requested UI coverage...",
+            message: nextRecoveryMode === "patch-repair"
+              ? "Retrying the targeted update without redesigning the page..."
+              : "Expanding requested UI coverage...",
             partNumber: (result.meta?.totalParts ?? 1) + 1,
             continuationCount: scopeRecoveryAttemptsRef.current,
             totalContentLength: finalHtmlForValidation.length,
@@ -1134,7 +1185,9 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         } else {
           toast({
             title: "Recovering update",
-            description: `${recoveryReason}. Applying a full-document recovery update...`,
+            description: nextRecoveryMode === "patch-repair"
+              ? `${recoveryReason}. Retrying as a targeted patch update...`
+              : `${recoveryReason}. Applying a full-document recovery update...`,
           })
         }
 
@@ -1143,12 +1196,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         return
       }
 
-      if (shouldRecoverForPromptScope && recoveryMode && hasCompleteHtml) {
+      if (shouldRecoverForPromptScope && recoveryMode && hasCompleteHtml && !hasUnexpectedFullDocument) {
         const originalPrompt = lastUserPromptRef.current || "the requested changes"
         const recoveryPrompt = buildPromptScopeRecoveryPrompt(
           originalPrompt,
           promptScopeValidation.missingRequirements,
         )
+        const nextRecoveryMode = resolveRecoveryMode(isFollowUp)
 
         commitHtmlContentUpdate(extractedHtml)
         scopeRecoveryAttemptsRef.current += 1
@@ -1158,12 +1212,16 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           model: state.selectedModel,
           reason: `Missing requested UI scope: ${promptScopeValidation.missingRequirements.join(", ")}`,
           baseHtml: extractedHtml,
+          selectedElement: extractSelectedElementHtmlFromContent(extractedHtml, selectedElement?.id),
           isPromptScopeRecovery: true,
+          mode: nextRecoveryMode,
         })
 
         updateAssistantProgress({
           stage: "continuing",
-          message: "Refining missing UI sections...",
+          message: nextRecoveryMode === "patch-repair"
+            ? "Retrying the targeted update without redesigning the page..."
+            : "Refining missing UI sections...",
           partNumber: (result.meta?.totalParts ?? 1) + 1,
           continuationCount: scopeRecoveryAttemptsRef.current,
           totalContentLength: extractedHtml.length,
@@ -1182,17 +1240,22 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         setDraftAiOutput("")
         setApplyingPatch(false)
         setViewMode("preview")
+        const preservedLayoutMessage = "Could not finish the targeted update automatically. The existing page was preserved. Try a more explicit follow-up request."
         if (!hasPromptScopeIssues) {
           toast({
             title: "Recovery failed",
-            description: "Could not recover the update automatically. Try a smaller, more specific follow-up request.",
+            description: isFullDocumentRecoveryMode(requestRecoveryMode)
+              ? "Could not recover the update automatically. Try a smaller, more specific follow-up request."
+              : preservedLayoutMessage,
             variant: "destructive",
           })
         }
         finalizeAssistantMessage(
           hasPromptScopeIssues
             ? `${scopeFailureMessage} Try a more explicit follow-up request if you want another pass.`
-            : "Could not recover the update automatically. Try a smaller, more specific follow-up request.",
+            : isFullDocumentRecoveryMode(requestRecoveryMode)
+              ? "Could not recover the update automatically. Try a smaller, more specific follow-up request."
+              : preservedLayoutMessage,
         )
         return
       }
@@ -1232,6 +1295,9 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       finalizeGenerationSuccess(finalSummary)
     },
     onError: (error) => {
+      const activeRequest = activeAiRequestRef.current
+      const activeRecoveryMode = activeRequest.recoveryMode
+      resetActiveAiRequest()
       const isRecoveryFailure = recoveryInFlightRef.current
       const isPromptScopeRecoveryFailure = promptScopeRecoveryInFlightRef.current
       recoveryInFlightRef.current = false
@@ -1245,7 +1311,9 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         toast({
           title: isRecoveryFailure ? "Recovery failed" : "Generation failed",
           description: isRecoveryFailure
-            ? "Could not recover the update automatically. Try a smaller, more specific follow-up request."
+            ? isFullDocumentRecoveryMode(activeRecoveryMode)
+              ? "Could not recover the update automatically. Try a smaller, more specific follow-up request."
+              : "Could not finish the targeted update automatically. The existing page was preserved. Try a more explicit follow-up request."
             : error.message || "Something went wrong while generating code. Please try again.",
           variant: "destructive",
         })
@@ -1256,7 +1324,9 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           const finalContent = isRecoveryFailure
             ? isPromptScopeRecoveryFailure
               ? "Could not finish expanding the requested UI automatically. The latest complete result was kept in the editor."
-              : "Could not recover the update automatically. Try a smaller, more specific follow-up request."
+              : isFullDocumentRecoveryMode(activeRecoveryMode)
+                ? "Could not recover the update automatically. Try a smaller, more specific follow-up request."
+                : "Could not finish the targeted update automatically. The existing page was preserved. Try a more explicit follow-up request."
             : `Error: ${error.message}`
 
           return prev.map((m, i) =>
@@ -1290,13 +1360,17 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     setApplyingPatch(true)
     setViewMode("code")
     setDraftAiOutput("")
+    activeAiRequestRef.current = {
+      isFollowUp: true,
+      recoveryMode: recoveryRequest.mode,
+    }
 
     void sendAIMessage({
       prompt: recoveryRequest.prompt,
       currentHtml: recoveryRequest.baseHtml ?? htmlContentRef.current,
-      selectedElement: undefined,
+      selectedElement: recoveryRequest.selectedElement,
       isFollowUp: true,
-      recoveryMode: "full-document",
+      recoveryMode: recoveryRequest.mode,
       model: recoveryRequest.model ?? state.selectedModel,
       enhancedPrompts: state.enhancedPrompts,
       primaryColor: state.primaryColor,
@@ -1401,25 +1475,18 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       
       let selectedElementHtml = undefined
       if (isFollowUp && selectedElement) {
-        try {
-          const parser = new DOMParser()
-          const doc = parser.parseFromString(htmlContentRef.current, "text/html")
-          const element = doc.querySelector(selectedElement.id)
-          if (element) {
-            selectedElementHtml = element.outerHTML
-          } else {
-            setSelectedElement(null)
-            toast({
-              title: "Selected element unavailable",
-              description: "The previously selected element no longer exists in the current HTML. Applying the request globally instead.",
-            })
-          }
-        } catch (e) {
-          console.error("Failed to extract selected element HTML", e)
+        selectedElementHtml = extractSelectedElementHtmlFromContent(htmlContentRef.current, selectedElement.id)
+        if (!selectedElementHtml) {
+          setSelectedElement(null)
+          toast({
+            title: "Selected element unavailable",
+            description: "The previously selected element no longer exists in the current HTML. Applying the request globally instead.",
+          })
         }
       }
 
       try {
+        activeAiRequestRef.current = { isFollowUp }
         await sendAIMessage({
           prompt: trimmedMessage,
           currentHtml: isFollowUp ? htmlContentRef.current : undefined,
@@ -1446,6 +1513,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       messages.length,
       messages,
       selectedElement,
+      extractSelectedElementHtmlFromContent,
       state.enhancedPrompts,
       state.selectedModel,
       state.primaryColor,
@@ -1538,6 +1606,21 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   const handleCodeChange = useCallback((value: string) => {
     commitHtmlContentUpdate(value)
   }, [commitHtmlContentUpdate])
+
+  const handleViewModeChange = useCallback((nextMode: ViewMode) => {
+    if (nextMode === viewMode) {
+      return
+    }
+
+    if (viewMode === "code" && nextMode !== "code") {
+      const latestHtml = htmlContentRef.current
+      if (latestHtml && latestHtml !== htmlContent) {
+        setHtmlContent(latestHtml)
+      }
+    }
+
+    setViewMode(nextMode)
+  }, [htmlContent, viewMode])
 
   // Handle reset chat
   const handleResetChat = useCallback(async () => {
@@ -1708,6 +1791,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         clickPosition: info.clickPosition
       })
       setPanelPosition(info.clickPosition)
+    })
+  }, [])
+
+  const handleTextEditStart = useCallback(() => {
+    startTransition(() => {
+      setSelectedElement(null)
+      setPanelPosition(null)
     })
   }, [])
 
@@ -1972,6 +2062,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
               isDesignMode={isDesignCanvasMode}
               onElementSelect={isDesignCanvasMode ? handleElementSelect : undefined}
               onTextChange={isDesignCanvasMode ? handleTextChange : undefined}
+              onTextEditStart={isDesignCanvasMode ? handleTextEditStart : undefined}
               forwardedRef={previewRef}
               previewUpdateToken={previewUpdateSignal.token}
               previewUpdateMode={previewUpdateSignal.mode}
@@ -2206,7 +2297,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           viewMode={viewMode}
-          onViewModeChange={setViewMode}
+          onViewModeChange={handleViewModeChange}
           deviceMode={deviceMode}
           onDeviceModeChange={setDeviceMode}
           onExport={handleExport}

@@ -50,3 +50,14 @@ Update Format Rules:
 16. If you cannot find a precise match, use a smaller, unique anchor line in the SEARCH block.
 17. NEVER repeat the same SEARCH/REPLACE block twice. Each edit block must be unique and appear exactly once.
 `;
+
+export const FOLLOW_UP_REPAIR_INSTRUCTION = `
+Repair mode instructions:
+- The previous follow-up patch did not apply cleanly.
+- Preserve the current page and design exactly unless the user explicitly asked for a redesign.
+- Return ONLY UPDATE_FILE_START and SEARCH/REPLACE blocks for index.html.
+- Do NOT return a complete HTML document.
+- Use smaller, unique SEARCH anchors that match the current HTML exactly.
+- Split fragile multi-part edits into several minimal SEARCH/REPLACE blocks.
+- Keep the requested change narrowly scoped and avoid rewriting unrelated sections.
+`;

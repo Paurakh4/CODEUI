@@ -19,6 +19,7 @@ export interface ContextInput {
 
 const DEFAULT_MAX_TOKENS = 12000
 const MODEL_CONTEXT_BUDGET_RATIO = 0.4
+const SELECTED_ELEMENT_CONTEXT_RADIUS = 600
 
 interface TruncateResult {
   content: string
@@ -92,9 +93,29 @@ const buildTruncatedCurrentFile = (
   }
 }
 
+const buildSelectedElementReferenceContext = (
+  content: string,
+  selectedElement: string,
+): string | null => {
+  const focusIndex = content.indexOf(selectedElement)
+  if (focusIndex < 0) {
+    return null
+  }
+
+  const start = Math.max(0, focusIndex - SELECTED_ELEMENT_CONTEXT_RADIUS)
+  const end = Math.min(content.length, focusIndex + selectedElement.length + SELECTED_ELEMENT_CONTEXT_RADIUS)
+  const prefix = start > 0 ? "<!-- ... surrounding context omitted before target ... -->\n" : ""
+  const suffix = end < content.length ? "\n<!-- ... surrounding context omitted after target ... -->" : ""
+
+  return `${prefix}${content.slice(start, end)}${suffix}`
+}
+
 export function buildContext(input: ContextInput): string {
   const { currentFile, otherFiles = [], selectedElement } = input
   const maxTokens = resolveTokenBudget(input)
+  const selectedElementReference = selectedElement
+    ? buildSelectedElementReferenceContext(currentFile.content, selectedElement)
+    : null
   
   let context = ""
   let currentTokens = 0
@@ -114,11 +135,21 @@ Preserve existing design baseline unless explicitly requested otherwise:
   if (selectedElement) {
     const elementContext = `
 
-Update ONLY this element:
+Target element to modify first:
 ${selectedElement}
 `
     context += elementContext;
     currentTokens += estimateTokenCount(elementContext)
+
+    if (selectedElementReference) {
+      const referenceContext = `
+
+Local surrounding context for the target element:
+${selectedElementReference}
+`
+      context += referenceContext
+      currentTokens += estimateTokenCount(referenceContext)
+    }
   }
 
   // Priority 1: Current File
@@ -129,7 +160,13 @@ ${selectedElement}
     selectedElement,
   )
 
-  const currentFileContext = `
+  const currentFileContext = selectedElement
+    ? `
+Reference file: ${currentFile.name}
+The full file below is reference-only. Preserve the current page and change only the requested area.
+${truncatedCurrentFile.content}
+`
+    : `
 Current file: ${currentFile.name}
 ${truncatedCurrentFile.content}
 `

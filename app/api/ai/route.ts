@@ -6,7 +6,13 @@ import { User, UsageLog } from "@/lib/models"
 import {
   getCombinedSystemPrompt,
 } from "@/lib/prompts/frontend-design"
-import { FOLLOW_UP_SYSTEM_PROMPT } from "@/lib/prompts/reprompt-system"
+import { FOLLOW_UP_REPAIR_INSTRUCTION, FOLLOW_UP_SYSTEM_PROMPT } from "@/lib/prompts/reprompt-system"
+import {
+  isFullDocumentRecoveryMode,
+  isPatchRepairRecoveryMode,
+  isRecoveryModeActive,
+  type RecoveryModeValue,
+} from "@/lib/recovery-mode"
 import {
   getDefaultModelId,
   getModelById,
@@ -56,7 +62,7 @@ interface RequestBody {
   selectedElement?: string
   model?: ModelId
   isFollowUp?: boolean
-  recoveryMode?: boolean | "full-document"
+  recoveryMode?: RecoveryModeValue
   enhancedPrompts?: boolean
   primaryColor?: string
   secondaryColor?: string
@@ -560,12 +566,12 @@ export async function POST(req: NextRequest) {
 
     const isFullDocumentRecovery =
       isFollowUp &&
-      (recoveryMode === true ||
-        recoveryMode === "full-document" ||
+      (isFullDocumentRecoveryMode(recoveryMode) ||
         (typeof prompt === "string" && prompt.includes(FULL_DOCUMENT_RECOVERY_FLAG)))
+    const isPatchRepairRecovery = isFollowUp && isPatchRepairRecoveryMode(recoveryMode)
 
     const recoveryHeader = req.headers.get("x-codeui-recovery") === "1"
-    const shouldChargeCredits = !(isRecoveryRequest || recoveryHeader || isFullDocumentRecovery)
+    const shouldChargeCredits = !(isRecoveryRequest || recoveryHeader || isRecoveryModeActive(recoveryMode) || isFullDocumentRecovery)
     const sanitizedPrompt = prompt.replace(FULL_DOCUMENT_RECOVERY_FLAG, "").trim()
 
     let creditContext: CreditContext | null = null
@@ -702,6 +708,8 @@ export async function POST(req: NextRequest) {
 
       const recoveryInstruction = isFullDocumentRecovery
         ? "\n\nRecovery instructions: Return one COMPLETE HTML document that keeps the current design, structure, spacing, colors, and typography unless the user explicitly requested a redesign. Apply only the requested change."
+        : isPatchRepairRecovery
+          ? `\n\n${FOLLOW_UP_REPAIR_INSTRUCTION.trim()}`
         : ""
 
       baseMessages.push({

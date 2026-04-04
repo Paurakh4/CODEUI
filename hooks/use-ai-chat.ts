@@ -7,6 +7,7 @@ import {
   StreamParser,
   validateAIResponse,
 } from "@/lib/parsers/stream-parser"
+import { isRecoveryModeActive, type RecoveryModeValue } from "@/lib/recovery-mode"
 import { createRepromptLogger } from "@/lib/utils/reprompt-logger"
 
 export interface ConversationHistoryItem {
@@ -43,7 +44,7 @@ export interface AICompletionResult {
   rawContent: string
   extractedHtml: string
   failedFiles?: string[]
-  recoveryMode?: boolean
+  recoveryMode?: RecoveryModeValue
   incompletePatches?: number
   validationError?: string
   meta?: AIStreamMeta
@@ -68,7 +69,7 @@ interface SendMessageOptions {
   selectedElement?: string
   model?: string
   isFollowUp?: boolean
-  recoveryMode?: boolean | "full-document"
+  recoveryMode?: RecoveryModeValue
   enhancedPrompts?: boolean
   primaryColor?: string
   secondaryColor?: string
@@ -267,7 +268,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
         phase: "stream",
         requestId,
         isFollowUp: Boolean(isFollowUp),
-        recoveryMode: recoveryMode === true || recoveryMode === "full-document",
+        recoveryMode: isRecoveryModeActive(recoveryMode),
         model,
       })
 
@@ -277,7 +278,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
           headers: {
             "Content-Type": "application/json",
             "X-CodeUI-Request-ID": String(requestId),
-            "X-CodeUI-Recovery": recoveryMode === true || recoveryMode === "full-document" ? "1" : "0",
+            "X-CodeUI-Recovery": isRecoveryModeActive(recoveryMode) ? "1" : "0",
           },
           body: JSON.stringify({
             prompt,
@@ -291,7 +292,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
             secondaryColor,
             theme,
             conversationHistory,
-            isRecoveryRequest: recoveryMode === true || recoveryMode === "full-document",
+            isRecoveryRequest: isRecoveryModeActive(recoveryMode),
           }),
           signal: abortController.signal,
         })
@@ -401,7 +402,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
           rawContent: fullContent,
           extractedHtml,
           failedFiles: failedFiles.length > 0 ? failedFiles : undefined,
-          recoveryMode: recoveryMode === true || recoveryMode === "full-document",
+          recoveryMode,
           incompletePatches,
           validationError: validation.valid ? undefined : validation.reason,
           meta: responseMeta,
