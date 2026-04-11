@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getEnabledModels } from "@/lib/ai-models"
+import { getPublicModelCatalog } from "@/lib/admin/model-policies"
 
 /**
  * GET /api/ai/models
@@ -7,11 +7,12 @@ import { getEnabledModels } from "@/lib/ai-models"
  */
 export async function GET() {
   try {
-    const models = getEnabledModels()
+    const catalog = await getPublicModelCatalog()
     
     return NextResponse.json({
-      models,
-      count: models.length,
+      models: catalog.models,
+      count: catalog.models.length,
+      defaultModelId: catalog.defaultModelId,
     })
   } catch (error) {
     console.error("Error fetching AI models:", error)

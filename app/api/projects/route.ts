@@ -1,9 +1,9 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
+import { isAdminRole, resolveUserRole } from "@/lib/admin/rbac";
 import connectDB from "@/lib/db";
 import { Project, User } from "@/lib/models";
 import { deriveProjectNameFromPrompt, normalizeProjectName } from "@/lib/utils/project-name";
-import { isAdminUser } from "@/lib/pricing";
 import { normalizeUserPreferences } from "@/lib/user-preferences";
 
 const FREE_TIER_PROJECT_LIMIT = 4;
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     await connectDB();
 
     const user = await User.findById(session.user.id)
-      .select("subscription.tier email preferences")
+      .select("subscription.tier email preferences role")
       .lean();
 
     if (!user) {
@@ -67,7 +67,8 @@ export async function POST(request: Request) {
 
     const userTier = user.subscription?.tier || "free";
     const userEmail = user.email || session.user.email || "";
-    const adminBypass = isAdminUser(userEmail);
+    const effectiveRole = resolveUserRole(user.role, userEmail);
+    const adminBypass = isAdminRole(effectiveRole);
 
     if (userTier === "free" && !adminBypass) {
       const activeProjectCount = await Project.countDocuments({

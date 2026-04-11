@@ -14,19 +14,20 @@ import {
   type RecoveryModeValue,
 } from "@/lib/recovery-mode"
 import {
-  getDefaultModelId,
   getModelById,
-  getModelFallbackChain,
   getModelsRecord,
-  isModelEnabled,
 } from "@/lib/ai-models"
+import {
+  getRuntimeDefaultModelId,
+  getRuntimeModelFallbackChain,
+  isRuntimeModelEnabled,
+} from "@/lib/admin/model-policies"
 import {
   calculateCreditDeduction,
   getMonthlyCreditsForTier,
-  isAdminUser,
-  isStaffUser,
   SubscriptionTier,
 } from "@/lib/pricing"
+import { isInternalUserRole, resolveUserRole } from "@/lib/admin/rbac"
 import {
   NEW_FILE_END,
   NEW_FILE_START,
@@ -525,12 +526,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    const runtimeDefaultModelId = await getRuntimeDefaultModelId()
+
     const body: RequestBody = await req.json()
     const {
       prompt,
       currentHtml,
       selectedElement,
-      model = getDefaultModelId(),
+      model = runtimeDefaultModelId,
       isFollowUp = false,
       recoveryMode,
       enhancedPrompts = false,
@@ -552,7 +555,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    if (!isModelEnabled(model)) {
+    if (!(await isRuntimeModelEnabled(model))) {
       return NextResponse.json(
         { error: `Model \"${model}\" is not enabled or does not exist` },
         { status: 400 },
@@ -588,6 +591,7 @@ export async function POST(req: NextRequest) {
       }
 
       const userEmail = user.email || session.user.email || ""
+      const effectiveRole = resolveUserRole(user.role, userEmail)
       const now = new Date()
       if (user.creditsResetDate && now >= user.creditsResetDate) {
         const tier = (user.subscription?.tier || "free") as SubscriptionTier
@@ -605,7 +609,7 @@ export async function POST(req: NextRequest) {
       }
 
       if (shouldChargeCredits) {
-        if (isAdminUser(userEmail) || isStaffUser(userEmail)) {
+        if (isInternalUserRole(effectiveRole)) {
           creditContext = {
             userId,
             creditDeduction: { fromMonthly: 1, fromTopup: 0 },
@@ -725,7 +729,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const fallbackChain = getModelFallbackChain(model)
+    const fallbackChain = await getRuntimeModelFallbackChain(model)
     const requestBase = {
       stream: true,
       max_tokens: UPSTREAM_MAX_TOKENS,

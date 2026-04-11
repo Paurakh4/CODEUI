@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
+import { canAccessAdminPortal } from "@/lib/admin/rbac";
 import { useSession, signOut } from "next-auth/react";
 import {
   DropdownMenu,
@@ -12,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { LogOut, Settings, User } from "lucide-react";
+import { LayoutDashboard, LogOut, Settings, User } from "lucide-react";
 import { SignInDialog } from "@/components/sign-in-dialog";
 import { useAccountModals } from "@/components/account-modal-provider";
 
@@ -52,6 +54,7 @@ export function UserMenu() {
     .map((n) => n[0])
     .join("")
     .toUpperCase() || "U";
+  const canViewAdmin = canAccessAdminPortal(session.user?.role);
 
   return (
     <DropdownMenu>
@@ -90,6 +93,14 @@ export function UserMenu() {
           <Settings className="mr-2 h-4 w-4" />
           Settings
         </DropdownMenuItem>
+        {canViewAdmin ? (
+          <DropdownMenuItem asChild>
+            <Link href="/admin">
+              <LayoutDashboard className="mr-2 h-4 w-4" />
+              Admin
+            </Link>
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="text-destructive focus:text-destructive"

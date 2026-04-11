@@ -18,6 +18,13 @@ import { useStyleHistory } from "@/hooks/use-style-history"
 import { useEditor } from "@/stores/editor-store"
 import { useToast } from "@/hooks/use-toast"
 import { StreamParser } from "@/lib/parsers/stream-parser"
+import {
+  FULL_DOCUMENT_RECOVERY_FAILURE_MESSAGE,
+  describeTargetedUpdateFailure,
+  isCompleteHtmlDocument,
+  selectStableHtmlDocument,
+  type PatchFailureContext,
+} from "@/lib/ai-update-recovery"
 import { getElementPropertyFields } from "@/lib/design-element-properties"
 import { validatePromptScope } from "@/lib/prompt-scope"
 import { isFullDocumentRecoveryMode, resolveRecoveryMode, type RecoveryMode } from "@/lib/recovery-mode"
@@ -352,22 +359,17 @@ function getRenderableStreamingHtml(value: string): string | null {
   }
 
   const completeHtml = extractHtml(trimmed)
-  if (completeHtml) {
-    return completeHtml
+  if (isCompleteHtmlDocument(completeHtml)) {
+    return completeHtml.trim()
   }
 
   const fencedMatch = trimmed.match(/^```html?\s*([\s\S]*)$/i)
   const candidate = (fencedMatch ? fencedMatch[1] : trimmed).replace(/\s*```$/, "").trim()
-  if (!candidate) {
+  if (!candidate || !isCompleteHtmlDocument(candidate)) {
     return null
   }
 
-  const firstDocumentIndex = candidate.search(/<!DOCTYPE|<html\b/i)
-  if (firstDocumentIndex >= 0) {
-    return candidate.slice(firstDocumentIndex).trim()
-  }
-
-  return candidate.startsWith("<") ? candidate : null
+  return candidate
 }
 
 interface EditorLayoutNewProps {
@@ -477,6 +479,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   // Track pending style updates for smooth animations
   const pendingStyleUpdate = useRef<{ property: string; value: StyleProperty } | null>(null)
   const lastAppliedHtml = useRef<string>("")
+  const requestStableHtmlRef = useRef<string>(LOADING_HTML)
+  const lastPatchFailureRef = useRef<PatchFailureContext | null>(null)
   const previewRef = useRef<HTMLIFrameElement>(null)
   const activeAiRequestRef = useRef<{ isFollowUp: boolean; recoveryMode?: RecoveryMode }>({ isFollowUp: false })
   const [previewUpdateSignal, setPreviewUpdateSignal] = useState<{ token: number; mode: "full" | "style" }>({
@@ -507,6 +511,9 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     recoveryInFlightRef.current = false
     promptScopeRecoveryInFlightRef.current = false
     scopeRecoveryAttemptsRef.current = 0
+    lastAppliedHtml.current = LOADING_HTML
+    requestStableHtmlRef.current = LOADING_HTML
+    lastPatchFailureRef.current = null
 
     setPendingRecovery(null)
     setMessages([])
@@ -565,13 +572,42 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
   const commitHtmlContentUpdate = useCallback((nextHtml: string, options?: { styleUpdate?: boolean }) => {
     htmlContentRef.current = nextHtml
-    lastAppliedHtml.current = nextHtml
+    if (isCompleteHtmlDocument(nextHtml)) {
+      lastAppliedHtml.current = nextHtml.trim()
+    }
     setPreviewUpdateSignal((prev) => ({
       token: prev.token + 1,
       mode: options?.styleUpdate === true ? "style" : "full",
     }))
     setHtmlContent(nextHtml)
     setHasUnsavedChanges(true)
+  }, [])
+
+  const restorePreservedHtml = useCallback((preferredHtml?: string | null) => {
+    const restoredHtml = selectStableHtmlDocument(
+      [
+        preferredHtml,
+        requestStableHtmlRef.current,
+        lastAppliedHtml.current,
+        htmlContentRef.current,
+        htmlContent,
+      ],
+      LOADING_HTML,
+    )
+
+    commitHtmlContentUpdate(restoredHtml)
+    return restoredHtml
+  }, [commitHtmlContentUpdate, htmlContent])
+
+  const getTargetedRecoveryFailureMessage = useCallback((validationError?: string) => {
+    return describeTargetedUpdateFailure(
+      lastPatchFailureRef.current ?? (validationError
+        ? {
+            kind: "response-validation-failed",
+            detail: validationError,
+          }
+        : null),
+    )
   }, [])
 
   const resetActiveAiRequest = useCallback(() => {
@@ -814,10 +850,16 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           if (typeof project.htmlContent === "string" && project.htmlContent.trim().length > 0) {
             setHtmlContent(project.htmlContent)
             htmlContentRef.current = project.htmlContent
+            lastAppliedHtml.current = isCompleteHtmlDocument(project.htmlContent)
+              ? project.htmlContent.trim()
+              : LOADING_HTML
+            requestStableHtmlRef.current = lastAppliedHtml.current
             lastSavedContentRef.current = project.htmlContent
           } else {
             setHtmlContent(LOADING_HTML)
             htmlContentRef.current = LOADING_HTML
+            lastAppliedHtml.current = LOADING_HTML
+            requestStableHtmlRef.current = LOADING_HTML
             lastSavedContentRef.current = ""
           }
           // Restore messages from MongoDB
@@ -893,7 +935,14 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     if (savedState) {
       try {
         const parsed = JSON.parse(savedState)
-        if (parsed.htmlContent) setHtmlContent(parsed.htmlContent)
+        if (parsed.htmlContent) {
+          setHtmlContent(parsed.htmlContent)
+          htmlContentRef.current = parsed.htmlContent
+          if (isCompleteHtmlDocument(parsed.htmlContent)) {
+            lastAppliedHtml.current = parsed.htmlContent.trim()
+            requestStableHtmlRef.current = parsed.htmlContent.trim()
+          }
+        }
         if (parsed.projectName) setProjectName(parsed.projectName)
         // Convert date strings back to Date objects for messages
         if (parsed.messages) {
@@ -954,9 +1003,16 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         const templateHtml = await res.text()
         if (cancelled) return
 
-        setHtmlContent((current) =>
-          current.includes("CINEMATHEQUE_TEMPLATE_LOADING") ? templateHtml : current
-        )
+        setHtmlContent((current) => {
+          if (!current.includes("CINEMATHEQUE_TEMPLATE_LOADING")) {
+            return current
+          }
+
+          htmlContentRef.current = templateHtml
+          lastAppliedHtml.current = templateHtml.trim()
+          requestStableHtmlRef.current = templateHtml.trim()
+          return templateHtml
+        })
       } catch {
         // Keep LOADING_HTML on failure.
       }
@@ -965,13 +1021,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     return () => {
       cancelled = true
     }
-  }, [])
-
-  const isCompleteHtmlDocument = useCallback((value: string): boolean => {
-    if (!value) return false
-    const normalized = value.trim()
-    const hasRoot = normalized.includes("<!DOCTYPE") || normalized.includes("<html")
-    return hasRoot && normalized.includes("</html>")
   }, [])
 
   const finalizeAssistantMessage = useCallback(
@@ -1024,6 +1073,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     setApplyingPatch(false)
     setViewMode("preview")
     setHasGeneratedOnce(true)
+    lastPatchFailureRef.current = null
+    requestStableHtmlRef.current = selectStableHtmlDocument(
+      [htmlContentRef.current, lastAppliedHtml.current],
+      LOADING_HTML,
+    )
     finalizeAssistantMessage(summary)
 
     if (htmlContentRef.current) {
@@ -1063,14 +1117,19 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     },
     onProgressUpdate: updateAssistantProgress,
     onCancel: () => {
+      const activeRequest = activeAiRequestRef.current
       resetActiveAiRequest()
       recoveryInFlightRef.current = false
       promptScopeRecoveryInFlightRef.current = false
       scopeRecoveryAttemptsRef.current = 0
       setPendingRecovery(null)
       setDraftAiOutput("")
+      if (activeRequest.isFollowUp || activeRequest.recoveryMode) {
+        restorePreservedHtml()
+      }
       setApplyingPatch(false)
       setViewMode("preview")
+      lastPatchFailureRef.current = null
       setMessages((prev) => {
         const lastMessage = prev[prev.length - 1]
         if (!lastMessage || lastMessage.role !== "assistant" || !lastMessage.isThinking) {
@@ -1101,6 +1160,10 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     onPatch: (filePath, search, replace) => {
       const normalizedPath = filePath.trim().replace(/^\.?\//, "")
       if (normalizedPath !== "index.html") {
+        lastPatchFailureRef.current = {
+          kind: "unsupported-target",
+          filePath: normalizedPath || filePath.trim() || "unknown file",
+        }
         console.warn(`Unsupported patch target: ${filePath}`)
         return false
       }
@@ -1110,9 +1173,25 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       const result = parser.applyPatch(htmlContentRef.current, search, replace, filePath)
       
       if (result.success) {
-        commitHtmlContentUpdate(result.content)
+        const nextHtml = result.content.trim()
+        if (!isCompleteHtmlDocument(nextHtml)) {
+          lastPatchFailureRef.current = {
+            kind: "invalid-document",
+            filePath: normalizedPath,
+            detail: result.tier,
+          }
+          console.warn(`Rejected incomplete HTML patch for ${filePath}`)
+          return false
+        }
+
+        commitHtmlContentUpdate(nextHtml)
         return true
       } else {
+        lastPatchFailureRef.current = {
+          kind: "search-replace-failed",
+          filePath: normalizedPath,
+          detail: result.error,
+        }
         console.warn(`Patch failed for ${filePath}: ${result.error}`)
         return false
       }
@@ -1122,17 +1201,30 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       const requestRecoveryMode = result.recoveryMode ?? activeRequest.recoveryMode
       resetActiveAiRequest()
 
-      const { extractedHtml, failedFiles, recoveryMode, incompletePatches, validationError } = result
+      const { rawContent, extractedHtml, failedFiles, recoveryMode, incompletePatches, validationError } = result
       const isFollowUp = activeRequest.isFollowUp
       const hasPatchFailures = !!failedFiles?.length
       const hasCompleteHtml = isCompleteHtmlDocument(extractedHtml)
       const hasUnexpectedFullDocument = isFollowUp && !isFullDocumentRecoveryMode(requestRecoveryMode) && hasCompleteHtml
+      const preservedHtml = selectStableHtmlDocument(
+        [requestStableHtmlRef.current, lastAppliedHtml.current, htmlContentRef.current, htmlContent],
+        LOADING_HTML,
+      )
+      const hasCommittedUpdatedHtml =
+        isCompleteHtmlDocument(htmlContentRef.current) && htmlContentRef.current.trim() !== preservedHtml
+      const expectsFullDocument = !isFollowUp || isFullDocumentRecoveryMode(requestRecoveryMode)
+      const looksLikeHtmlResponse = /<!DOCTYPE|<html\b/i.test(rawContent)
+      const missingExpectedFullDocument =
+        expectsFullDocument && !hasCompleteHtml && (looksLikeHtmlResponse || !hasCommittedUpdatedHtml)
       const finalHtmlForValidation = hasCompleteHtml ? extractedHtml : htmlContentRef.current
       const promptScopeValidation = validatePromptScope(lastUserPromptRef.current, finalHtmlForValidation)
       const hasPromptScopeIssues = !promptScopeValidation.valid
       const canRetryPromptScope = hasPromptScopeIssues && scopeRecoveryAttemptsRef.current < MAX_SCOPE_RECOVERY_ATTEMPTS
       const hasProtocolIssues = Boolean(validationError) || (incompletePatches || 0) > 0
-      const shouldRecoverForOutputIssues = hasUnexpectedFullDocument || ((hasPatchFailures || hasProtocolIssues) && !hasCompleteHtml)
+      const shouldRecoverForOutputIssues =
+        hasUnexpectedFullDocument ||
+        missingExpectedFullDocument ||
+        ((hasPatchFailures || hasProtocolIssues) && !hasCompleteHtml)
       const shouldRecoverForPromptScope = hasPromptScopeIssues && canRetryPromptScope
       const shouldRecover = shouldRecoverForOutputIssues || shouldRecoverForPromptScope
       const scopeFailureMessage = formatMissingScopeMessage(promptScopeValidation.missingRequirements)
@@ -1141,11 +1233,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         const failedFileSummary = (failedFiles || []).join(", ") || "index.html"
         const originalPrompt = lastUserPromptRef.current || "the requested changes"
         const nextRecoveryMode = resolveRecoveryMode(isFollowUp)
-        const recoveryBaseHtml = hasCompleteHtml ? extractedHtml : htmlContentRef.current
+        const recoveryBaseHtml = hasCompleteHtml ? extractedHtml : preservedHtml
         const recoveryReason = hasPromptScopeIssues
           ? `Missing requested UI scope: ${promptScopeValidation.missingRequirements.join(", ")}`
           : hasUnexpectedFullDocument
             ? "Received a full-document response for a targeted follow-up edit"
+          : missingExpectedFullDocument
+            ? "Expected a complete HTML document but did not receive one"
           : validationError
             ? validationError
             : incompletePatches
@@ -1238,14 +1332,15 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         promptScopeRecoveryInFlightRef.current = false
         setPendingRecovery(null)
         setDraftAiOutput("")
+        const preservedLayoutMessage = getTargetedRecoveryFailureMessage(validationError)
+        restorePreservedHtml(preservedHtml)
         setApplyingPatch(false)
         setViewMode("preview")
-        const preservedLayoutMessage = "Could not finish the targeted update automatically. The existing page was preserved. Try a more explicit follow-up request."
         if (!hasPromptScopeIssues) {
           toast({
             title: "Recovery failed",
             description: isFullDocumentRecoveryMode(requestRecoveryMode)
-              ? "Could not recover the update automatically. Try a smaller, more specific follow-up request."
+              ? FULL_DOCUMENT_RECOVERY_FAILURE_MESSAGE
               : preservedLayoutMessage,
             variant: "destructive",
           })
@@ -1254,7 +1349,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           hasPromptScopeIssues
             ? `${scopeFailureMessage} Try a more explicit follow-up request if you want another pass.`
             : isFullDocumentRecoveryMode(requestRecoveryMode)
-              ? "Could not recover the update automatically. Try a smaller, more specific follow-up request."
+              ? FULL_DOCUMENT_RECOVERY_FAILURE_MESSAGE
               : preservedLayoutMessage,
         )
         return
@@ -1285,6 +1380,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       promptScopeRecoveryInFlightRef.current = false
       scopeRecoveryAttemptsRef.current = 0
       setPendingRecovery(null)
+      lastPatchFailureRef.current = null
       const summary = buildGenerationSummary({
         prompt: lastUserPromptRef.current,
         html: hasCompleteHtml ? extractedHtml : htmlContentRef.current,
@@ -1300,11 +1396,16 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       resetActiveAiRequest()
       const isRecoveryFailure = recoveryInFlightRef.current
       const isPromptScopeRecoveryFailure = promptScopeRecoveryInFlightRef.current
+      const shouldRestorePreviousPage = activeRequest.isFollowUp || Boolean(activeRecoveryMode)
+      const targetedFailureMessage = getTargetedRecoveryFailureMessage(error.message)
       recoveryInFlightRef.current = false
       promptScopeRecoveryInFlightRef.current = false
       scopeRecoveryAttemptsRef.current = 0
       setPendingRecovery(null)
       setDraftAiOutput("")
+      if (shouldRestorePreviousPage) {
+        restorePreservedHtml()
+      }
       setApplyingPatch(false)
       setViewMode("preview")
       if (!(isRecoveryFailure && isPromptScopeRecoveryFailure)) {
@@ -1312,9 +1413,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           title: isRecoveryFailure ? "Recovery failed" : "Generation failed",
           description: isRecoveryFailure
             ? isFullDocumentRecoveryMode(activeRecoveryMode)
-              ? "Could not recover the update automatically. Try a smaller, more specific follow-up request."
-              : "Could not finish the targeted update automatically. The existing page was preserved. Try a more explicit follow-up request."
-            : error.message || "Something went wrong while generating code. Please try again.",
+              ? FULL_DOCUMENT_RECOVERY_FAILURE_MESSAGE
+              : targetedFailureMessage
+            : shouldRestorePreviousPage
+              ? `${error.message || "Something went wrong while generating code."} The previous page was restored.`
+              : error.message || "Something went wrong while generating code. Please try again.",
           variant: "destructive",
         })
       }
@@ -1325,9 +1428,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
             ? isPromptScopeRecoveryFailure
               ? "Could not finish expanding the requested UI automatically. The latest complete result was kept in the editor."
               : isFullDocumentRecoveryMode(activeRecoveryMode)
-                ? "Could not recover the update automatically. Try a smaller, more specific follow-up request."
-                : "Could not finish the targeted update automatically. The existing page was preserved. Try a more explicit follow-up request."
-            : `Error: ${error.message}`
+                ? FULL_DOCUMENT_RECOVERY_FAILURE_MESSAGE
+                : targetedFailureMessage
+            : shouldRestorePreviousPage
+              ? `Error: ${error.message}. The previous page was restored.`
+              : `Error: ${error.message}`
 
           return prev.map((m, i) =>
             i === prev.length - 1
@@ -1408,7 +1513,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       recoveryInFlightRef.current = false
       promptScopeRecoveryInFlightRef.current = false
       scopeRecoveryAttemptsRef.current = 0
+      lastPatchFailureRef.current = null
       setPendingRecovery(null)
+
+      requestStableHtmlRef.current = selectStableHtmlDocument(
+        [htmlContentRef.current, lastAppliedHtml.current, htmlContent],
+        LOADING_HTML,
+      )
 
       if (isGenerating) {
         cancelAI()
@@ -1519,6 +1630,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       state.primaryColor,
       state.secondaryColor,
       state.theme,
+      htmlContent,
       projectName,
       saveMessageToMongo,
       toast,
@@ -1615,12 +1727,12 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     if (viewMode === "code" && nextMode !== "code") {
       const latestHtml = htmlContentRef.current
       if (latestHtml && latestHtml !== htmlContent) {
-        setHtmlContent(latestHtml)
+        commitHtmlContentUpdate(latestHtml)
       }
     }
 
     setViewMode(nextMode)
-  }, [htmlContent, viewMode])
+  }, [commitHtmlContentUpdate, htmlContent, viewMode])
 
   // Handle reset chat
   const handleResetChat = useCallback(async () => {
@@ -1762,6 +1874,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
     setHtmlContent(version.htmlContent)
     htmlContentRef.current = version.htmlContent
+    lastAppliedHtml.current = version.htmlContent.trim()
+    requestStableHtmlRef.current = version.htmlContent.trim()
     setCurrentVersionId(targetVersionId)
     setHasUnsavedChanges(true)
     setPreviewHtmlContent(null)

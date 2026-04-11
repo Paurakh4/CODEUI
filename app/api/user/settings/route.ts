@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { getPublicModelCatalog } from "@/lib/admin/model-policies";
 import connectDB from "@/lib/db";
 import User from "@/lib/models/User";
-import { isModelEnabled } from "@/lib/ai-models";
 import {
   USER_PREFERENCE_COLOR_NAMES,
   USER_THEME_OPTIONS,
@@ -15,11 +15,7 @@ const updateSettingsSchema = z
     theme: z.enum(USER_THEME_OPTIONS).optional(),
     primaryColor: z.enum(USER_PREFERENCE_COLOR_NAMES).optional(),
     secondaryColor: z.enum(USER_PREFERENCE_COLOR_NAMES).optional(),
-    defaultModel: z
-      .string()
-      .min(1)
-      .refine((value) => isModelEnabled(value), "Selected model is not enabled.")
-      .optional(),
+    defaultModel: z.string().min(1).optional(),
     enhancedPrompts: z.boolean().optional(),
     contactPreferences: z
       .object({
@@ -46,6 +42,9 @@ export async function GET() {
 
   try {
     await connectDB();
+    const catalog = await getPublicModelCatalog();
+    const isRuntimeModelEnabled = (value: string) =>
+      catalog.models.some((model) => model.id === value);
 
     const user = await User.findById(session.user.id)
       .select("preferences")
@@ -56,7 +55,10 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      settings: normalizeUserPreferences(user.preferences),
+      settings: normalizeUserPreferences(user.preferences, {
+        defaultModel: catalog.defaultModelId,
+        isModelEnabled: isRuntimeModelEnabled,
+      }),
     });
   } catch (error) {
     console.error("Error fetching user settings:", error);
@@ -77,12 +79,30 @@ export async function PATCH(request: Request) {
   try {
     const body = await request.json();
     const parsed = updateSettingsSchema.safeParse(body);
+    const catalog = await getPublicModelCatalog();
+    const isRuntimeModelEnabled = (value: string) =>
+      catalog.models.some((model) => model.id === value);
 
     if (!parsed.success) {
       return NextResponse.json(
         {
           error: "Invalid settings update",
           details: parsed.error.flatten(),
+        },
+        { status: 400 }
+      );
+    }
+
+    if (parsed.data.defaultModel && !isRuntimeModelEnabled(parsed.data.defaultModel)) {
+      return NextResponse.json(
+        {
+          error: "Invalid settings update",
+          details: {
+            fieldErrors: {
+              defaultModel: ["Selected model is not enabled."],
+            },
+            formErrors: [],
+          },
         },
         { status: 400 }
       );
@@ -99,16 +119,28 @@ export async function PATCH(request: Request) {
     }
 
     const mergedPreferences = normalizeUserPreferences({
-      ...normalizeUserPreferences(existingUser.preferences),
+      ...normalizeUserPreferences(existingUser.preferences, {
+        defaultModel: catalog.defaultModelId,
+        isModelEnabled: isRuntimeModelEnabled,
+      }),
       ...parsed.data,
       contactPreferences: {
-        ...normalizeUserPreferences(existingUser.preferences).contactPreferences,
+        ...normalizeUserPreferences(existingUser.preferences, {
+          defaultModel: catalog.defaultModelId,
+          isModelEnabled: isRuntimeModelEnabled,
+        }).contactPreferences,
         ...parsed.data.contactPreferences,
       },
       privacyPreferences: {
-        ...normalizeUserPreferences(existingUser.preferences).privacyPreferences,
+        ...normalizeUserPreferences(existingUser.preferences, {
+          defaultModel: catalog.defaultModelId,
+          isModelEnabled: isRuntimeModelEnabled,
+        }).privacyPreferences,
         ...parsed.data.privacyPreferences,
       },
+    }, {
+      defaultModel: catalog.defaultModelId,
+      isModelEnabled: isRuntimeModelEnabled,
     });
 
     const user = await User.findByIdAndUpdate(
@@ -124,7 +156,10 @@ export async function PATCH(request: Request) {
     }
 
     return NextResponse.json({
-      settings: normalizeUserPreferences(user.preferences),
+      settings: normalizeUserPreferences(user.preferences, {
+        defaultModel: catalog.defaultModelId,
+        isModelEnabled: isRuntimeModelEnabled,
+      }),
     });
   } catch (error) {
     console.error("Error updating user settings:", error);

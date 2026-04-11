@@ -30,9 +30,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { useSession } from "next-auth/react"
+import { useLiveCredits } from "@/hooks/use-live-credits"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
+import type { SubscriptionTier } from "@/lib/pricing"
 
 type ViewMode = "preview" | "design" | "code"
 type DeviceMode = "desktop" | "tablet" | "mobile"
@@ -90,71 +91,25 @@ export function TopNav({
 }: TopNavProps) {
   const [copied, setCopied] = useState(false)
   const copyResetTimeoutRef = useRef<number | null>(null)
-  const { data: session, update: updateSession } = useSession()
   const { showPricing, showSettings } = useAccountModals()
   const { toast } = useToast()
-
-  // Credit system logic (matching dashboard-main.tsx)
-  const [realTimeCredits, setRealTimeCredits] = useState<{
-    monthlyCredits: number;
-    topupCredits: number;
-    totalCredits: number;
-  } | null>(null)
-  const hasUpdatedSession = useRef(false)
-
-  // Fetch fresh credits
-  const fetchCredits = useCallback(() => {
-    fetch('/api/user/credits')
-      .then(res => res.json())
-      .then(data => {
-        if (data && !data.error) {
-          setRealTimeCredits({
-            monthlyCredits: data.monthlyCredits,
-            topupCredits: data.topupCredits,
-            totalCredits: data.totalCredits
-          })
-          
-          // If session is stale, trigger an update (only once per mount to avoid loops)
-          const sessionUser = session?.user as any
-          if (
-            sessionUser && 
-            !hasUpdatedSession.current &&
-            (sessionUser.monthlyCredits !== data.monthlyCredits ||
-             sessionUser.topupCredits !== data.topupCredits)
-          ) {
-            hasUpdatedSession.current = true
-            updateSession()
-          }
-        }
-      })
-      .catch(err => console.error('Failed to fetch credits:', err))
-  }, [session?.user, updateSession])
-
-  // Initial fetch
-  useEffect(() => {
-    fetchCredits()
-  }, [fetchCredits])
+  const { credits: liveCredits, refreshCredits } = useLiveCredits({
+    refreshIntervalMs: 30_000,
+  })
 
   // Refetch when generation finishes
   const prevIsGenerating = useRef(isGenerating)
   useEffect(() => {
     if (prevIsGenerating.current && !isGenerating) {
-      fetchCredits()
+      void refreshCredits()
     }
     prevIsGenerating.current = isGenerating
-  }, [isGenerating, fetchCredits])
+  }, [isGenerating, refreshCredits])
 
-  const sessionUser = session?.user as { 
-    monthlyCredits?: number
-    topupCredits?: number
-    totalCredits?: number
-    credits?: number
-    subscription?: string
-  }
-  const userTier = sessionUser?.subscription || "free"
-  const userMonthlyCredits = realTimeCredits?.monthlyCredits ?? sessionUser?.monthlyCredits ?? 0
-  const userTopupCredits = realTimeCredits?.topupCredits ?? sessionUser?.topupCredits ?? 0
-  const userTotalCredits = realTimeCredits?.totalCredits ?? sessionUser?.totalCredits ?? (userMonthlyCredits + userTopupCredits)
+  const userTier = (liveCredits?.tier ?? "free") as SubscriptionTier
+  const userMonthlyCredits = liveCredits?.monthlyCredits ?? 0
+  const userTopupCredits = liveCredits?.topupCredits ?? 0
+  const userTotalCredits = liveCredits?.totalCredits ?? (userMonthlyCredits + userTopupCredits)
 
   // Get tier display info
   const getTierBadge = () => {

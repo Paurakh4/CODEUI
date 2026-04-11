@@ -1,4 +1,11 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
+import {
+  ACCOUNT_STATUSES,
+  USER_ROLES,
+  type AccountStatus,
+  type AdminPermission,
+  type UserRole,
+} from "@/lib/admin/rbac";
 import { SubscriptionTier } from "@/lib/pricing";
 import {
   type UserPreferences,
@@ -12,6 +19,10 @@ export interface IUser extends Document {
   image?: string;
   googleId: string;
   preferences: UserPreferences;
+  role: UserRole;
+  accountStatus: AccountStatus;
+  permissionOverrides: AdminPermission[];
+  adminNotes?: string;
 
   // Subscription info
   subscription: {
@@ -121,6 +132,27 @@ const UserSchema = new Schema<IUser>(
       type: PreferencesSchema,
       default: () => createDefaultUserPreferences(),
     },
+    role: {
+      type: String,
+      enum: [...USER_ROLES],
+      default: "user",
+      index: true,
+    },
+    accountStatus: {
+      type: String,
+      enum: [...ACCOUNT_STATUSES],
+      default: "active",
+      index: true,
+    },
+    permissionOverrides: {
+      type: [String],
+      default: [],
+    },
+    adminNotes: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     subscription: {
       tier: {
         type: String,
@@ -169,6 +201,8 @@ const UserSchema = new Schema<IUser>(
 
 // Indexes for common queries
 UserSchema.index({ "subscription.stripeCustomerId": 1 });
+UserSchema.index({ role: 1, createdAt: -1 });
+UserSchema.index({ accountStatus: 1, createdAt: -1 });
 
 const User: Model<IUser> =
   mongoose.models.User || mongoose.model<IUser>("User", UserSchema);

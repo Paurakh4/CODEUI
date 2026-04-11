@@ -18,3 +18,11 @@ export {
   type IMediaAsset,
   type MediaKind,
 } from "./MediaAsset";
+export {
+  default as AdminAuditLog,
+  type IAdminAuditLog,
+} from "./AdminAuditLog";
+export {
+  default as AdminModelConfig,
+  type IAdminModelConfig,
+} from "./AdminModelConfig";

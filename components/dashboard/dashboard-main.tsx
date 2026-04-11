@@ -40,6 +40,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useSession } from "next-auth/react"
+import { useLiveCredits } from "@/hooks/use-live-credits"
 import Link from "next/link"
 import { useEditor } from "@/stores/editor-store"
 import type { SubscriptionTier } from "@/lib/pricing"
@@ -82,7 +83,7 @@ export function DashboardMain({
   billingSyncMessage = null,
   onRetryBillingSync,
 }: DashboardMainProps) {
-  const { data: session, update: updateSession } = useSession()
+  const { data: session } = useSession()
   const { state, setModel } = useEditor()
   const { toast } = useToast()
   const selectedModelId = state.selectedModel
@@ -100,15 +101,10 @@ export function DashboardMain({
   const [promptValue, setPromptValue] = useState("")
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
   const [isPricingOpen, setIsPricingOpen] = useState(false)
-  
-  // Real-time credits state to override session if needed
-  const [realTimeCredits, setRealTimeCredits] = useState<{
-    monthlyCredits: number;
-    topupCredits: number;
-    totalCredits: number;
-    tier?: SubscriptionTier;
-  } | null>(null)
-  const hasUpdatedSession = useRef(false)
+  const { credits: realTimeCredits, refreshCredits } = useLiveCredits({
+    enabled: Boolean(session?.user),
+    refreshIntervalMs: 30_000,
+  })
   
   // Projects state
   const [projects, setProjects] = useState<Project[]>([])
@@ -137,34 +133,13 @@ export function DashboardMain({
       .finally(() => {
         setIsLoadingProjects(false)
       })
-
-    // Fetch fresh credits
-    fetch('/api/user/credits')
-      .then(res => res.json())
-      .then(data => {
-        if (data && !data.error) {
-          setRealTimeCredits({
-            monthlyCredits: data.monthlyCredits,
-            topupCredits: data.topupCredits,
-            totalCredits: data.totalCredits,
-            tier: data.tier,
-          })
-          
-          // If session is stale, trigger an update (only once per mount to avoid loops)
-          const sessionUser = session.user as any
-          if (
-            !hasUpdatedSession.current &&
-            (sessionUser.monthlyCredits !== data.monthlyCredits ||
-             sessionUser.topupCredits !== data.topupCredits ||
-             sessionUser.subscription !== data.tier)
-          ) {
-            hasUpdatedSession.current = true
-            updateSession()
-          }
-        }
-      })
-      .catch(err => console.error('Failed to fetch credits:', err))
   }, [session?.user?.id])
+
+  useEffect(() => {
+    if (billingSyncState === 'confirmed') {
+      void refreshCredits()
+    }
+  }, [billingSyncState, refreshCredits])
 
   const adjustHeight = useCallback((reset?: boolean) => {
     const textarea = textareaRef.current

@@ -100,7 +100,7 @@ const ALL_MODELS: AIModel[] = [
  * Format: Comma-separated list of model IDs
  * Example: "deepseek/deepseek-chat,deepseek/deepseek-r1,moonshotai/kimi-k2-thinking"
  */
-function getEnabledModelIds(): string[] {
+export function getConfiguredEnabledModelIds(): string[] {
   // Check if running on server (environment variable available)
   const enabledModelsEnv = typeof window === 'undefined' 
     ? process.env.ENABLED_AI_MODELS 
@@ -121,7 +121,7 @@ function getEnabledModelIds(): string[] {
  * Get the list of enabled models based on environment configuration
  */
 export function getEnabledModels(): AIModel[] {
-  const enabledIds = new Set(getEnabledModelIds())
+  const enabledIds = new Set(getConfiguredEnabledModelIds())
   return ALL_MODELS.filter(model => enabledIds.has(model.id))
 }
 
@@ -136,7 +136,7 @@ export function getModelById(id: string): AIModel | undefined {
  * Check if a model ID is valid and enabled
  */
 export function isModelEnabled(id: string): boolean {
-  const enabledIds = new Set(getEnabledModelIds())
+  const enabledIds = new Set(getConfiguredEnabledModelIds())
   return enabledIds.has(id)
 }
 

@@ -1,11 +1,10 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
+import { isAdminRole, isInternalUserRole, resolveUserRole } from "@/lib/admin/rbac";
 import connectDB from "@/lib/db";
 import { User, UsageLog } from "@/lib/models";
 import {
   getMonthlyCreditsForTier,
-  isStaffUser,
-  isAdminUser,
   getStaffCreditLimit,
   TIERS,
   SubscriptionTier,
@@ -23,7 +22,7 @@ export async function GET(req: Request) {
     await connectDB();
 
     const user = await User.findById(session.user.id).select(
-      "email monthlyCredits topupCredits creditsResetDate totalCreditsUsed subscription.tier credits creditsUsedThisMonth"
+      "email role monthlyCredits topupCredits creditsResetDate totalCreditsUsed subscription.tier credits creditsUsedThisMonth"
     );
 
     if (!user) {
@@ -32,11 +31,12 @@ export async function GET(req: Request) {
 
     const tier = (user.subscription?.tier || "free") as SubscriptionTier;
     const tierConfig = TIERS[tier];
+    const effectiveRole = resolveUserRole(user.role, user.email);
 
     // Check if user is staff
     const staffCreditLimit = getStaffCreditLimit(user.email);
-    const isStaff = isStaffUser(user.email);
-    const isAdmin = isAdminUser(user.email);
+    const isAdmin = isAdminRole(effectiveRole);
+    const isStaff = isInternalUserRole(effectiveRole) && !isAdmin;
 
     // Get usage history for current month (optional query param)
     const url = new URL(req.url);
@@ -86,6 +86,12 @@ export async function GET(req: Request) {
 
       // Usage history (if requested)
       ...(includeHistory && { recentUsage }),
+    }, {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
+      },
     });
   } catch (error) {
     console.error("Error fetching user credits:", error);

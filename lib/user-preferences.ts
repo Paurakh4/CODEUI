@@ -54,12 +54,19 @@ export interface UserPreferences {
   privacyPreferences: PrivacyPreferences;
 }
 
-export function createDefaultUserPreferences(): UserPreferences {
+interface UserPreferenceResolverOptions {
+  defaultModel?: string;
+  isModelEnabled?: (modelId: string) => boolean;
+}
+
+export function createDefaultUserPreferences(
+  options: UserPreferenceResolverOptions = {}
+): UserPreferences {
   return {
     theme: "dark",
     primaryColor: "blue",
     secondaryColor: "slate",
-    defaultModel: getDefaultModelId(),
+    defaultModel: options.defaultModel || getDefaultModelId(),
     enhancedPrompts: false,
     contactPreferences: {
       productUpdates: true,
@@ -72,9 +79,11 @@ export function createDefaultUserPreferences(): UserPreferences {
 }
 
 export function normalizeUserPreferences(
-  preferences?: Partial<UserPreferences> | null
+  preferences?: Partial<UserPreferences> | null,
+  options: UserPreferenceResolverOptions = {}
 ): UserPreferences {
-  const defaults = createDefaultUserPreferences();
+  const defaults = createDefaultUserPreferences(options);
+  const isEnabled = options.isModelEnabled || isModelEnabled;
   const primaryColor = USER_PREFERENCE_COLOR_NAMES.includes(
     preferences?.primaryColor as (typeof USER_PREFERENCE_COLOR_NAMES)[number]
   )
@@ -96,7 +105,7 @@ export function normalizeUserPreferences(
     primaryColor,
     secondaryColor,
     defaultModel:
-      preferences?.defaultModel && isModelEnabled(preferences.defaultModel)
+      preferences?.defaultModel && isEnabled(preferences.defaultModel)
         ? preferences.defaultModel
         : defaults.defaultModel,
     enhancedPrompts:
