@@ -46,164 +46,242 @@ export default async function AdminOverviewPage() {
 
   const metrics = [
     {
-      label: "Users",
+      label: "TOTAL USERS",
       value: formatNumber(overview.metrics.totalUsers),
       detail: `${formatNumber(overview.metrics.newUsers7d)} new in 7 days`,
       icon: Users,
+      color: "#0AA6FF",
     },
     {
-      label: "Active Users",
+      label: "MAU",
       value: formatNumber(overview.metrics.activeUsers7d),
-      detail: "Users with prompts in the last 7 days",
+      detail: "Active in the last 7 days",
       icon: Activity,
+      color: "#10B981",
     },
     {
-      label: "Projects",
+      label: "TOTAL PROJECTS",
       value: formatNumber(overview.metrics.totalProjects),
-      detail: `${formatNumber(overview.metrics.totalCheckpoints)} checkpoints stored`,
+      detail: `${formatNumber(overview.metrics.totalCheckpoints)} versions`,
       icon: FolderKanban,
+      color: "#F59E0B",
     },
     {
-      label: "Prompts (24h)",
+      label: "PROMPTS (24H)",
       value: formatNumber(overview.metrics.prompts24h),
-      detail: `${formatNumber(overview.metrics.totalUsageLogs)} total prompt events`,
+      detail: `${formatNumber(overview.metrics.totalUsageLogs)} total events`,
       icon: FileCode2,
+      color: "#8B5CF6",
     },
     {
-      label: "Media Storage",
+      label: "STORAGE",
       value: formatBytes(overview.metrics.totalStorageBytes),
-      detail: `${formatNumber(overview.metrics.totalMediaAssets)} uploaded assets`,
+      detail: `${formatNumber(overview.metrics.totalMediaAssets)} assets`,
       icon: HardDrive,
+      color: "#EC4899",
     },
     {
-      label: "Enabled Models",
+      label: "MODELS",
       value: formatNumber(overview.metrics.enabledModels),
-      detail: `${formatNumber(overview.metrics.paidUsers)} paid accounts`,
+      detail: `${formatNumber(overview.metrics.paidUsers)} premium accounts`,
       icon: Bot,
+      color: "#3B82F6",
     },
   ]
 
   return (
-    <div className="space-y-10">
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <div className="h-1.5 w-1.5 rounded-full bg-[#0AA6FF] animate-pulse" />
-          <p className="text-[10px] uppercase tracking-[0.3em] font-bold text-[#0AA6FF]">
-            System Snapshot
+    <div className="flex flex-col h-full gap-8 animate-in fade-in duration-700">
+      <div className="flex items-end justify-between border-b border-white/5 pb-8">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <p className="text-[10px] uppercase tracking-[0.25em] font-bold text-[#A6A6A6]">
+              Real-time Analytics
+            </p>
+          </div>
+          <h1 className="text-4xl font-semibold tracking-tight text-white mb-2">
+            System Overview 
+          </h1>
+          <p className="text-sm text-[#71717A] max-w-xl">
+            Global metrics for CodeUI infrastructure. Operational status is nominal across all availability zones.
           </p>
         </div>
-        <h1 className="text-3xl font-semibold tracking-tight text-white font-sans">
-          Overview
-        </h1>
-        <p className="mt-2 text-sm text-[#A6A6A6] max-w-2xl">
-          Real-time metrics across customer accounts, project activity, and infrastructure usage.
-        </p>
+        <div className="hidden lg:flex items-center gap-6">
+          <div className="text-right">
+            <p className="text-[10px] font-bold text-[#71717A] uppercase tracking-widest mb-1">Last Update</p>
+            <p className="text-xs font-medium text-white">Just now • Auto-sync active</p>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5">
         {metrics.map((metric) => {
           const Icon = metric.icon
           return (
-            <div 
+            <div
               key={metric.label}
-              className="group relative overflow-hidden rounded-2xl border border-white/5 bg-[#08090A] p-6 transition-all hover:border-white/10 hover:bg-white/[0.02]"
+              className="group relative overflow-hidden rounded-2xl border border-white/5 bg-[#08090B] p-5 transition-all hover:bg-white/[0.02]"
             >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs font-medium text-[#A6A6A6] mb-1">{metric.label}</p>
+              <div 
+                className="absolute top-0 right-0 p-4 opacity-10 transition-opacity group-hover:opacity-20"
+                style={{ color: metric.color }}
+              >
+                <Icon className="h-12 w-12" />
+              </div>
+              
+              <div className="relative">
+                <p className="text-[10px] font-bold text-[#71717A] uppercase tracking-widest mb-1">{metric.label}</p>
+                <div className="flex items-baseline gap-1">
                   <h3 className="text-2xl font-semibold text-white tracking-tight">{metric.value}</h3>
                 </div>
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.03] text-[#A6A6A6] transition-colors group-hover:text-white group-hover:bg-white/5">
-                  <Icon className="h-5 w-5" />
-                </div>
+                <p className="mt-3 text-[11px] text-[#A6A6A6] font-medium leading-none line-clamp-1">{metric.detail}</p>
               </div>
-              <div className="mt-4 flex items-center gap-2">
-                <div className="h-1 w-1 rounded-full bg-white/20" />
-                <p className="text-[11px] text-[#71717A] leading-none text-sans text-xs">{metric.detail}</p>
+
+              <div className="absolute bottom-0 left-0 h-1 w-full bg-white/5 overflow-hidden">
+                <div 
+                  className="h-full group-hover:animate-shimmer" 
+                  style={{ 
+                    backgroundColor: metric.color, 
+                    width: "30%", 
+                    opacity: 0.5 
+                  }} 
+                />
               </div>
             </div>
           )
         })}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <section className="rounded-2xl border border-white/5 bg-[#08090A] overflow-hidden">
-          <div className="border-b border-white/5 px-6 py-4 flex items-center justify-between bg-white/[0.01]">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-white flex items-center gap-2">
-              <Users className="h-3.5 w-3.5 text-[#0AA6FF]" />
-              Recent Signups
-            </h2>
-            <Link href="/admin/customers" className="text-[10px] font-bold uppercase tracking-widest text-[#A6A6A6] hover:text-white transition-colors">
-              View All
+      <div className="grid gap-8 lg:grid-cols-[1.5fr_0.5fr] min-h-[500px] flex-1">
+        <section className="flex flex-col rounded-3xl border border-white/5 bg-[#08090B]/50 backdrop-blur-xl overflow-hidden shadow-2xl">
+          <div className="px-8 py-6 flex items-center justify-between bg-white/[0.02]">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
+                <Users className="h-4 w-4" />
+              </div>
+              <h2 className="text-sm font-semibold tracking-wide text-white">
+                RECENT ACCOUNTS
+              </h2>
+            </div>
+            <Link 
+              href="/admin/customers" 
+              className="group flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-[#A6A6A6] transition-colors hover:text-white"
+            >
+              System Index 
+              <span className="transition-transform group-hover:translate-x-0.5">→</span>
             </Link>
           </div>
-          <div className="overflow-x-auto font-sans">
-            <div className="min-w-full">
-              <div className="grid grid-cols-[1.3fr_0.9fr_0.8fr_0.9fr] gap-4 border-b border-white/5 bg-white/[0.01] px-6 py-3 text-[10px] font-bold uppercase tracking-widest text-[#71717A]">
-                <span>User</span>
-                <span>Role</span>
-                <span>Tier</span>
-                <span>Created</span>
-              </div>
-
-              {overview.recentUsers.length === 0 ? (
-                <div className="px-6 py-12 text-center text-sm text-[#71717A]">No recent users.</div>
-              ) : (
-                overview.recentUsers.map((user) => (
-                  <div
-                    key={user.id}
-                    className="grid grid-cols-[1.3fr_0.9fr_0.8fr_0.9fr] gap-4 border-b border-white/5 px-6 py-4 text-sm hover:bg-white/[0.01] transition-colors last:border-b-0 group"
-                  >
-                    <div className="min-w-0">
-                      <Link
-                        href={`/admin/customers/${user.id}`}
-                        className="truncate font-medium text-white transition-colors hover:text-[#0AA6FF] block"
-                      >
-                        {user.name || "Unnamed User"}
-                      </Link>
-                      <p className="mt-0.5 truncate text-[11px] text-[#71717A]">{user.email}</p>
-                    </div>
-                    <div className="flex items-center">
-                      <span className="text-xs text-[#A6A6A6] px-2 py-0.5 rounded-full bg-white/[0.03] border border-white/5">
-                        {formatRoleLabel(user.role)}
-                      </span>
-                    </div>
-                    <div className="flex items-center">
-                      <Badge variant="outline" className="text-[10px] bg-[#0AA6FF]/5 border-[#0AA6FF]/20 text-[#0AA6FF] py-0">
-                        {formatTierLabel(user.tier)}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center text-xs text-[#71717A]">
-                      {new Date(user.createdAt).toLocaleDateString()}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+          
+          <div className="flex-1 overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-[#08090B] border-b border-white/5">
+                  <th className="px-8 py-4 text-[10px] font-bold uppercase tracking-widest text-[#71717A]">User Profile</th>
+                  <th className="px-8 py-4 text-[10px] font-bold uppercase tracking-widest text-[#71717A]">Access Matrix</th>
+                  <th className="px-8 py-4 text-[10px] font-bold uppercase tracking-widest text-[#71717A]">Provisioning</th>
+                  <th className="px-8 py-4 text-[10px] font-bold uppercase tracking-widest text-[#71717A]">Registry Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.02]">
+                {overview.recentUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-8 py-20 text-center text-sm text-[#71717A] italic">No active records detected.</td>
+                  </tr>
+                ) : (
+                  overview.recentUsers.map((user) => (
+                    <tr
+                      key={user.id}
+                      className="group transition-colors hover:bg-white/[0.02]"
+                    >
+                      <td className="px-8 py-5">
+                        <div className="flex flex-col min-w-0">
+                          <Link
+                            href={`/admin/customers/${user.id}`}
+                            className="font-medium text-white transition-colors hover:text-[#0AA6FF] truncate"
+                          >
+                            {user.name || "Anonymous Operation"}
+                          </Link>
+                          <span className="text-[11px] text-[#71717A] truncate mt-0.5">{user.email}</span>
+                        </div>
+                      </td>
+                      <td className="px-8 py-5">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-white/10 bg-white/5 text-[#A6A6A6]">
+                          {user.role}
+                        </span>
+                      </td>
+                      <td className="px-8 py-5">
+                        <Badge 
+                          variant="outline" 
+                          className={`text-[9px] font-bold px-2 py-0 rounded border-blue-500/20 bg-blue-500/5 text-blue-400`}
+                        >
+                          {formatTierLabel(user.tier)}
+                        </Badge>
+                      </td>
+                      <td className="px-8 py-5 text-[11px] text-[#71717A] font-mono">
+                        {new Date(user.createdAt).toISOString().split('T')[0]}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </section>
 
-        <section className="rounded-2xl border border-white/5 bg-[#08090A] overflow-hidden flex flex-col">
-          <div className="border-b border-white/5 px-6 py-4 flex items-center justify-between bg-white/[0.01]">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-white flex items-center gap-2">
-              <Activity className="h-3.5 w-3.5 text-[#0AA6FF]" />
-              Infrastructure
-            </h2>
-          </div>
-          <div className="p-8 flex-1 flex flex-col items-center justify-center text-center">
-            <Layers3 className="h-8 w-8 text-white/5 mb-4" />
-            <p className="text-sm text-[#71717A] font-sans">
-              Monitoring active nodes and storage clusters. All systems are currently operating within normal parameters.
+        <section className="flex flex-col gap-6">
+          <div className="rounded-3xl border border-white/5 bg-[#08090B]/50 p-6 flex flex-col items-center text-center">
+            <div className="p-4 rounded-2xl bg-white/[0.02] mb-4">
+              <Activity className="h-6 w-6 text-[#10B981]" />
+            </div>
+            <h3 className="text-sm font-semibold text-white mb-2">INFRASTRUCTURE</h3>
+            <p className="text-[12px] text-[#71717A] leading-relaxed">
+              All systems are currently operating within normal parameters. CDN nodes are synchronized.
             </p>
-            <div className="mt-6 w-full space-y-3 px-4">
-               <div className="flex items-center justify-between text-[11px] text-[#A6A6A6] font-sans">
-                 <span>API Health</span>
-                 <span className="text-emerald-400 font-bold">100%</span>
+            
+            <div className="mt-8 w-full space-y-5">
+               <div className="space-y-2">
+                 <div className="flex justify-between text-[10px] font-bold text-[#71717A] tracking-wider uppercase">
+                   <span>Core Engine</span>
+                   <span className="text-emerald-400">99.9%</span>
+                 </div>
+                 <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                   <div className="h-full bg-emerald-500 w-[99%]" />
+                 </div>
                </div>
-               <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                 <div className="h-full bg-emerald-400/50 w-full" />
+               
+               <div className="space-y-2">
+                 <div className="flex justify-between text-[10px] font-bold text-[#71717A] tracking-wider uppercase">
+                   <span>API Layer</span>
+                   <span className="text-emerald-400">Online</span>
+                 </div>
+                 <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                   <div className="h-full bg-emerald-500 w-[94%]" />
+                 </div>
+               </div>
+
+               <div className="space-y-2">
+                 <div className="flex justify-between text-[10px] font-bold text-[#71717A] tracking-wider uppercase">
+                   <span>Storage CDN</span>
+                   <span className="text-white">Active</span>
+                 </div>
+                 <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                   <div className="h-full bg-blue-500 w-[100%]" />
+                 </div>
                </div>
             </div>
+          </div>
+
+          <div className="flex-1 rounded-3xl border border-dashed border-white/10 flex flex-col items-center justify-center p-8 text-center bg-white/[0.01]">
+            <Layers3 className="h-10 w-10 text-white/5 mb-4" />
+            <p className="text-xs font-medium text-[#71717A] uppercase tracking-widest">
+              Deployment Queue
+            </p>
+            <p className="mt-2 text-[11px] text-[#52525B]">
+              No pending deployments in the stack.
+            </p>
           </div>
         </section>
       </div>

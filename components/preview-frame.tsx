@@ -127,12 +127,23 @@ export function extractSelectedElementInfo(
   clickPosition: { x: number; y: number },
 ): SelectedElementInfo {
   return {
-    selector: getElementPath(element),
+    selector: getSafeElementSelector(element),
     type: element.tagName.toLowerCase(),
     styles: extractSelectedElementStyles(element, iframeWindow),
     properties: extractSelectedElementProperties(element),
     clickPosition,
   }
+}
+
+function getSafeElementSelector(element: HTMLElement): string {
+  const selector = getElementPath(element).trim()
+
+  if (selector) {
+    return selector
+  }
+
+  const tagName = element.tagName.toLowerCase()
+  return tagName || "body"
 }
 
 const deviceDimensions: Record<DeviceMode, { width: number; height: number }> = {
@@ -583,7 +594,7 @@ export function PreviewFrame({
           element.textContent = originalText
         } else {
           const newText = element.textContent ?? ""
-          if (newText !== originalText) {
+          if (editingSelector && newText !== originalText) {
             onTextChangeRef.current?.(editingSelector, newText)
           }
         }
@@ -603,10 +614,16 @@ export function PreviewFrame({
         }
 
         clearPendingSelection()
+
+        const nextSelector = getSafeElementSelector(element)
+        if (!nextSelector) {
+          return
+        }
+
         onTextEditStartRef.current?.()
 
         editingElement = element
-        editingSelector = getElementPath(element)
+        editingSelector = nextSelector
         originalText = element.textContent ?? ""
 
         element.setAttribute("contenteditable", "true")
@@ -912,16 +929,28 @@ const resizeHandleConfig: Array<{
 
 // Helper function to get a unique path to an element
 function getElementPath(element: HTMLElement): string {
+  const doc = element.ownerDocument
   const path: string[] = []
   let current: HTMLElement | null = element
-  const doc = element.ownerDocument
+
+  if (current === doc.documentElement) {
+    return "html"
+  }
+
+  if (current === doc.body) {
+    return "body"
+  }
   
-  while (current && current !== doc.body && current !== doc.documentElement) {
+  while (current && current !== doc.documentElement) {
     let selector = current.tagName.toLowerCase()
+    if (!selector) break
     
     if (current.id) {
       selector += `#${CSS.escape(current.id)}`
       path.unshift(selector)
+      break
+    } else if (current === doc.body) {
+      path.unshift("body")
       break
     } else if (current.className && typeof current.className === "string") {
       const classes = current.className.split(" ").filter(Boolean).slice(0, 2)
@@ -938,7 +967,7 @@ function getElementPath(element: HTMLElement): string {
       )
       if (siblings.length > 1) {
         const index = siblings.indexOf(current) + 1
-        selector += `:nth-child(${index})`
+        selector += `:nth-of-type(${index})`
       }
     }
     
@@ -946,7 +975,7 @@ function getElementPath(element: HTMLElement): string {
     current = current.parentElement
   }
   
-  return path.join(" > ")
+  return path.join(" > ") || element.tagName.toLowerCase()
 }
 
 function rgbToHex(rgb: string): string {

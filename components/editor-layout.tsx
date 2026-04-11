@@ -100,6 +100,34 @@ interface PendingRecovery {
 const MONGO_OBJECT_ID_REGEX = /^[a-f\d]{24}$/i
 const STREAM_PROTOCOL_MARKER_REGEX = /(?:^|\n)\s*(?:<<<<<<<|=======|>>>>>>>)/m
 
+const createEditorEntityId = (prefix: string): string => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}_${crypto.randomUUID()}`
+  }
+
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+const selectElementSafely = (
+  doc: Document,
+  selector?: string | null,
+): HTMLElement | null => {
+  if (typeof selector !== "string") {
+    return null
+  }
+
+  const normalizedSelector = selector.trim()
+  if (!normalizedSelector) {
+    return null
+  }
+
+  try {
+    return doc.querySelector(normalizedSelector) as HTMLElement | null
+  } catch {
+    return null
+  }
+}
+
 const coerceVersionId = (value: unknown): string => {
   if (typeof value === "string" && value.trim()) return value
   if (typeof value === "number" && Number.isFinite(value)) return String(value)
@@ -111,7 +139,7 @@ const coerceVersionId = (value: unknown): string => {
     }
   }
 
-  return `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  return createEditorEntityId("local")
 }
 
 const CINEMATHEQUE_TEMPLATE_ENDPOINT = "/api/templates/cinematheque-preview"
@@ -437,7 +465,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
   const makeLocalVersion = useCallback((content: string, description?: string): HistoryVersion => {
     return {
-      id: `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      id: createEditorEntityId("local"),
       htmlContent: content,
       timestamp: new Date(),
       description,
@@ -555,19 +583,15 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     const doc = iframe?.contentDocument
     if (!doc) return
 
-    try {
-      const element = doc.querySelector(selector) as HTMLElement | null
-      if (!element) return
+    const element = selectElementSafely(doc, selector)
+    if (!element) return
 
-      if (property === TEXT_CONTENT_PROPERTY) {
-        element.textContent = value?.toString() ?? ""
-        return
-      }
-
-      element.style[property as any] = value?.toString() ?? ""
-    } catch {
-      // Ignore selector errors
+    if (property === TEXT_CONTENT_PROPERTY) {
+      element.textContent = value?.toString() ?? ""
+      return
     }
+
+    element.style[property as any] = value?.toString() ?? ""
   }, [])
 
   const commitHtmlContentUpdate = useCallback((nextHtml: string, options?: { styleUpdate?: boolean }) => {
@@ -619,14 +643,9 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       return undefined
     }
 
-    try {
-      const parser = new DOMParser()
-      const doc = parser.parseFromString(sourceHtml, "text/html")
-      return doc.querySelector(selector)?.outerHTML
-    } catch (e) {
-      console.error("Failed to extract selected element HTML", e)
-      return undefined
-    }
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(sourceHtml, "text/html")
+    return selectElementSafely(doc, selector)?.outerHTML
   }, [])
 
   const syncSelectedElementFromIframe = useCallback((
@@ -639,7 +658,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     if (!doc || !iframeWindow) return null
 
     const element = typeof target === "string"
-      ? (doc.querySelector(target) as HTMLElement | null)
+      ? selectElementSafely(doc, target)
       : target
 
     if (!element) return null
@@ -865,7 +884,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           // Restore messages from MongoDB
           if (project.messages && project.messages.length > 0) {
             const restoredMessages = dedupeAdjacentAssistantMessages(project.messages.map((m: { role: string; content: string; thinkingContent?: string; createdAt: string }, index: number) => ({
-              id: `mongo_${index}_${Date.now()}`,
+              id: createEditorEntityId(`mongo_${index}`),
               role: m.role,
               content: m.content,
               thinkingContent: m.thinkingContent,
@@ -1549,7 +1568,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       })
 
       const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: createEditorEntityId("assistant"),
         content: "",
         role: "assistant",
         timestamp: new Date(),
@@ -1561,7 +1580,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         setMessages((prev) => [...prev, assistantMessage])
       } else {
         const userMessage: Message = {
-          id: Date.now().toString(),
+          id: createEditorEntityId("user"),
           content: trimmedMessage,
           role: "user",
           timestamp: new Date(),
@@ -1896,6 +1915,10 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   }, [createCheckpoint, toast, versions])
 
   const handleElementSelect = useCallback((info: SelectedElementInfo) => {
+    if (!info.selector.trim()) {
+      return
+    }
+
     startTransition(() => {
       setSelectedElement({
         id: info.selector,
@@ -1972,7 +1995,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       const baseHtml = lastAppliedHtml.current || htmlContentRef.current || htmlContent
       const parser = new DOMParser()
       const doc = parser.parseFromString(baseHtml, "text/html")
-      const element = doc.querySelector(selector)
+      const normalizedSelector = selector.trim()
+      const element = selectElementSafely(doc, normalizedSelector)
       
       if (element) {
         const htmlElement = element as HTMLElement
@@ -1987,8 +2011,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         // Record in history if needed
         if (recordHistory) {
           const styleChange: StyleChange = {
-            id: Date.now().toString(),
-            selector,
+            id: createEditorEntityId("style"),
+            selector: normalizedSelector,
             property,
             oldValue,
             newValue: value,
@@ -2016,11 +2040,16 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   }, [selectedElement, applyStyleToDOM, syncSelectedElementFromIframe])
 
   const handleTextChange = useCallback((selector: string, text: string) => {
+    const normalizedSelector = selector.trim()
+    if (!normalizedSelector) {
+      return
+    }
+
     try {
       const baseHtml = lastAppliedHtml.current || htmlContentRef.current || htmlContent
       const parser = new DOMParser()
       const doc = parser.parseFromString(baseHtml, "text/html")
-      const element = doc.querySelector(selector)
+      const element = selectElementSafely(doc, normalizedSelector)
       if (!element) return
 
       const oldText = element.textContent ?? ""
@@ -2032,8 +2061,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       commitHtmlContentUpdate(newHtml, { styleUpdate: true })
 
       const textChange: StyleChange = {
-        id: Date.now().toString(),
-        selector,
+        id: createEditorEntityId("style"),
+        selector: normalizedSelector,
         property: TEXT_CONTENT_PROPERTY,
         oldValue: oldText,
         newValue: text,
@@ -2041,8 +2070,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       }
       styleHistoryActions.pushChange(textChange)
 
-      if (selectedElement?.id === selector) {
-        syncSelectedElementFromIframe(selector, selectedElement.clickPosition)
+      if (selectedElement?.id === normalizedSelector) {
+        syncSelectedElementFromIframe(normalizedSelector, selectedElement.clickPosition)
       }
     } catch (e) {
       console.error("Failed to update text", e)
@@ -2061,7 +2090,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       const doc = parser.parseFromString(baseHtml, "text/html")
       
       for (const change of undoneChanges) {
-        const element = doc.querySelector(change.selector)
+        const element = selectElementSafely(doc, change.selector)
         if (element) {
           if (change.property === TEXT_CONTENT_PROPERTY) {
             element.textContent = change.oldValue?.toString() ?? ""
@@ -2100,7 +2129,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       const doc = parser.parseFromString(baseHtml, "text/html")
       
       for (const change of redoneChanges) {
-        const element = doc.querySelector(change.selector)
+        const element = selectElementSafely(doc, change.selector)
         if (element) {
           if (change.property === TEXT_CONTENT_PROPERTY) {
             element.textContent = change.newValue?.toString() ?? ""
@@ -2134,8 +2163,10 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       const parser = new DOMParser()
       const baseHtml = lastAppliedHtml.current || htmlContentRef.current || htmlContent
       const doc = parser.parseFromString(baseHtml, "text/html")
-      const domElement = doc.querySelector(selectedElement.id) as HTMLElement | null
-      const liveElement = previewRef.current?.contentDocument?.querySelector(selectedElement.id) as HTMLElement | null
+      const domElement = selectElementSafely(doc, selectedElement.id)
+      const liveElement = previewRef.current?.contentDocument
+        ? selectElementSafely(previewRef.current.contentDocument, selectedElement.id)
+        : null
       
       if (domElement) {
         applyElementProperties(domElement, element.properties)

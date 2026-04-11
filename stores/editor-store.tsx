@@ -16,6 +16,14 @@ import { CODEUI_GOD_MODE_MODEL_ID } from "@/lib/ai-models"
 import { createDefaultUserPreferences } from "@/lib/user-preferences"
 
 const CINEMATHEQUE_TEMPLATE_ENDPOINT = "/api/templates/cinematheque-preview"
+const createEditorStoreId = (prefix: string): string => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}_${crypto.randomUUID()}`
+  }
+
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+}
+
 const LOADING_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -215,7 +223,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     
     case "CREATE_VERSION": {
       const newVersion: Version = {
-        id: Date.now().toString(),
+        id: createEditorStoreId("version"),
         htmlContent: state.htmlContent,
         timestamp: new Date(),
         description: action.payload.description,
@@ -555,7 +563,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   }, [])
   
   const addMessage = useCallback((message: Omit<Message, "id" | "timestamp">) => {
-    const id = Date.now().toString()
+    const id = createEditorStoreId("message")
     dispatch({
       type: "ADD_MESSAGE",
       payload: {

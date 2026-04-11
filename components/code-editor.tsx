@@ -362,9 +362,9 @@ export function CodeEditor({
           automaticLayout: true,
           scrollBeyondLastLine: false,
           padding: { top: 16, bottom: 16 },
-          smoothScrolling: true,
-          cursorBlinking: "smooth",
-          cursorSmoothCaretAnimation: "on",
+          smoothScrolling: false,
+          cursorBlinking: "solid",
+          cursorSmoothCaretAnimation: "off",
           renderWhitespace: "selection",
           bracketPairColorization: { enabled: true },
           guides: {

@@ -1,5 +1,4 @@
 @import 'tailwindcss';
-@import 'tw-animate-css';
 @import '@fontsource/geist/400.css';
 
 @custom-variant dark (&:is(.dark *));
@@ -208,8 +207,16 @@
   
   /* Apply smooth scrolling globally */
   html {
-    scroll-behavior: smooth;
+    scroll-behavior: auto;
   }
+}
+
+*,
+*::before,
+*::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -271,6 +278,15 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes soft-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 
@@ -419,6 +435,10 @@
 
 .animate-fade-in-up {
   animation: fade-in-up var(--duration-normal) var(--ease-out) forwards;
+}
+
+.animate-soft-fade-in {
+  animation: soft-fade-in 0.05s linear forwards;
 }
 
 .animate-fade-in-down {
