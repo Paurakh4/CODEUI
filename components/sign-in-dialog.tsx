@@ -8,7 +8,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 
 interface SignInDialogProps {
   open: boolean;
@@ -22,22 +21,28 @@ export function SignInDialog({ open, onOpenChange }: SignInDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-bold text-center">
-            Welcome to CodeUI
+      <DialogContent className="sm:max-w-md bg-[#0a0a0a] border border-[#414141]/80 rounded-[8px] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.5)] text-[#ffffff] font-sans">
+        <DialogHeader className="space-y-4">
+          <div className="flex justify-center mb-2">
+            <div className="w-12 h-12 bg-[#faff69] text-[#151515] rounded-[4px] flex items-center justify-center text-[20px] font-black">
+              C
+            </div>
+          </div>
+          <DialogTitle className="text-[32px] font-black text-center tracking-tight leading-none text-white">
+            ENTER THE <span className="text-[#faff69]">COCKPIT.</span>
           </DialogTitle>
-          <DialogDescription className="text-center">
-            Sign in to access your AI-powered code editor
+          <DialogDescription className="text-center text-[#a0a0a0] text-[16px] font-medium leading-[1.5]">
+            Sign in to unleash the database-grade AI UI engine.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-4 py-4">
-          <Button
+        
+        <div className="flex flex-col gap-6 py-6">
+          <button
             onClick={handleGoogleSignIn}
-            className="w-full gap-2"
-            size="lg"
+            className="w-full relative flex items-center justify-center gap-3 bg-[#141414] text-[#ffffff] border border-[#414141]/80 rounded-[4px] px-6 py-4 text-[16px] font-bold hover:bg-[#3a3a3a] hover:border-[#faff69]/50 active:text-[#f4f692] transition-all group overflow-hidden"
           >
-            <svg className="h-5 w-5" viewBox="0 0 24 24">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
+            <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24">
               <path
                 fill="currentColor"
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -55,20 +60,23 @@ export function SignInDialog({ open, onOpenChange }: SignInDialogProps) {
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
               />
             </svg>
-            Continue with Google
-          </Button>
+            AUTHENTICATE
+          </button>
+          
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
+              <span className="w-full border-t border-[#414141]/80" />
             </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">
-                Secure authentication
+            <div className="relative flex justify-center">
+              <span className="bg-[#0a0a0a] px-4 text-[12px] font-bold text-[#a0a0a0] uppercase tracking-[1.4px]">
+                Secure Sector
               </span>
             </div>
           </div>
-          <p className="text-xs text-center text-muted-foreground">
-            By continuing, you agree to our Terms of Service and Privacy Policy
+          
+          <p className="text-[12px] text-center text-[#585858] font-medium leading-[1.6]">
+            By continuing, you initialize the engine according to the <br/>
+            <span className="text-[#a0a0a0] hover:text-[#faff69] cursor-pointer transition-colors">Terms of Service</span> and <span className="text-[#a0a0a0] hover:text-[#faff69] cursor-pointer transition-colors">Privacy Policy</span>.
           </p>
         </div>
       </DialogContent>

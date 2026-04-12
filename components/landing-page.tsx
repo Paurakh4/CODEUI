@@ -1,111 +1,330 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Sparkles, Code2, Zap, Layout } from "lucide-react"
+import { ArrowRight, Terminal, Code2, Zap, Layout, MonitorSmartphone, Layers, Sun, Moon } from "lucide-react"
 import Link from "next/link"
 import { useAuthDialog } from "@/components/auth-dialog-provider"
 import { useSession } from "next-auth/react"
+import { useEffect, useState } from "react"
+import { useEditor } from "@/stores/editor-store"
+
+function ThemeToggle() {
+  const { state, setTheme } = useEditor()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) return <div className="w-10 h-10" />
+
+  const isDark = state.theme === "dark"
+
+  return (
+    <button
+      type="button"
+      onClick={() => setTheme(isDark ? "light" : "dark")}
+      className="relative flex items-center justify-center w-10 h-10 rounded-full border border-zinc-200 dark:border-[#414141]/80 bg-[#f9f9f9] dark:bg-[#141414] overflow-hidden transition-all duration-500 hover:border-[#000000] hover:dark:border-[#faff69] focus:outline-none"
+      aria-label="Toggle Dark Mode"
+    >
+      <div 
+        className={`absolute text-[#151515] transition-all duration-500 transform ${isDark ? "opacity-0 translate-y-8 rotate-45" : "opacity-100 translate-y-0 rotate-0"}`}
+      >
+        <Sun className="w-5 h-5" />
+      </div>
+      <div 
+        className={`absolute text-[#faff69] transition-all duration-500 transform ${isDark ? "opacity-100 translate-y-0 rotate-0" : "opacity-0 -translate-y-8 -rotate-45"}`}
+      >
+        <Moon className="w-5 h-5" />
+      </div>
+    </button>
+  )
+}
 
 export function LandingPage() {
   const { showSignIn } = useAuthDialog()
   const { data: session } = useSession()
 
   return (
-    <div className="min-h-screen bg-black text-white font-sans selection:bg-white/20 dark">
+    <div className="min-h-screen bg-[#ffffff] dark:bg-[#000000] text-[#000000] dark:text-[#ffffff] font-sans selection:bg-[#000000] selection:text-[#faff69] dark:selection:bg-[#faff69] dark:selection:text-black transition-colors duration-500">
       {/* Navigation */}
       <nav className="flex items-center justify-between p-6 max-w-7xl mx-auto">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-white text-black rounded flex items-center justify-center text-lg font-bold">
-            C
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 shrink-0 select-none">
+            <svg viewBox="0 0 375 375" className="w-full h-full dark:hidden">
+              <rect x="-37.5" y="-37.5" width="450" height="450" fill="#ffffff" />
+              <path fill="#000000" d="M 300 150 L 225 150 L 225 225 L 300 225 L 300 300 L 225 300 L 225 225 L 150 225 L 150 300 L 75 300 L 75 225 L 150 225 L 150 150 L 75 150 L 75 75 L 150 75 L 150 150 L 225 150 L 225 75 L 300 75 Z M 300 0 L 0 0 L 0 375 L 375 375 L 375 0 L 300 0" />
+            </svg>
+            <svg viewBox="0 0 375 375" className="w-full h-full hidden dark:block">
+              <rect x="-37.5" y="-37.5" width="450" height="450" fill="#000000" />
+              <path fill="#faff69" d="M 300 150 L 225 150 L 225 225 L 300 225 L 300 300 L 225 300 L 225 225 L 150 225 L 150 300 L 75 300 L 75 225 L 150 225 L 150 150 L 75 150 L 75 75 L 150 75 L 150 150 L 225 150 L 225 75 L 300 75 Z M 300 0 L 0 0 L 0 375 L 375 375 L 375 0 L 300 0" />
+            </svg>
           </div>
-          <span className="text-xl font-bold tracking-tight">CodeUI</span>
+          <span className="text-xl font-black tracking-tight text-[#000000] dark:text-[#ffffff] hover:text-[#166534] dark:hover:text-[#faff69] transition-colors cursor-pointer">CodeUI</span>
         </div>
-        <div className="hidden md:flex items-center gap-8 text-sm text-zinc-400">
-          <a href="#features" className="hover:text-white transition-colors">Features</a>
-          <a href="#showcase" className="hover:text-white transition-colors">Showcase</a>
-          <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
+        <div className="hidden md:flex items-center gap-10 text-[16px] font-bold text-[#585858] dark:text-[#ffffff]">
+          <a href="#features" className="hover:text-[#000000] dark:hover:text-[#faff69] transition-colors">Features</a>
+          <a href="#performance" className="hover:text-[#000000] dark:hover:text-[#faff69] transition-colors">Performance</a>
+          <a href="#pricing" className="hover:text-[#000000] dark:hover:text-[#faff69] transition-colors">Pricing</a>
         </div>
         <div className="flex items-center gap-4">
+          <ThemeToggle />
           {!session ? (
-            <Button 
-              variant="ghost" 
-              className="text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-full px-4"
-              onClick={showSignIn}
-            >
-              Sign In
-            </Button>
+            <>
+              <button 
+                className="text-[#585858] dark:text-[#ffffff] hover:text-[#000000] dark:hover:text-[#faff69] transition-colors font-bold px-4 py-2"
+                onClick={showSignIn}
+              >
+                Log In
+              </button>
+              <button 
+                onClick={showSignIn}
+                className="bg-[#000000] text-white dark:bg-[#166534] hover:bg-[#3a3a3a] dark:hover:bg-[#14572f] border border-transparent dark:border-[#141414] rounded px-5 py-2.5 font-bold transition-colors active:scale-[0.98]"
+              >
+                Get Started Free
+              </button>
+            </>
           ) : (
             <Link href="/dashboard">
-              <Button variant="ghost" className="text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-full px-4">Dashboard</Button>
+              <button className="bg-[#000000] text-white dark:bg-[#166534] hover:bg-[#3a3a3a] dark:hover:bg-[#14572f] border border-transparent dark:border-[#141414] rounded px-5 py-2.5 font-bold transition-colors active:scale-[0.98]">
+                Dashboard
+              </button>
             </Link>
           )}
-          <Link href="/dashboard">
-            <Button className="bg-white text-black hover:bg-zinc-200 rounded-full px-6 transition-colors">
-              Get Started
-            </Button>
-          </Link>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <main className="max-w-7xl mx-auto px-6 pt-20 pb-32">
-        <div className="flex flex-col items-center text-center space-y-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/5 text-xs text-zinc-400">
-            <Sparkles className="w-3 h-3 text-yellow-500" />
-            <span>AI-Powered UI Generation is here</span>
+      <main className="max-w-7xl mx-auto px-6 pt-24 pb-32">
+        <div className="flex flex-col space-y-8 max-w-5xl">
+          <div className="uppercase tracking-[1.4px] text-[#585858] dark:text-[#a0a0a0] text-[14px] font-bold">
+            The database-grade UI engine
           </div>
           
-          <h1 className="text-6xl md:text-8xl font-bold tracking-tighter max-w-4xl mx-auto leading-[0.9]">
-            Build beautiful UIs with <span className="text-zinc-500">just a prompt.</span>
+          <h1 className="text-[64px] md:text-[96px] font-black leading-[1.0] text-[#000000] dark:text-white max-w-4xl tracking-tight">
+            BUILD INTERFACES AT <span className="text-[#166534] dark:text-[#faff69]">EXTREME SPEED.</span>
           </h1>
           
-          <p className="text-zinc-400 text-lg md:text-xl max-w-2xl mx-auto">
-            CodeUI transforms your ideas into production-ready React components using the world's most advanced AI models.
+          <p className="text-[#585858] dark:text-[#a0a0a0] text-[20px] md:text-[24px] font-medium leading-[1.4] max-w-3xl">
+            CodeUI generates production-ready React components instantly. Built for developers who demand absolute control, clean code, and zero abstractions.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center gap-4 pt-4">
-            <Link href="/dashboard">
-              <Button size="lg" className="bg-white text-black hover:bg-zinc-200 rounded-full px-8 h-14 text-lg gap-2">
+          <div className="flex flex-col sm:flex-row items-start gap-4 pt-8">
+            {!session ? (
+              <button onClick={showSignIn} className="bg-[#faff69] text-[#151515] border border-[#161600] dark:border-[#faff69] rounded px-6 py-3.5 text-[18px] font-black hover:bg-[#e0e64c] dark:hover:bg-[#1d1d1d] hover:text-[#151515] dark:hover:text-[#faff69] active:scale-[0.98] transition-all flex items-center gap-2">
                 Start Building <ArrowRight className="w-5 h-5" />
-              </Button>
-            </Link>
-            <Button size="lg" variant="outline" className="bg-zinc-900/50 border-white/10 text-zinc-300 hover:bg-zinc-800 hover:text-white rounded-full px-8 h-14 text-lg transition-all">
-              View Showcase
-            </Button>
+              </button>
+            ) : (
+              <Link href="/dashboard">
+                <button className="bg-[#faff69] text-[#151515] border border-[#161600] dark:border-[#faff69] rounded px-6 py-3.5 text-[18px] font-black hover:bg-[#e0e64c] dark:hover:bg-[#1d1d1d] hover:text-[#151515] dark:hover:text-[#faff69] active:scale-[0.98] transition-all flex items-center gap-2">
+                  Start Building <ArrowRight className="w-5 h-5" />
+                </button>
+              </Link>
+            )}
+            <button className="bg-transparent text-[#000000] dark:text-[#ffffff] border border-[#000000] dark:border-[#4f5100] rounded px-8 py-3.5 text-[18px] font-bold hover:bg-[#f4f4f4] dark:hover:bg-[#141414] active:scale-[0.98] transition-colors">
+              Read the Docs
+            </button>
           </div>
         </div>
 
-        {/* Feature Grid */}
-        <div id="features" className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-40">
-          <FeatureCard 
-            icon={<Zap className="w-6 h-6 text-yellow-500" />}
-            title="Instant Generation"
-            description="Go from prompt to preview in seconds. Iterate faster than ever before."
-          />
-          <FeatureCard 
-            icon={<Code2 className="w-6 h-6 text-blue-500" />}
-            title="Production Ready"
-            description="Get clean, accessible, and responsive React code that you can use immediately."
-          />
-          <FeatureCard 
-            icon={<Layout className="w-6 h-6 text-purple-500" />}
-            title="Full Control"
-            description="Edit styles visually or jump into the code. The power is in your hands."
-          />
+        {/* Stats Bar */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mt-32 border-t border-[#e5e7eb] dark:border-[#414141]/80 pt-16">
+          <div className="flex flex-col">
+            <span className="text-[72px] font-black text-[#000000] dark:text-white leading-none mb-2 hover:text-[#166534] dark:hover:text-[#faff69] transition-colors cursor-default">&lt; 2s</span>
+            <span className="text-[#585858] dark:text-[#a0a0a0] text-[16px] font-bold">Average Generation Time</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[72px] font-black text-[#000000] dark:text-white leading-none mb-2 hover:text-[#166534] dark:hover:text-[#faff69] transition-colors cursor-default">0</span>
+            <span className="text-[#585858] dark:text-[#a0a0a0] text-[16px] font-bold">Hidden Abstractions</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[72px] font-black text-[#000000] dark:text-white leading-none mb-2 hover:text-[#166534] dark:hover:text-[#faff69] transition-colors cursor-default">100%</span>
+            <span className="text-[#585858] dark:text-[#a0a0a0] text-[16px] font-bold">Tailwind CSS Compatible</span>
+          </div>
         </div>
+
+        {/* IDE Preview / Code block mockup */}
+        <section id="performance" className="mt-32">
+          <div className="uppercase tracking-[1.4px] text-[#585858] dark:text-[#a0a0a0] text-[14px] font-bold mb-6">
+            Developer Experience First
+          </div>
+          <div className="bg-[#f9f9f9] dark:bg-[#141414] border border-[#e5e7eb] dark:border-[#414141]/80 rounded-[8px] overflow-hidden shadow-[0px_4px_15px_rgba(0,0,0,0.05)_inset] dark:shadow-[0px_4px_25px_rgba(0,0,0,0.14)_inset] transition-colors">
+            <div className="flex bg-[#ffffff] dark:bg-[#0a0a0a] border-b border-[#e5e7eb] dark:border-[#414141]/80 px-4 py-3 item-center gap-2">
+              <div className="flex gap-2 items-center">
+                <div className="w-3 h-3 rounded-full bg-[#d1d5db] dark:bg-[#414141]"></div>
+                <div className="w-3 h-3 rounded-full bg-[#d1d5db] dark:bg-[#414141]"></div>
+                <div className="w-3 h-3 rounded-full bg-[#d1d5db] dark:bg-[#414141]"></div>
+              </div>
+              <div className="ml-4 text-[#585858] dark:text-[#a0a0a0] text-[12px] font-mono flex items-center gap-2 font-bold">
+                <Terminal className="w-3 h-3" /> main.tsx
+              </div>
+            </div>
+            <div className="p-6 md:p-8 font-mono text-[14px] md:text-[16px] leading-[1.6] overflow-x-auto text-[#151515] dark:text-[#a0a0a0]">
+              <div><span className="text-[#166534] dark:text-[#faff69]">{`// Generated via CodeUI Engine`}</span></div>
+              <div><span className="text-[#000000] dark:text-white font-bold">import</span> {'{'} <span className="text-[#8b5cf6] dark:text-[#f4f692]">Button</span> {'}'} <span className="text-[#000000] dark:text-white font-bold">from</span> <span className="text-[#166534]">"@/components/ui/button"</span>;</div>
+              <br />
+              <div><span className="text-[#000000] dark:text-white font-bold">export function</span> <span className="text-[#8b5cf6] dark:text-[#f4f692]">FeatureCard</span>() {'{'}</div>
+              <div className="ml-4"><span className="text-[#000000] dark:text-white font-bold">return</span> (</div>
+              <div className="ml-8"><span className="text-[#000000] dark:text-white font-bold">&lt;div</span> <span className="text-[#166534] dark:text-[#faff69]">className</span>=<span className="text-[#166534]">"bg-[#141414] border border-[#414141]/80 p-8 rounded-[8px]"</span><span className="text-[#000000] dark:text-white font-bold">&gt;</span></div>
+              <div className="ml-12"><span className="text-[#000000] dark:text-white font-bold">&lt;h3</span> <span className="text-[#166534] dark:text-[#faff69]">className</span>=<span className="text-[#166534]">"text-[24px] font-bold text-white mb-4"</span><span className="text-[#000000] dark:text-white font-bold">&gt;</span></div>
+              <div className="ml-16"><span className="text-[#151515] dark:text-white font-bold">Absolute Precision</span></div>
+              <div className="ml-12"><span className="text-[#000000] dark:text-white font-bold">&lt;/h3&gt;</span></div>
+              <div className="ml-12"><span className="text-[#000000] dark:text-white font-bold">&lt;p</span> <span className="text-[#166534] dark:text-[#faff69]">className</span>=<span className="text-[#166534]">"text-[#a0a0a0]"</span><span className="text-[#000000] dark:text-white font-bold">&gt;</span></div>
+              <div className="ml-16"><span className="text-[#151515] dark:text-white font-bold">Every pixel, perfectly aligned out of the box.</span></div>
+              <div className="ml-12"><span className="text-[#000000] dark:text-white font-bold">&lt;/p&gt;</span></div>
+              <div className="ml-8"><span className="text-[#000000] dark:text-white font-bold">&lt;/div&gt;</span></div>
+              <div className="ml-4 font-bold">);</div>
+              <div className="font-bold">{'}'}</div>
+            </div>
+          </div>
+        </section>
+
+        {/* Feature Grid */}
+        <section id="features" className="mt-32">
+          <div className="uppercase tracking-[1.4px] text-[#585858] dark:text-[#a0a0a0] text-[14px] font-bold mb-6">
+            Core Architecture
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <FeatureCard 
+              icon={<Zap className="w-6 h-6 text-[#166534] dark:text-[#faff69]" />}
+              title="Real-Time Engine"
+              description="Powered by the fastest LLMs to stream component structures in milliseconds. You talk, it writes."
+            />
+            <FeatureCard 
+              icon={<Code2 className="w-6 h-6 text-[#166534] dark:text-[#faff69]" />}
+              title="Clean React"
+              description="Yields standard React hooks, states, and props. No bloated wrap-arounds or lock-in components."
+            />
+            <FeatureCard 
+              icon={<Layout className="w-6 h-6 text-[#166534] dark:text-[#faff69]" />}
+              title="Tailwind Native"
+              description="Uses utility classes for styling. Fits perfectly into your existing design system configurations."
+            />
+            <FeatureCard 
+              icon={<MonitorSmartphone className="w-6 h-6 text-[#166534] dark:text-[#faff69]" />}
+              title="Fluid Responsive"
+              description="By default, every block generated is mobile-first, tablet-ready, and ultra-wide capable."
+            />
+            <FeatureCard 
+              icon={<Layers className="w-6 h-6 text-[#166534] dark:text-[#faff69]" />}
+              title="Radix & Shadcn"
+              description="Seamlessly implements accessible, unstyled primitives alongside your brand requirements."
+            />
+            <FeatureCard 
+              icon={<Terminal className="w-6 h-6 text-[#166534] dark:text-[#faff69]" />}
+              title="Terminal-Grade"
+              description="Export your code instantly or preview inline. The tooling gets out of your way."
+            />
+          </div>
+        </section>
+
+        {/* Pricing Section */}
+        <section id="pricing" className="mt-48 pt-16 border-t border-[#e5e7eb] dark:border-[#414141]/80 transition-colors">
+          <div className="uppercase tracking-[1.4px] text-[#585858] dark:text-[#a0a0a0] text-[14px] font-bold mb-6">
+            Pricing Plans
+          </div>
+          <h2 className="text-[48px] md:text-[64px] font-black leading-none text-[#000000] dark:text-white max-w-2xl mb-12 tracking-tight">
+            PREDICTABLE. SCALABLE.
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Standard Tier */}
+            <div className="bg-[#f9f9f9] dark:bg-[#141414] border border-[#e5e7eb] dark:border-[#414141]/80 rounded-[8px] p-10 flex flex-col hover:border-[#000000] hover:dark:border-[#faff69]/50 transition-colors">
+              <h3 className="text-[24px] font-bold text-[#000000] dark:text-white mb-2">Developer</h3>
+              <div className="flex items-end gap-2 mb-6">
+                <span className="text-[56px] font-black text-[#000000] dark:text-white leading-none">$0</span>
+                <span className="text-[#585858] dark:text-[#a0a0a0] font-bold pb-2">/ month</span>
+              </div>
+              <p className="text-[#585858] dark:text-[#a0a0a0] mb-8 min-h-[48px] font-medium">Perfect for individuals and small setups exploring AI UI generation.</p>
+              {!session ? (
+                <button onClick={showSignIn} className="w-full bg-transparent text-[#000000] dark:text-[#ffffff] border border-[#000000] dark:border-[#4f5100] rounded px-6 py-3 font-bold hover:bg-[#e5e7eb] dark:hover:bg-[#3a3a3a] active:scale-[0.98] transition-colors mb-8">
+                  Start Free
+                </button>
+              ) : (
+                <Link href="/dashboard" className="w-full">
+                  <button className="w-full bg-transparent text-[#000000] dark:text-[#ffffff] border border-[#000000] dark:border-[#4f5100] rounded px-6 py-3 font-bold hover:bg-[#e5e7eb] dark:hover:bg-[#3a3a3a] active:scale-[0.98] transition-colors mb-8">
+                    Start Free
+                  </button>
+                </Link>
+              )}
+              <ul className="space-y-4 flex-1">
+                <li className="flex items-center gap-3 text-[#151515] dark:text-[#ffffff] font-bold">
+                  <div className="w-1.5 h-1.5 bg-[#000000] dark:bg-[#faff69] rounded-full shrink-0"/> 100 queries per month
+                </li>
+                <li className="flex items-center gap-3 text-[#151515] dark:text-[#ffffff] font-bold">
+                  <div className="w-1.5 h-1.5 bg-[#000000] dark:bg-[#faff69] rounded-full shrink-0"/> Standard React+Tailwind exports
+                </li>
+                <li className="flex items-center gap-3 text-[#151515] dark:text-[#ffffff] font-bold">
+                  <div className="w-1.5 h-1.5 bg-[#000000] dark:bg-[#faff69] rounded-full shrink-0"/> Community support
+                </li>
+              </ul>
+            </div>
+
+            {/* Pro Tier (Highlighted) */}
+            <div className="bg-[#ffffff] dark:bg-[#0a0a0a] border-2 dark:border border-[#166534] dark:border-[#faff69] rounded-[8px] p-10 flex flex-col relative shadow-[0px_4px_25px_rgba(22,101,52,0.05)_inset] dark:shadow-[0px_4px_25px_rgba(250,255,105,0.05)_inset]">
+              <div className="absolute top-0 right-0 bg-[#166534] dark:bg-[#faff69] text-[#ffffff] dark:text-[#151515] px-4 py-1 text-[12px] font-bold uppercase tracking-[1.4px] rounded-tr-[5px] rounded-bl-[4px]">
+                High Performance
+              </div>
+              <h3 className="text-[24px] font-bold text-[#000000] dark:text-white mb-2">Production</h3>
+              <div className="flex items-end gap-2 mb-6">
+                <span className="text-[56px] font-black text-[#166534] dark:text-[#faff69] leading-none">$49</span>
+                <span className="text-[#585858] dark:text-[#a0a0a0] font-bold pb-2">/ month</span>
+              </div>
+              <p className="text-[#585858] dark:text-[#a0a0a0] mb-8 min-h-[48px] font-medium">For teams requiring unlimited power and advanced custom component libraries.</p>
+              {!session ? (
+                <button onClick={showSignIn} className="w-full bg-[#faff69] text-[#151515] border border-[#161600] dark:border-[#faff69] rounded px-6 py-3 font-black hover:bg-[#e0e64c] dark:hover:bg-[#1d1d1d] hover:text-[#151515] dark:hover:text-[#faff69] active:scale-[0.98] transition-colors mb-8">
+                  Upgrade Now
+                </button>
+              ) : (
+                <Link href="/dashboard/billing" className="w-full">
+                  <button className="w-full bg-[#faff69] text-[#151515] border border-[#161600] dark:border-[#faff69] rounded px-6 py-3 font-black hover:bg-[#e0e64c] dark:hover:bg-[#1d1d1d] hover:text-[#151515] dark:hover:text-[#faff69] active:scale-[0.98] transition-colors mb-8">
+                    Upgrade Now
+                  </button>
+                </Link>
+              )}
+              <ul className="space-y-4 flex-1">
+                <li className="flex items-center gap-3 text-[#151515] dark:text-[#ffffff] font-bold">
+                  <div className="w-1.5 h-1.5 bg-[#166534] dark:bg-[#faff69] rounded-full shrink-0"/> Unlimited queries
+                </li>
+                <li className="flex items-center gap-3 text-[#151515] dark:text-[#ffffff] font-bold">
+                  <div className="w-1.5 h-1.5 bg-[#166534] dark:bg-[#faff69] rounded-full shrink-0"/> Premium LLM Access (GPT-4o, Sonnet)
+                </li>
+                <li className="flex items-center gap-3 text-[#151515] dark:text-[#ffffff] font-bold">
+                  <div className="w-1.5 h-1.5 bg-[#166534] dark:bg-[#faff69] rounded-full shrink-0"/> Access to custom context injection
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-white/10 py-12">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-white text-black rounded flex items-center justify-center text-sm font-bold">
-              C
+      <footer className="border-t border-[#e5e7eb] dark:border-[#414141]/80 py-16 bg-[#ffffff] dark:bg-[#000000] transition-colors">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+          <div className="flex items-center gap-3 opacity-80 hover:opacity-100 transition-opacity">
+            <div className="w-8 h-8 shrink-0">
+              <svg viewBox="0 0 375 375" className="w-full h-full dark:hidden">
+                <rect x="-37.5" y="-37.5" width="450" height="450" fill="#ffffff" />
+                <path fill="#000000" d="M 300 150 L 225 150 L 225 225 L 300 225 L 300 300 L 225 300 L 225 225 L 150 225 L 150 300 L 75 300 L 75 225 L 150 225 L 150 150 L 75 150 L 75 75 L 150 75 L 150 150 L 225 150 L 225 75 L 300 75 Z M 300 0 L 0 0 L 0 375 L 375 375 L 375 0 L 300 0" />
+              </svg>
+              <svg viewBox="0 0 375 375" className="w-full h-full hidden dark:block">
+                <rect x="-37.5" y="-37.5" width="450" height="450" fill="#000000" />
+                <path fill="#faff69" d="M 300 150 L 225 150 L 225 225 L 300 225 L 300 300 L 225 300 L 225 225 L 150 225 L 150 300 L 75 300 L 75 225 L 150 225 L 150 150 L 75 150 L 75 75 L 150 75 L 150 150 L 225 150 L 225 75 L 300 75 Z M 300 0 L 0 0 L 0 375 L 375 375 L 375 0 L 300 0" />
+              </svg>
             </div>
-            <span className="text-lg font-bold tracking-tight">CodeUI</span>
+            <span className="text-[16px] font-black tracking-tight text-[#000000] dark:text-white hover:text-[#166534] dark:hover:text-[#faff69] transition-colors cursor-pointer">CodeUI</span>
           </div>
-          <p className="text-zinc-500 text-sm">
-            © 2025 CodeUI. All rights reserved.
+          
+          <div className="flex gap-8 text-[14px] font-bold text-[#585858] dark:text-[#a0a0a0]">
+            <Link href="#" className="hover:text-[#000000] dark:hover:text-[#faff69] transition-colors">Documentation</Link>
+            <Link href="#" className="hover:text-[#000000] dark:hover:text-[#faff69] transition-colors">Privacy Policy</Link>
+            <Link href="#" className="hover:text-[#000000] dark:hover:text-[#faff69] transition-colors">Terms of Service</Link>
+            <Link href="#" className="hover:text-[#000000] dark:hover:text-[#faff69] transition-colors">GitHub</Link>
+          </div>
+          
+          <p className="text-[#585858] dark:text-[#a0a0a0] text-[14px] font-bold">
+            © 2026 CodeUI.
           </p>
         </div>
       </footer>
@@ -115,12 +334,12 @@ export function LandingPage() {
 
 function FeatureCard({ icon, title, description }: { icon: React.ReactNode, title: string, description: string }) {
   return (
-    <div className="p-8 rounded-3xl border border-white/10 bg-white/5 space-y-4">
-      <div className="w-12 h-12 rounded-2xl bg-black flex items-center justify-center border border-white/10">
+    <div className="p-8 rounded-[8px] border border-[#e5e7eb] dark:border-[#414141]/80 bg-[#f9f9f9] dark:bg-[#141414] hover:bg-[#ffffff] hover:dark:bg-[#1a1a1a] hover:border-[#166534] hover:dark:border-[#faff69]/40 transition-all group flex flex-col">
+      <div className="mb-6 opacity-90 group-hover:opacity-100 group-hover:scale-110 transition-transform origin-left">
         {icon}
       </div>
-      <h3 className="text-xl font-bold">{title}</h3>
-      <p className="text-zinc-400 leading-relaxed">
+      <h3 className="text-[24px] font-bold text-[#000000] dark:text-[#ffffff] mb-3 leading-[1.3]">{title}</h3>
+      <p className="text-[#585858] dark:text-[#a0a0a0] text-[16px] leading-[1.5] font-medium">
         {description}
       </p>
     </div>

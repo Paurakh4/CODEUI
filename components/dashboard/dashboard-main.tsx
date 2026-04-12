@@ -224,7 +224,7 @@ export function DashboardMain({
       case "proplus":
         return { label: "Pro+", color: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/20" }
       case "pro":
-        return { label: "Pro", color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" }
+        return { label: "Pro", color: "text-[#faff69]", bg: "bg-[#faff69]/10", border: "border-amber-500/20" }
       default:
         return { label: "Free", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20" }
     }
@@ -302,18 +302,18 @@ export function DashboardMain({
       {/* Sidebar */}
       <aside 
         className={`
-          fixed md:relative z-40 h-full flex-shrink-0 flex flex-col border-r border-white/10 bg-black transition-all duration-300 ease-in-out overflow-hidden
+          fixed md:relative z-40 h-full flex-shrink-0 flex flex-col border-r border-[#414141]/80 bg-black transition-all duration-300 ease-in-out overflow-hidden
           ${isSidebarOpen ? 'w-[280px]' : 'w-0 border-r-0'}
         `}
       >
         {/* Sidebar Header */}
         <div className="p-4 flex items-center justify-between whitespace-nowrap">
-          <div className="flex items-center gap-2 px-2 py-1.5 hover:bg-zinc-900 rounded-md cursor-pointer transition-colors overflow-hidden">
+          <div className="flex items-center gap-2 px-2 py-1.5 hover:bg-[#141414] rounded-[4px] cursor-pointer transition-colors overflow-hidden">
             <div className="w-5 h-5 bg-white text-black rounded flex-shrink-0 flex items-center justify-center text-xs font-bold">
               C
             </div>
-            <span className="text-sm font-medium truncate">Personal</span>
-            <span className={`text-[10px] ${tierBadge.bg} ${tierBadge.color} border ${tierBadge.border} px-1.5 py-0.5 rounded font-medium ml-1`}>
+            <span className="text-sm font-bold truncate">Personal</span>
+            <span className={`text-[10px] ${tierBadge.bg} ${tierBadge.color} border ${tierBadge.border} px-1.5 py-0.5 rounded font-bold ml-1`}>
               {tierBadge.label}
             </span>
           </div>
@@ -322,7 +322,7 @@ export function DashboardMain({
             size="icon" 
             onClick={() => setIsSidebarOpen(false)}
             aria-label="Collapse sidebar"
-            className="h-8 w-8 text-zinc-500 hover:text-white hover:bg-zinc-900 focus-visible:ring-1 focus-visible:ring-zinc-500"
+            className="h-8 w-8 text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#141414] focus-visible:ring-1 focus-visible:ring-[#faff69]"
           >
             <PanelLeftClose className="w-4 h-4" />
           </Button>
@@ -333,7 +333,7 @@ export function DashboardMain({
           <Button 
             onClick={() => onStart()}
             variant="outline" 
-            className="w-full justify-start gap-2 bg-transparent border-white/10 text-zinc-300 hover:bg-zinc-900 hover:text-white h-9"
+            className="w-full justify-start gap-2 bg-transparent border-[#414141]/80 text-white hover:bg-[#141414] hover:text-[#faff69] h-9"
           >
             <Code className="w-4 h-4" />
             <span className="text-sm">Create Project</span>
@@ -343,11 +343,11 @@ export function DashboardMain({
         {/* Navigation Items */}
         <ScrollArea className="flex-1 px-2 min-h-0">
           <div className="space-y-2 px-2 pt-1">
-            <label htmlFor="project-search" className="text-[11px] font-medium text-zinc-500">
+            <label htmlFor="project-search" className="text-[11px] font-bold text-[#a0a0a0]">
               Search projects
             </label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#a0a0a0]" />
               <input
                 id="project-search"
                 type="search"
@@ -358,11 +358,11 @@ export function DashboardMain({
                   setTimeout(() => setIsSearchFocused(false), 120)
                 }}
                 placeholder="Search by project name"
-                className="w-full h-9 bg-zinc-900 border border-white/10 rounded-md pl-9 pr-3 text-sm text-zinc-200 placeholder:text-zinc-500 outline-none focus-visible:ring-1 focus-visible:ring-zinc-500"
+                className="w-full h-9 bg-[#141414] border border-[#414141]/80 rounded-[4px] pl-9 pr-3 text-sm text-white placeholder:text-[#a0a0a0] outline-none focus-visible:ring-1 focus-visible:ring-[#faff69]"
                 aria-label="Search projects"
               />
               {isSearchFocused && searchQuery.trim().length > 0 && (
-                <div className="absolute z-40 mt-2 w-full rounded-md border border-white/10 bg-zinc-950 shadow-xl overflow-hidden">
+                <div className="absolute z-40 mt-2 w-full rounded-[4px] border border-[#414141]/80 bg-black shadow-[0_1px_3px_rgba(0,0,0,0.1)]-[0_10px_15px_-3px_rgba(0,0,0,0.1)] overflow-hidden">
                   <div className="max-h-64 overflow-auto py-1">
                     {filteredProjects.length > 0 ? (
                       filteredProjects.map((project) => (
@@ -373,18 +373,18 @@ export function DashboardMain({
                             setIsSearchFocused(false)
                             setSearchQuery("")
                           }}
-                          className="block px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-white transition-colors"
+                          className="block px-3 py-2 text-sm text-white hover:bg-[#141414] hover:text-[#faff69] transition-colors"
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="truncate">{project.name}</span>
-                            <span className="text-[10px] text-zinc-500 whitespace-nowrap">
+                            <span className="text-[10px] text-[#a0a0a0] whitespace-nowrap">
                               {formatRelativeDate(project.updatedAt)}
                             </span>
                           </div>
                         </Link>
                       ))
                     ) : (
-                      <div className="px-3 py-3 text-xs text-zinc-500 text-center">
+                      <div className="px-3 py-3 text-xs text-[#a0a0a0] text-center">
                         No matching projects found.
                       </div>
                     )}
@@ -396,37 +396,37 @@ export function DashboardMain({
 
           <div className="mt-6 space-y-4">
             <div className="px-2">
-              <div className="flex items-center justify-between text-zinc-500 mb-1">
-                <span className="text-xs font-medium">Favorites</span>
-                <span className="text-[10px] text-zinc-600">Coming soon</span>
+              <div className="flex items-center justify-between text-[#a0a0a0] mb-1">
+                <span className="text-xs font-bold">Favorites</span>
+                <span className="text-[10px] text-[#a0a0a0]">Coming soon</span>
               </div>
             </div>
 
             <div className="px-2">
-              <div className="flex items-center justify-between text-zinc-500 hover:text-zinc-300 cursor-pointer group mb-2">
-                <span className="text-xs font-medium">Recent Chats</span>
+              <div className="flex items-center justify-between text-[#a0a0a0] hover:text-[#faff69] cursor-pointer group mb-2">
+                <span className="text-xs font-bold">Recent Chats</span>
                 <ChevronDown className="w-3 h-3" />
               </div>
               <div className="space-y-0.5">
                 {isLoadingProjects ? (
                   <div className="flex items-center justify-center py-4">
-                    <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />
+                    <Loader2 className="w-4 h-4 animate-spin text-[#a0a0a0]" />
                   </div>
                 ) : recentProjects.length > 0 ? (
                   recentProjects.map((project) => (
                     <Link 
                       key={project.id} 
                       href={`/project/${project.id}`}
-                      className="block px-2 py-1.5 text-sm text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200 rounded-md cursor-pointer transition-colors"
+                      className="block px-2 py-1.5 text-sm text-[#a0a0a0] hover:bg-[#141414] hover:text-[#faff69] rounded-[4px] cursor-pointer transition-colors"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="truncate">{project.name}</span>
-                        <span className="text-[10px] text-zinc-600">{formatRelativeDate(project.updatedAt)}</span>
+                        <span className="text-[10px] text-[#a0a0a0]">{formatRelativeDate(project.updatedAt)}</span>
                       </div>
                     </Link>
                   ))
                 ) : (
-                  <div className="px-2 py-3 text-xs text-zinc-500 text-center">
+                  <div className="px-2 py-3 text-xs text-[#a0a0a0] text-center">
                     {normalizedSearchQuery ? "No recent chats match your search." : "No activity yet."}
                   </div>
                 )}
@@ -434,27 +434,27 @@ export function DashboardMain({
             </div>
 
             <div className="px-2">
-              <div className="flex items-center justify-between text-zinc-500 hover:text-zinc-300 cursor-pointer group mb-2">
-                <span className="text-xs font-medium">Saved Projects</span>
+              <div className="flex items-center justify-between text-[#a0a0a0] hover:text-[#faff69] cursor-pointer group mb-2">
+                <span className="text-xs font-bold">Saved Projects</span>
                 <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
               <div className="space-y-0.5">
                 {isLoadingProjects ? (
                   <div className="flex items-center justify-center py-4">
-                    <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />
+                    <Loader2 className="w-4 h-4 animate-spin text-[#a0a0a0]" />
                   </div>
                 ) : savedProjects.length > 0 ? (
                   savedProjects.map((project) => (
                     <Link
                       key={`sidebar-${project.id}`}
                       href={`/project/${project.id}`}
-                      className="block px-2 py-1.5 text-sm text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200 rounded-md cursor-pointer truncate transition-colors"
+                      className="block px-2 py-1.5 text-sm text-[#a0a0a0] hover:bg-[#141414] hover:text-[#faff69] rounded-[4px] cursor-pointer truncate transition-colors"
                     >
                       {project.name}
                     </Link>
                   ))
                 ) : (
-                  <div className="px-2 py-3 text-xs text-zinc-500 text-center">
+                  <div className="px-2 py-3 text-xs text-[#a0a0a0] text-center">
                     {normalizedSearchQuery ? "No saved projects match your search." : "No saved projects."}
                   </div>
                 )}
@@ -464,45 +464,45 @@ export function DashboardMain({
         </ScrollArea>
         
         {/* Sidebar Footer */}
-        <div className="p-4 border-t border-white/10 space-y-4">
-            <div className="bg-zinc-900/50 rounded-xl p-3 border border-white/5">
+        <div className="p-4 border-t border-[#414141]/80 space-y-4">
+            <div className="bg-[#141414] rounded-[8px] p-3 border border-[#414141]/80">
                 <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-medium text-zinc-400">Credits</span>
+                      <span className="text-xs font-bold text-[#a0a0a0]">Credits</span>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
                             aria-label="How credits work"
                             onClick={openCreditsInfo}
-                            className="text-zinc-500 hover:text-zinc-300 transition-colors"
+                            className="text-[#a0a0a0] hover:text-[#faff69] transition-colors"
                           >
                             <Info className="w-3 h-3" />
                           </button>
                         </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-[220px] bg-zinc-800 text-zinc-100 border border-zinc-700">
+                        <TooltipContent side="top" className="max-w-[220px] bg-[#141414] text-white border border-[#414141]/80">
                           Credits are consumed when you run AI generation. Monthly credits reset every billing cycle.
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <span className="text-xs font-bold text-zinc-200">{userTotalCredits}</span>
+                    <span className="text-xs font-bold text-white">{userTotalCredits}</span>
                 </div>
-                <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
+                <div className="h-1.5 w-full bg-[#141414] rounded-full overflow-hidden">
                     <div 
                       className={`h-full rounded-full transition-all ${
-                        usagePercentage > 20 ? 'bg-amber-500' : 'bg-red-500'
+                        usagePercentage > 20 ? 'bg-[#faff69]' : 'bg-red-500'
                       }`}
                       style={{ width: `${usagePercentage}%` }}
                     />
                 </div>
                 <div className="flex items-center justify-between mt-2">
-                  <p className="text-[10px] text-zinc-500">
+                  <p className="text-[10px] text-[#a0a0a0]">
                     {userMonthlyCredits} monthly credits
                   </p>
                 </div>
                  <Button 
                    variant="link" 
                    onClick={() => setIsPricingOpen(true)}
-                   className="h-auto p-0 text-[10px] text-amber-500 hover:text-amber-400 font-medium mt-1"
+                   className="h-auto p-0 text-[10px] text-[#faff69] hover:text-[#faff69] font-bold mt-1"
                  >
                      View plans →
                  </Button>
@@ -519,7 +519,7 @@ export function DashboardMain({
               size="icon" 
               onClick={() => setIsSidebarOpen(true)}
               aria-label="Expand sidebar"
-              className="h-9 w-9 bg-black border border-white/10 text-zinc-400 hover:text-white hover:bg-zinc-900 focus-visible:ring-1 focus-visible:ring-zinc-500"
+              className="h-9 w-9 bg-black border border-[#414141]/80 text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#141414] focus-visible:ring-1 focus-visible:ring-[#faff69]"
             >
               <PanelLeftOpen className="w-5 h-5" />
             </Button>
@@ -531,7 +531,7 @@ export function DashboardMain({
               variant="ghost" 
               size="sm" 
               onClick={() => setIsPricingOpen(true)}
-              className="hidden sm:flex text-zinc-400 hover:text-white hover:bg-zinc-900 h-8 text-xs"
+              className="hidden sm:flex text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#141414] h-8 text-xs"
             >
               Upgrade
             </Button>
@@ -539,22 +539,22 @@ export function DashboardMain({
               variant="ghost" 
               size="sm" 
               onClick={() => setIsFeedbackOpen(true)}
-              className="hidden sm:flex text-zinc-400 hover:text-white hover:bg-zinc-900 h-8 text-xs"
+              className="hidden sm:flex text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#141414] h-8 text-xs"
             >
               Feedback
             </Button>
             <div 
               onClick={() => setIsPricingOpen(true)}
-              className="flex items-center gap-2 bg-zinc-900/50 hover:bg-zinc-900 rounded-full px-3 py-1.5 sm:py-1 border border-white/10 transition-colors cursor-pointer group"
+              className="flex items-center gap-2 bg-[#141414] hover:bg-[#141414] rounded-full px-3 py-1.5 sm:py-1 border border-[#414141]/80 transition-colors cursor-pointer group"
             >
                 {userTier === 'proplus' ? (
                   <Crown className="w-3.5 h-3.5 text-purple-500 group-hover:scale-110 transition-transform" />
                 ) : (
-                  <Zap className={`w-3.5 h-3.5 ${userTier === 'pro' ? 'text-amber-500 fill-amber-500/20' : 'text-emerald-500 fill-emerald-500/20'} group-hover:scale-110 transition-transform`} />
+                  <Zap className={`w-3.5 h-3.5 ${userTier === 'pro' ? 'text-[#faff69] fill-amber-500/20' : 'text-emerald-500 fill-emerald-500/20'} group-hover:scale-110 transition-transform`} />
                 )}
                 <div className="flex items-center gap-1">
-                    <span className="text-xs font-bold text-zinc-100">{userTotalCredits}</span>
-                    <span className="hidden sm:inline text-[10px] text-zinc-500 font-medium uppercase tracking-tight">Credits</span>
+                    <span className="text-xs font-bold text-white">{userTotalCredits}</span>
+                    <span className="hidden sm:inline text-[10px] text-[#a0a0a0] font-bold uppercase tracking-tight">Credits</span>
                 </div>
             </div>
             <UserMenu />
@@ -563,7 +563,7 @@ export function DashboardMain({
         {billingSyncState !== 'idle' && billingSyncMessage && (
           <div className="absolute top-16 left-1/2 z-20 w-[min(720px,calc(100%-2rem))] -translate-x-1/2 px-4">
             <div className={cn(
-              "flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 shadow-lg backdrop-blur",
+              "flex items-center justify-between gap-3 rounded-[8px] border px-4 py-3 shadow-[0_1px_3px_rgba(0,0,0,0.1)]-[0_10px_15px_-3px_rgba(0,0,0,0.1)] backdrop-blur",
               billingSyncState === 'processing' && "border-sky-500/20 bg-sky-500/10 text-sky-100",
               billingSyncState === 'confirmed' && "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
               billingSyncState === 'failed' && "border-rose-500/20 bg-rose-500/10 text-rose-100",
@@ -605,8 +605,8 @@ export function DashboardMain({
                     
                     {/* Input Area */}
                     <div className="relative group px-1 sm:px-0">
-                        <div className="absolute -inset-0.5 bg-gradient-to-r from-white/20 to-white/10 rounded-xl blur opacity-30 group-hover:opacity-50 transition duration-500"></div>
-                        <div className="relative bg-black border border-white/10 rounded-xl overflow-hidden shadow-2xl">
+                        <div className="absolute -inset-0.5 bg-gradient-to-r from-white/20 to-white/10 rounded-[8px] blur opacity-30 group-hover:opacity-50 transition duration-500"></div>
+                        <div className="relative bg-black border border-[#414141]/80 rounded-[8px] overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.1)]-2xl">
                             <textarea 
                                 ref={textareaRef}
                                 value={promptValue}
@@ -615,28 +615,28 @@ export function DashboardMain({
                                     adjustHeight()
                                 }}
                                 onKeyDown={handleKeyDown}
-                                className="w-full bg-transparent text-lg px-4 py-4 min-h-[60px] max-h-[200px] outline-none resize-none placeholder:text-zinc-500"
+                                className="w-full bg-transparent text-lg px-4 py-4 min-h-[60px] max-h-[200px] outline-none resize-none placeholder:text-[#a0a0a0]"
                                 placeholder="Ask CodeUI to build..."
                                 rows={1}
                             />
-                            <div className="flex items-center justify-between px-3 py-2 border-t border-white/5 bg-white/[0.02]">
+                            <div className="flex items-center justify-between px-3 py-2 border-t border-[#414141]/80 bg-white/[0.02]">
                                 <div className="flex items-center gap-2">
                                     <DropdownMenu>
                                       <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-lg">
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#141414] rounded-[4px]">
                                           <Plus className="w-5 h-5" />
                                         </Button>
                                       </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="start" className="w-56 bg-zinc-950 border-white/10 text-zinc-300">
-                                        <DropdownMenuItem onSelect={focusPromptInput} className="cursor-pointer gap-2 focus:bg-zinc-900 focus:text-white">
+                                      <DropdownMenuContent align="start" className="w-56 bg-black border-[#414141]/80 text-white">
+                                        <DropdownMenuItem onSelect={focusPromptInput} className="cursor-pointer gap-2 focus:bg-[#141414] focus:text-white">
                                           <Plus className="w-4 h-4" />
                                           <span>Continue writing prompt</span>
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={startLandingPage} className="cursor-pointer gap-2 focus:bg-zinc-900 focus:text-white">
+                                        <DropdownMenuItem onSelect={startLandingPage} className="cursor-pointer gap-2 focus:bg-[#141414] focus:text-white">
                                           <LayoutTemplate className="w-4 h-4" />
                                           <span>Use landing page starter</span>
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={() => onStart(undefined, selectedModelId)} className="cursor-pointer gap-2 focus:bg-zinc-900 focus:text-white">
+                                        <DropdownMenuItem onSelect={() => onStart(undefined, selectedModelId)} className="cursor-pointer gap-2 focus:bg-[#141414] focus:text-white">
                                           <Code className="w-4 h-4" />
                                           <span>Create blank project</span>
                                         </DropdownMenuItem>
@@ -648,7 +648,7 @@ export function DashboardMain({
                                             <Button 
                                                 variant="ghost" 
                                                 size="sm" 
-                                                className="h-8 text-zinc-400 hover:text-white hover:bg-zinc-900 rounded-lg gap-2 text-xs font-normal px-2 outline-none focus-visible:ring-0"
+                                                className="h-8 text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#141414] rounded-[4px] gap-2 text-xs font-normal px-2 outline-none focus-visible:ring-0"
                                                 disabled={isLoadingModels}
                                             >
                                                 {isLoadingModels ? (
@@ -658,7 +658,7 @@ export function DashboardMain({
                                                   </>
                                                 ) : (
                                                   <>
-                                                    <div className="text-zinc-400">
+                                                    <div className="text-[#a0a0a0]">
                                                         {getModelIcon(selectedModelId)}
                                                     </div>
                                                     {selectedModelName}
@@ -667,18 +667,18 @@ export function DashboardMain({
                                                 )}
                                             </Button>
                                         </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="start" className="w-56 bg-zinc-950 border-white/10 text-zinc-300">
+                                        <DropdownMenuContent align="start" className="w-56 bg-black border-[#414141]/80 text-white">
                                             {availableModels.map((model) => (
                                                 <DropdownMenuItem 
                                                     key={model.id}
                                                     onClick={() => setModel(model.id)}
-                                                    className="gap-2 focus:bg-zinc-900 focus:text-white cursor-pointer py-2"
+                                                    className="gap-2 focus:bg-[#141414] focus:text-white cursor-pointer py-2"
                                                 >
-                                                    <div className="text-zinc-500 group-focus:text-white">
+                                                    <div className="text-[#a0a0a0] group-focus:text-white">
                                                         {getModelIcon(model.id)}
                                                     </div>
                                                     <div className="flex flex-col">
-                                                        <span className="text-xs font-medium">{model.name}</span>
+                                                        <span className="text-xs font-bold">{model.name}</span>
                                                     </div>
                                                 </DropdownMenuItem>
                                             ))}
@@ -689,7 +689,7 @@ export function DashboardMain({
                                     onClick={handleSend}
                                     size="icon" 
                                   aria-label="Send prompt"
-                                  className="h-8 w-8 bg-zinc-800 text-white hover:bg-zinc-700 rounded-lg transition-colors"
+                                  className="h-8 w-8 bg-[#141414] text-white hover:bg-zinc-700 rounded-[4px] transition-colors"
                                 >
                                     <ArrowUp className="w-4 h-4" />
                                 </Button>
@@ -713,14 +713,14 @@ export function DashboardMain({
                 <div className="flex items-center justify-between mb-4 sm:mb-6">
                     <div>
                         <h2 className="text-base sm:text-lg font-semibold mb-0.5 sm:mb-1">My Projects</h2>
-                        <p className="text-xs sm:text-sm text-zinc-500">Explore what you have built with CodeUI.</p>
+                        <p className="text-xs sm:text-sm text-[#a0a0a0]">Explore what you have built with CodeUI.</p>
                     </div>
                     {visibleProjects.length > 0 && (
                       <Button 
                         variant="ghost" 
                         size="sm"
                         onClick={() => setView('projects')}
-                        className="text-xs sm:text-sm text-zinc-400 hover:text-white hover:bg-zinc-900 group"
+                        className="text-xs sm:text-sm text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#141414] group"
                       >
                           Browse All <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-0.5 transition-transform" />
                       </Button>
@@ -729,7 +729,7 @@ export function DashboardMain({
 
                 {isLoadingProjects ? (
                   <div className="flex items-center justify-center py-16">
-                    <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
+                    <Loader2 className="w-8 h-8 animate-spin text-[#a0a0a0]" />
                   </div>
                 ) : visibleProjects.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -744,11 +744,11 @@ export function DashboardMain({
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <FolderOpen className="w-12 h-12 text-zinc-600 mb-4" />
-                    <h3 className="text-lg font-medium text-zinc-300 mb-2">
+                    <FolderOpen className="w-12 h-12 text-[#a0a0a0] mb-4" />
+                    <h3 className="text-lg font-bold text-white mb-2">
                       {normalizedSearchQuery ? "No matching projects" : "No projects yet"}
                     </h3>
-                    <p className="text-sm text-zinc-500 mb-4">
+                    <p className="text-sm text-[#a0a0a0] mb-4">
                       {normalizedSearchQuery ? "Try a different search term." : "Start by creating your first project above!"}
                     </p>
                   </div>
@@ -762,20 +762,20 @@ export function DashboardMain({
                 variant="ghost" 
                 size="icon" 
                 onClick={() => setView('dashboard')}
-                className="h-8 w-8 sm:h-9 sm:w-9 text-zinc-400 hover:text-white hover:bg-zinc-900 border border-white/10 shrink-0"
+                className="h-8 w-8 sm:h-9 sm:w-9 text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#141414] border border-[#414141]/80 shrink-0"
               >
                 <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
               </Button>
               <div>
                 <h1 className="text-xl sm:text-2xl font-bold tracking-tight">My Projects</h1>
-                <p className="text-xs sm:text-sm text-zinc-500">A collection of everything you've created.</p>
+                <p className="text-xs sm:text-sm text-[#a0a0a0]">A collection of everything you've created.</p>
               </div>
             </div>
 
             <div className="-mx-1 px-1 sm:-mx-2 sm:px-2">
               {isLoadingProjects ? (
                 <div className="flex items-center justify-center py-16">
-                  <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
+                  <Loader2 className="w-8 h-8 animate-spin text-[#a0a0a0]" />
                 </div>
               ) : visibleProjects.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 pb-8">
@@ -790,11 +790,11 @@ export function DashboardMain({
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <FolderOpen className="w-12 h-12 text-zinc-600 mb-4" />
-                  <h3 className="text-lg font-medium text-zinc-300 mb-2">
+                  <FolderOpen className="w-12 h-12 text-[#a0a0a0] mb-4" />
+                  <h3 className="text-lg font-bold text-white mb-2">
                     {normalizedSearchQuery ? "No matching projects" : "No projects yet"}
                   </h3>
-                  <p className="text-sm text-zinc-500">
+                  <p className="text-sm text-[#a0a0a0]">
                     {normalizedSearchQuery ? "Try a different search term." : "Start by creating your first project!"}
                   </p>
                 </div>
@@ -843,9 +843,9 @@ function ProjectCard({ project, onDelete, isDeleting = false }: {
 
   return (
     <Link href={`/project/${project.id}`} className="block">
-      <div className="group relative bg-[#0a0a0a] border border-white/10 rounded-xl overflow-hidden hover:border-white/20 transition-all cursor-pointer">
+      <div className="group relative bg-[#0a0a0a] border border-[#414141]/80 rounded-[8px] overflow-hidden hover:border-white/20 transition-all cursor-pointer">
         {/* Preview Image */}
-        <div className={`aspect-video w-full relative transition-all duration-300 ${hasPreviewHtml ? "bg-zinc-950" : `${bgGradient} grayscale group-hover:grayscale-0`}`}>
+        <div className={`aspect-video w-full relative transition-all duration-300 ${hasPreviewHtml ? "bg-black" : `${bgGradient} grayscale group-hover:grayscale-0`}`}>
           {hasPreviewHtml ? (
             <ProjectCardPreview
               htmlContent={project.htmlContent!}
@@ -871,12 +871,12 @@ function ProjectCard({ project, onDelete, isDeleting = false }: {
                     e.stopPropagation()
                   }}
                   aria-label={`Actions for ${project.name}`}
-                  className="h-8 w-8 rounded-full bg-black/50 hover:bg-black text-white border border-white/10"
+                  className="h-8 w-8 rounded-full bg-black/50 hover:bg-black text-white border border-[#414141]/80"
                 >
                   <MoreHorizontal className="w-4 h-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-zinc-950 border-white/10 text-zinc-200">
+              <DropdownMenuContent align="end" className="bg-black border-[#414141]/80 text-white">
                 <DropdownMenuItem
                   onSelect={(e) => {
                     e.preventDefault()
@@ -894,7 +894,7 @@ function ProjectCard({ project, onDelete, isDeleting = false }: {
           {/* Private indicator */}
           {project.isPrivate && (
             <div className="absolute top-2 left-2">
-              <span className="text-[10px] bg-zinc-800/80 text-zinc-400 px-1.5 py-0.5 rounded border border-white/10">
+              <span className="text-[10px] bg-[#141414]/80 text-[#a0a0a0] px-1.5 py-0.5 rounded border border-[#414141]/80">
                 Private
               </span>
             </div>
@@ -903,17 +903,17 @@ function ProjectCard({ project, onDelete, isDeleting = false }: {
         
         {/* Info */}
         <div className="p-3">
-          <h3 className="font-medium text-sm text-zinc-200 truncate mb-2">{project.name}</h3>
-          <div className="flex items-center justify-between text-xs text-zinc-500">
+          <h3 className="font-bold text-sm text-white truncate mb-2">{project.name}</h3>
+          <div className="flex items-center justify-between text-xs text-[#a0a0a0]">
             <div className="flex items-center gap-2">
-              <span className="text-zinc-400">{formatNumber(project.views)} views</span>
+              <span className="text-[#a0a0a0]">{formatNumber(project.views)} views</span>
               <span>•</span>
               <div className="flex items-center gap-0.5">
                 <Heart className="w-3 h-3" />
                 <span>{formatNumber(project.likes)}</span>
               </div>
             </div>
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
               Free
             </span>
           </div>
@@ -959,7 +959,7 @@ function ProjectCardPreview({ htmlContent, projectName }: { htmlContent: string;
   }, [])
 
   return (
-    <div ref={containerRef} className="absolute inset-0 overflow-hidden bg-zinc-950">
+    <div ref={containerRef} className="absolute inset-0 overflow-hidden bg-black">
       <div
         className="absolute left-1/2 top-0 origin-top"
         style={{
@@ -985,7 +985,7 @@ function ActionButton({ icon, label, onClick }: { icon: React.ReactNode, label: 
     return (
   <button
     onClick={onClick}
-    className="flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-zinc-900/50 hover:bg-zinc-800 text-sm text-zinc-300 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-500"
+    className="flex items-center gap-2 px-4 py-2 rounded-full border border-[#414141]/80 bg-[#141414] hover:bg-[#141414] text-sm text-white transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#faff69]"
   >
             {icon}
             <span>{label}</span>
