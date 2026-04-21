@@ -902,7 +902,7 @@ export function DashboardMain({
   )
 }
 
-function ProjectCard({ project, onDelete, isDeleting = false }: { 
+function ProjectCard({ project, onDelete, isDeleting = false, onToggleFavorite, isFavoriteUpdating = false }: { 
   project: Project
   onDelete?: (projectId: string) => void
   isDeleting?: boolean
