@@ -13,6 +13,8 @@ function AuthErrorContent() {
   const errorMessages: Record<string, string> = {
     Configuration: "There is a problem with the server configuration.",
     AccessDenied: "You do not have permission to sign in.",
+    CredentialsSignin: "The email or password is incorrect.",
+    OAuthAccountNotLinked: "This email is already linked to a different sign-in method.",
     Verification: "The verification token has expired or has already been used.",
     Default: "An error occurred during authentication.",
   };

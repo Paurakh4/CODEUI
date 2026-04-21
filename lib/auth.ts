@@ -1,16 +1,78 @@
 import NextAuth from "next-auth";
+import { z } from "zod";
 import Google from "next-auth/providers/google";
+import Credentials from "next-auth/providers/credentials";
 import connectDB from "./db";
 import User from "./models/User";
 import { getPublicModelCatalog } from "@/lib/admin/model-policies";
 import { resolveAdminAccess } from "@/lib/admin/rbac";
 import { authConfig } from "@/auth.config";
-import { getMonthlyCreditsForTier, SubscriptionTier } from "./pricing";
-import { createDefaultUserPreferences, normalizeUserPreferences } from "./user-preferences";
+import { SubscriptionTier } from "./pricing";
+import {
+  buildUserCreationInput,
+  normalizeAuthEmail,
+  verifyPassword,
+} from "./local-auth";
+import { normalizeUserPreferences } from "./user-preferences";
+
+const credentialsSchema = z.object({
+  email: z.string().trim().email(),
+  password: z.string().min(8).max(72),
+});
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
   providers: [
+    Credentials({
+      name: "Email and Password",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        const parsedCredentials = credentialsSchema.safeParse(credentials);
+
+        if (!parsedCredentials.success) {
+          return null;
+        }
+
+        try {
+          await connectDB();
+
+          const email = normalizeAuthEmail(parsedCredentials.data.email);
+          const existingUser = await User.findOne({ email }).select(
+            "+passwordHash"
+          );
+
+          if (!existingUser?.passwordHash) {
+            return null;
+          }
+
+          if (existingUser.accountStatus === "suspended") {
+            return null;
+          }
+
+          const isPasswordValid = await verifyPassword(
+            parsedCredentials.data.password,
+            existingUser.passwordHash
+          );
+
+          if (!isPasswordValid) {
+            return null;
+          }
+
+          return {
+            id: existingUser._id.toString(),
+            email: existingUser.email,
+            name: existingUser.name,
+            image: existingUser.image || undefined,
+          };
+        } catch (error) {
+          console.error("Error authorizing credentials user:", error);
+          return null;
+        }
+      },
+    }),
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
@@ -32,56 +94,41 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           const modelCatalog = await getPublicModelCatalog();
           const isRuntimeModelEnabled = (value: string) =>
             modelCatalog.models.some((model) => model.id === value);
+          const normalizedEmail = normalizeAuthEmail(user.email || "");
+          const googleId = typeof profile.sub === "string" ? profile.sub : null;
 
-          // Find or create user in MongoDB
+          if (!normalizedEmail || !googleId) {
+            return false;
+          }
+
           const existingUser = await User.findOne({
-            googleId: profile.sub,
+            $or: [{ googleId }, { email: normalizedEmail }],
           });
 
           if (!existingUser) {
-            const adminAccess = resolveAdminAccess({ email: user.email });
-            // Calculate initial credits and reset date
-            const initialCredits = getMonthlyCreditsForTier("free");
-            const nextResetDate = new Date();
-            nextResetDate.setMonth(nextResetDate.getMonth() + 1);
-            nextResetDate.setDate(1);
-
-            // Create new user on first sign in
             const newUser = await User.create({
-              email: user.email!,
-              name: user.name!,
-              image: user.image || undefined,
-              googleId: profile.sub!,
-              preferences: createDefaultUserPreferences({
-                defaultModel: modelCatalog.defaultModelId,
+              ...buildUserCreationInput({
+                email: normalizedEmail,
+                name: user.name,
+                image: user.image,
+                googleId,
+                defaultModelId: modelCatalog.defaultModelId,
               }),
-              role: adminAccess.role,
-              accountStatus: adminAccess.accountStatus,
-              permissionOverrides: [],
-              subscription: {
-                tier: "free",
-              },
-              // New credit system
-              monthlyCredits: initialCredits,
-              topupCredits: 20,
-              creditsResetDate: nextResetDate,
-              totalCreditsUsed: 0,
-              // Legacy fields (backwards compatibility)
-              credits: initialCredits,
-              creditsUsedThisMonth: 0,
             });
             // Use MongoDB _id as the user id
             user.id = newUser._id.toString();
           } else {
             const adminAccess = resolveAdminAccess({
-              email: existingUser.email || user.email,
+              email: existingUser.email || normalizedEmail,
               role: existingUser.role,
               accountStatus: existingUser.accountStatus,
               permissionOverrides: existingUser.permissionOverrides,
             });
             // Update existing user info (name/image might change)
+            existingUser.email = normalizedEmail;
             existingUser.name = user.name || existingUser.name;
             existingUser.image = user.image || existingUser.image;
+            existingUser.googleId = googleId;
             existingUser.preferences = normalizeUserPreferences(existingUser.preferences, {
               defaultModel: modelCatalog.defaultModelId,
               isModelEnabled: isRuntimeModelEnabled,
@@ -108,7 +155,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       // On initial sign in, user object is available
       if (account && user) {
         token.id = user.id;
-        token.accessToken = account.access_token;
+        token.accessToken =
+          typeof account.access_token === "string"
+            ? account.access_token
+            : undefined;
       }
 
       // Refresh user data from DB periodically or on update trigger

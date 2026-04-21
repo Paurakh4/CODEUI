@@ -17,7 +17,9 @@ export interface IUser extends Document {
   email: string;
   name: string;
   image?: string;
-  googleId: string;
+  googleId?: string;
+  passwordHash?: string;
+  emailVerifiedAt?: Date;
   preferences: UserPreferences;
   role: UserRole;
   accountStatus: AccountStatus;
@@ -125,8 +127,16 @@ const UserSchema = new Schema<IUser>(
     },
     googleId: {
       type: String,
-      required: true,
       unique: true,
+      sparse: true,
+      trim: true,
+    },
+    passwordHash: {
+      type: String,
+      select: false,
+    },
+    emailVerifiedAt: {
+      type: Date,
     },
     preferences: {
       type: PreferencesSchema,
@@ -204,7 +214,19 @@ UserSchema.index({ "subscription.stripeCustomerId": 1 });
 UserSchema.index({ role: 1, createdAt: -1 });
 UserSchema.index({ accountStatus: 1, createdAt: -1 });
 
+const existingUserModel = mongoose.models.User as Model<IUser> | undefined;
+
+if (
+  existingUserModel &&
+  (!existingUserModel.schema.path("passwordHash") ||
+    !existingUserModel.schema.path("emailVerifiedAt"))
+) {
+  delete mongoose.models.User;
+  delete mongoose.connection.models.User;
+}
+
 const User: Model<IUser> =
-  mongoose.models.User || mongoose.model<IUser>("User", UserSchema);
+  (mongoose.models.User as Model<IUser>) ||
+  mongoose.model<IUser>("User", UserSchema);
 
 export default User;
