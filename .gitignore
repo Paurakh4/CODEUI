@@ -45,6 +45,8 @@ next-env.d.ts
 .github/
 .env.example
 .playwright-mcp/
+doc/
+conductor/
 
 # Conductor
 !conductor/
