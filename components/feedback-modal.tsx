@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { useSession } from "next-auth/react"
 import { 
   Bug, 
   Lightbulb, 
@@ -29,31 +30,64 @@ interface FeedbackModalProps {
 }
 
 export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
+  const { data: session } = useSession()
   const [type, setType] = React.useState<FeedbackType>("general")
   const [message, setMessage] = React.useState("")
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [isSuccess, setIsSuccess] = React.useState(false)
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!message.trim()) return
 
+    if (!session?.user?.id) {
+      setErrorMessage("You need to be signed in to send feedback.")
+      return
+    }
+
     setIsSubmitting(true)
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    setIsSubmitting(false)
-    setIsSuccess(true)
-    
-    // Reset and close after success
-    setTimeout(() => {
-      setIsSuccess(false)
-      setMessage("")
-      setType("general")
-      onClose()
-    }, 2000)
+    setErrorMessage(null)
+
+    try {
+      const response = await fetch("/api/feedback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type,
+          message: message.trim(),
+          pathname: typeof window !== "undefined" ? window.location.pathname : undefined,
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null)
+        throw new Error(data?.error || "Failed to submit feedback")
+      }
+
+      setIsSuccess(true)
+
+      setTimeout(() => {
+        setIsSuccess(false)
+        setMessage("")
+        setType("general")
+        setErrorMessage(null)
+        onClose()
+      }, 2000)
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Failed to submit feedback")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
+
+  React.useEffect(() => {
+    if (!isOpen) {
+      setErrorMessage(null)
+    }
+  }, [isOpen])
 
   const feedbackTypes = [
     {
@@ -152,6 +186,9 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                   className="min-h-[120px] bg-zinc-900 border-white/10 focus:border-white/20 focus:ring-0 resize-none text-sm placeholder:text-zinc-600"
                   required
                 />
+                {errorMessage && (
+                  <p className="text-xs text-red-400">{errorMessage}</p>
+                )}
               </div>
             </div>
 

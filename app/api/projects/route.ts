@@ -20,7 +20,7 @@ export async function GET() {
 
     // Fetch user's projects from MongoDB
     const projects = await Project.find({ userId: session.user.id })
-      .select("_id name emoji htmlContent isPrivate views likes createdAt updatedAt")
+      .select("_id name emoji htmlContent isPrivate isFavorite views likes createdAt updatedAt")
       .sort({ updatedAt: -1 })
       .lean();
 
@@ -31,6 +31,7 @@ export async function GET() {
       emoji: project.emoji,
       htmlContent: project.htmlContent,
       isPrivate: project.isPrivate,
+      isFavorite: Boolean(project.isFavorite),
       views: project.views,
       likes: project.likes,
       createdAt: project.createdAt,
@@ -120,6 +121,7 @@ export async function POST(request: Request) {
           emoji: newProject.emoji,
           htmlContent: newProject.htmlContent,
           isPrivate: newProject.isPrivate,
+          isFavorite: newProject.isFavorite,
           views: newProject.views,
           likes: newProject.likes,
           createdAt: newProject.createdAt,

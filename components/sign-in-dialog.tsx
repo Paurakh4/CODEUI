@@ -1,6 +1,7 @@
 "use client";
 
 import { signIn } from "next-auth/react";
+import Link from "next/link";
 import {
   Dialog,
   DialogContent,
@@ -8,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { SITE_LINKS } from "@/lib/site-config";
 
 interface SignInDialogProps {
   open: boolean;
@@ -76,7 +78,7 @@ export function SignInDialog({ open, onOpenChange }: SignInDialogProps) {
           
           <p className="text-[12px] text-center text-[#585858] font-medium leading-[1.6]">
             By continuing, you initialize the engine according to the <br/>
-            <span className="text-[#a0a0a0] hover:text-[#faff69] cursor-pointer transition-colors">Terms of Service</span> and <span className="text-[#a0a0a0] hover:text-[#faff69] cursor-pointer transition-colors">Privacy Policy</span>.
+            <Link href={SITE_LINKS.termsOfService} className="text-[#a0a0a0] hover:text-[#faff69] transition-colors">Terms of Service</Link> and <Link href={SITE_LINKS.privacyPolicy} className="text-[#a0a0a0] hover:text-[#faff69] transition-colors">Privacy Policy</Link>.
           </p>
         </div>
       </DialogContent>

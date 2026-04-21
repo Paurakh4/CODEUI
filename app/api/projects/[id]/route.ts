@@ -35,6 +35,7 @@ export async function GET(request: Request, { params }: RouteParams) {
         emoji: project.emoji,
         htmlContent: project.htmlContent,
         isPrivate: project.isPrivate,
+        isFavorite: Boolean(project.isFavorite),
         views: project.views,
         likes: project.likes,
         versions: project.versions,
@@ -73,6 +74,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     if (body.htmlContent !== undefined)
       allowedUpdates.htmlContent = body.htmlContent;
     if (body.isPrivate !== undefined) allowedUpdates.isPrivate = body.isPrivate;
+    if (body.isFavorite !== undefined) allowedUpdates.isFavorite = body.isFavorite;
 
     const project = await Project.findOneAndUpdate(
       { _id: id, userId: session.user.id },
@@ -91,6 +93,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         emoji: project.emoji,
         htmlContent: project.htmlContent,
         isPrivate: project.isPrivate,
+        isFavorite: Boolean(project.isFavorite),
         views: project.views,
         likes: project.likes,
         createdAt: project.createdAt,

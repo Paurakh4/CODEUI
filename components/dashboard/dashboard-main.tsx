@@ -61,6 +61,7 @@ interface Project {
   emoji?: string
   htmlContent?: string
   isPrivate: boolean
+  isFavorite: boolean
   views: number
   likes: number
   createdAt: string
@@ -112,6 +113,7 @@ export function DashboardMain({
   const [searchQuery, setSearchQuery] = useState("")
   const [isSearchFocused, setIsSearchFocused] = useState(false)
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
+  const [updatingFavoriteIds, setUpdatingFavoriteIds] = useState<string[]>([])
   
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -247,6 +249,13 @@ export function DashboardMain({
     () => [...visibleProjects].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, 8),
     [visibleProjects]
   )
+  const favoriteProjects = useMemo(
+    () => [...visibleProjects]
+      .filter((project) => project.isFavorite)
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 8),
+    [visibleProjects]
+  )
   const savedProjects = useMemo(
     () => [...visibleProjects].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 6),
     [visibleProjects]
@@ -288,6 +297,56 @@ export function DashboardMain({
       setDeletingProjectId(null)
     }
   }, [])
+
+  const handleToggleFavorite = useCallback(async (projectId: string) => {
+    const targetProject = projects.find((project) => project.id === projectId)
+    if (!targetProject) return
+
+    const nextFavoriteState = !targetProject.isFavorite
+    setUpdatingFavoriteIds((current) => [...current, projectId])
+    setProjects((current) =>
+      current.map((project) =>
+        project.id === projectId ? { ...project, isFavorite: nextFavoriteState } : project
+      )
+    )
+
+    try {
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ isFavorite: nextFavoriteState }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to update favorite")
+      }
+
+      const data = await response.json()
+      const updatedProject = data.project as Project | undefined
+
+      if (updatedProject) {
+        setProjects((current) =>
+          current.map((project) => (project.id === projectId ? updatedProject : project))
+        )
+      }
+    } catch (error) {
+      console.error("Failed to update favorite:", error)
+      setProjects((current) =>
+        current.map((project) =>
+          project.id === projectId ? { ...project, isFavorite: targetProject.isFavorite } : project
+        )
+      )
+      toast({
+        title: "Favorite update failed",
+        description: "The project favorite state could not be saved.",
+        variant: "destructive",
+      })
+    } finally {
+      setUpdatingFavoriteIds((current) => current.filter((id) => id !== projectId))
+    }
+  }, [projects, toast])
 
   return (
     <div className="flex h-screen bg-black text-white font-sans selection:bg-white/20">
@@ -398,7 +457,29 @@ export function DashboardMain({
             <div className="px-2">
               <div className="flex items-center justify-between text-[#a0a0a0] mb-1">
                 <span className="text-xs font-bold">Favorites</span>
-                <span className="text-[10px] text-[#a0a0a0]">Coming soon</span>
+                <span className="text-[10px] text-[#a0a0a0]">{favoriteProjects.length}</span>
+              </div>
+              <div className="mt-2 space-y-0.5">
+                {isLoadingProjects ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="w-4 h-4 animate-spin text-[#a0a0a0]" />
+                  </div>
+                ) : favoriteProjects.length > 0 ? (
+                  favoriteProjects.map((project) => (
+                    <Link
+                      key={`favorite-${project.id}`}
+                      href={`/project/${project.id}`}
+                      className="flex items-center justify-between gap-2 rounded-[4px] px-2 py-1.5 text-sm text-[#a0a0a0] transition-colors hover:bg-[#141414] hover:text-[#faff69]"
+                    >
+                      <span className="truncate">{project.name}</span>
+                      <Heart className="h-3 w-3 fill-current text-[#faff69]" />
+                    </Link>
+                  ))
+                ) : (
+                  <div className="px-2 py-3 text-xs text-[#a0a0a0] text-center">
+                    {normalizedSearchQuery ? "No favorite projects match your search." : "Favorite projects to pin them here."}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -738,7 +819,9 @@ export function DashboardMain({
                             key={project.id} 
                             project={project} 
                             onDelete={handleDeleteProject}
+                            onToggleFavorite={handleToggleFavorite}
                             isDeleting={deletingProjectId === project.id}
+                            isFavoriteUpdating={updatingFavoriteIds.includes(project.id)}
                           />
                       ))}
                   </div>
@@ -784,7 +867,9 @@ export function DashboardMain({
                       key={project.id} 
                       project={project} 
                       onDelete={handleDeleteProject}
+                      onToggleFavorite={handleToggleFavorite}
                       isDeleting={deletingProjectId === project.id}
+                      isFavoriteUpdating={updatingFavoriteIds.includes(project.id)}
                     />
                   ))}
                 </div>
@@ -821,6 +906,8 @@ function ProjectCard({ project, onDelete, isDeleting = false }: {
   project: Project
   onDelete?: (projectId: string) => void
   isDeleting?: boolean
+  onToggleFavorite?: (projectId: string) => void
+  isFavoriteUpdating?: boolean
 }) {
   // Format numbers for display
   const formatNumber = (num: number) => {
@@ -860,7 +947,24 @@ function ProjectCard({ project, onDelete, isDeleting = false }: {
           )}
           <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors" />
           {/* Overlay Controls */}
-          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button
+              size="icon"
+              variant="secondary"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onToggleFavorite?.(project.id)
+              }}
+              aria-label={project.isFavorite ? `Remove ${project.name} from favorites` : `Add ${project.name} to favorites`}
+              disabled={isFavoriteUpdating}
+              className={cn(
+                "h-8 w-8 rounded-full border border-[#414141]/80 bg-black/50 text-white hover:bg-black",
+                project.isFavorite && "text-[#faff69]"
+              )}
+            >
+              {isFavoriteUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Heart className={cn("w-4 h-4", project.isFavorite && "fill-current")} />}
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button

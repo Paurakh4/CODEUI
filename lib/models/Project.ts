@@ -24,6 +24,7 @@ export interface IProject extends Omit<Document, "_id"> {
   latestCheckpointId?: mongoose.Types.ObjectId;
   checkpointCount: number;
   isPrivate: boolean;
+  isFavorite: boolean;
 
   // Stats for dashboard display
   views: number;
@@ -117,6 +118,10 @@ const ProjectSchema = new Schema<IProject>(
       type: Boolean,
       default: true,
     },
+    isFavorite: {
+      type: Boolean,
+      default: false,
+    },
     views: {
       type: Number,
       default: 0,
@@ -141,9 +146,13 @@ const ProjectSchema = new Schema<IProject>(
 
 // Compound index for user's projects sorted by update time
 ProjectSchema.index({ userId: 1, updatedAt: -1 });
+ProjectSchema.index({ userId: 1, isFavorite: 1, updatedAt: -1 });
 
 // Index for public projects (for explore/discover features)
 ProjectSchema.index({ isPrivate: 1, createdAt: -1 });
+ProjectSchema.index({ isPrivate: 1, updatedAt: -1 });
+ProjectSchema.index({ isPrivate: 1, views: -1, updatedAt: -1 });
+ProjectSchema.index({ isPrivate: 1, likes: -1, updatedAt: -1 });
 
 const Project: Model<IProject> =
   mongoose.models.Project || mongoose.model<IProject>("Project", ProjectSchema);

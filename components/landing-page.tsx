@@ -7,6 +7,10 @@ import { useAuthDialog } from "@/components/auth-dialog-provider"
 import { useSession } from "next-auth/react"
 import { useEffect, useState } from "react"
 import { useEditor } from "@/stores/editor-store"
+import { FOOTER_LINKS, SITE_LINKS } from "@/lib/site-config"
+import { TIERS, type SubscriptionTier } from "@/lib/pricing"
+
+const LANDING_PLAN_ORDER: SubscriptionTier[] = ["free", "pro", "proplus"]
 
 function ThemeToggle() {
   const { state, setTheme } = useEditor()
@@ -44,6 +48,11 @@ function ThemeToggle() {
 export function LandingPage() {
   const { showSignIn } = useAuthDialog()
   const { data: session } = useSession()
+  const pricingPlans = LANDING_PLAN_ORDER.map((planId) => ({
+    id: planId,
+    ...TIERS[planId],
+    isHighlighted: planId === "pro",
+  }))
 
   return (
     <div className="min-h-screen bg-[#ffffff] dark:bg-[#000000] text-[#000000] dark:text-[#ffffff] font-sans selection:bg-[#000000] selection:text-[#faff69] dark:selection:bg-[#faff69] dark:selection:text-black transition-colors duration-500">
@@ -66,6 +75,7 @@ export function LandingPage() {
           <a href="#features" className="hover:text-[#000000] dark:hover:text-[#faff69] transition-colors">Features</a>
           <a href="#performance" className="hover:text-[#000000] dark:hover:text-[#faff69] transition-colors">Performance</a>
           <a href="#pricing" className="hover:text-[#000000] dark:hover:text-[#faff69] transition-colors">Pricing</a>
+          <Link href={SITE_LINKS.discover} className="hover:text-[#000000] dark:hover:text-[#faff69] transition-colors">Discover</Link>
         </div>
         <div className="flex items-center gap-4">
           <ThemeToggle />
@@ -121,9 +131,9 @@ export function LandingPage() {
                 </button>
               </Link>
             )}
-            <button className="bg-transparent text-[#000000] dark:text-[#ffffff] border border-[#000000] dark:border-[#4f5100] rounded px-8 py-3.5 text-[18px] font-bold hover:bg-[#f4f4f4] dark:hover:bg-[#141414] active:scale-[0.98] transition-colors">
+            <Link href={SITE_LINKS.documentation} className="bg-transparent text-[#000000] dark:text-[#ffffff] border border-[#000000] dark:border-[#4f5100] rounded px-8 py-3.5 text-[18px] font-bold hover:bg-[#f4f4f4] dark:hover:bg-[#141414] active:scale-[0.98] transition-colors">
               Read the Docs
-            </button>
+            </Link>
           </div>
         </div>
 
@@ -227,73 +237,55 @@ export function LandingPage() {
             PREDICTABLE. SCALABLE.
           </h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Standard Tier */}
-            <div className="bg-[#f9f9f9] dark:bg-[#141414] border border-[#e5e7eb] dark:border-[#414141]/80 rounded-[8px] p-10 flex flex-col hover:border-[#000000] hover:dark:border-[#faff69]/50 transition-colors">
-              <h3 className="text-[24px] font-bold text-[#000000] dark:text-white mb-2">Developer</h3>
-              <div className="flex items-end gap-2 mb-6">
-                <span className="text-[56px] font-black text-[#000000] dark:text-white leading-none">$0</span>
-                <span className="text-[#585858] dark:text-[#a0a0a0] font-bold pb-2">/ month</span>
-              </div>
-              <p className="text-[#585858] dark:text-[#a0a0a0] mb-8 min-h-[48px] font-medium">Perfect for individuals and small setups exploring AI UI generation.</p>
-              {!session ? (
-                <button onClick={showSignIn} className="w-full bg-transparent text-[#000000] dark:text-[#ffffff] border border-[#000000] dark:border-[#4f5100] rounded px-6 py-3 font-bold hover:bg-[#e5e7eb] dark:hover:bg-[#3a3a3a] active:scale-[0.98] transition-colors mb-8">
-                  Start Free
-                </button>
-              ) : (
-                <Link href="/dashboard" className="w-full">
-                  <button className="w-full bg-transparent text-[#000000] dark:text-[#ffffff] border border-[#000000] dark:border-[#4f5100] rounded px-6 py-3 font-bold hover:bg-[#e5e7eb] dark:hover:bg-[#3a3a3a] active:scale-[0.98] transition-colors mb-8">
-                    Start Free
-                  </button>
-                </Link>
-              )}
-              <ul className="space-y-4 flex-1">
-                <li className="flex items-center gap-3 text-[#151515] dark:text-[#ffffff] font-bold">
-                  <div className="w-1.5 h-1.5 bg-[#000000] dark:bg-[#faff69] rounded-full shrink-0"/> 100 queries per month
-                </li>
-                <li className="flex items-center gap-3 text-[#151515] dark:text-[#ffffff] font-bold">
-                  <div className="w-1.5 h-1.5 bg-[#000000] dark:bg-[#faff69] rounded-full shrink-0"/> Standard React+Tailwind exports
-                </li>
-                <li className="flex items-center gap-3 text-[#151515] dark:text-[#ffffff] font-bold">
-                  <div className="w-1.5 h-1.5 bg-[#000000] dark:bg-[#faff69] rounded-full shrink-0"/> Community support
-                </li>
-              </ul>
-            </div>
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+            {pricingPlans.map((plan) => {
+              const accentClasses = plan.isHighlighted
+                ? "bg-[#ffffff] dark:bg-[#0a0a0a] border-2 dark:border border-[#166534] dark:border-[#faff69] shadow-[0px_4px_25px_rgba(22,101,52,0.05)_inset] dark:shadow-[0px_4px_25px_rgba(250,255,105,0.05)_inset]"
+                : "bg-[#f9f9f9] dark:bg-[#141414] border border-[#e5e7eb] dark:border-[#414141]/80"
 
-            {/* Pro Tier (Highlighted) */}
-            <div className="bg-[#ffffff] dark:bg-[#0a0a0a] border-2 dark:border border-[#166534] dark:border-[#faff69] rounded-[8px] p-10 flex flex-col relative shadow-[0px_4px_25px_rgba(22,101,52,0.05)_inset] dark:shadow-[0px_4px_25px_rgba(250,255,105,0.05)_inset]">
-              <div className="absolute top-0 right-0 bg-[#166534] dark:bg-[#faff69] text-[#ffffff] dark:text-[#151515] px-4 py-1 text-[12px] font-bold uppercase tracking-[1.4px] rounded-tr-[5px] rounded-bl-[4px]">
-                High Performance
-              </div>
-              <h3 className="text-[24px] font-bold text-[#000000] dark:text-white mb-2">Production</h3>
-              <div className="flex items-end gap-2 mb-6">
-                <span className="text-[56px] font-black text-[#166534] dark:text-[#faff69] leading-none">$49</span>
-                <span className="text-[#585858] dark:text-[#a0a0a0] font-bold pb-2">/ month</span>
-              </div>
-              <p className="text-[#585858] dark:text-[#a0a0a0] mb-8 min-h-[48px] font-medium">For teams requiring unlimited power and advanced custom component libraries.</p>
-              {!session ? (
-                <button onClick={showSignIn} className="w-full bg-[#faff69] text-[#151515] border border-[#161600] dark:border-[#faff69] rounded px-6 py-3 font-black hover:bg-[#e0e64c] dark:hover:bg-[#1d1d1d] hover:text-[#151515] dark:hover:text-[#faff69] active:scale-[0.98] transition-colors mb-8">
-                  Upgrade Now
-                </button>
-              ) : (
-                <Link href="/dashboard/billing" className="w-full">
-                  <button className="w-full bg-[#faff69] text-[#151515] border border-[#161600] dark:border-[#faff69] rounded px-6 py-3 font-black hover:bg-[#e0e64c] dark:hover:bg-[#1d1d1d] hover:text-[#151515] dark:hover:text-[#faff69] active:scale-[0.98] transition-colors mb-8">
-                    Upgrade Now
-                  </button>
-                </Link>
-              )}
-              <ul className="space-y-4 flex-1">
-                <li className="flex items-center gap-3 text-[#151515] dark:text-[#ffffff] font-bold">
-                  <div className="w-1.5 h-1.5 bg-[#166534] dark:bg-[#faff69] rounded-full shrink-0"/> Unlimited queries
-                </li>
-                <li className="flex items-center gap-3 text-[#151515] dark:text-[#ffffff] font-bold">
-                  <div className="w-1.5 h-1.5 bg-[#166534] dark:bg-[#faff69] rounded-full shrink-0"/> Premium LLM Access (GPT-4o, Sonnet)
-                </li>
-                <li className="flex items-center gap-3 text-[#151515] dark:text-[#ffffff] font-bold">
-                  <div className="w-1.5 h-1.5 bg-[#166534] dark:bg-[#faff69] rounded-full shrink-0"/> Access to custom context injection
-                </li>
-              </ul>
-            </div>
+              return (
+                <div key={plan.id} className={`${accentClasses} rounded-[8px] p-10 flex flex-col relative transition-colors hover:border-[#000000] hover:dark:border-[#faff69]/50`}>
+                  {plan.isHighlighted && (
+                    <div className="absolute top-0 right-0 bg-[#166534] dark:bg-[#faff69] text-[#ffffff] dark:text-[#151515] px-4 py-1 text-[12px] font-bold uppercase tracking-[1.4px] rounded-tr-[5px] rounded-bl-[4px]">
+                      Most Popular
+                    </div>
+                  )}
+                  <h3 className="text-[24px] font-bold text-[#000000] dark:text-white mb-2">{plan.name}</h3>
+                  <div className="flex items-end gap-2 mb-6">
+                    <span className={`text-[56px] font-black leading-none ${plan.isHighlighted ? "text-[#166534] dark:text-[#faff69]" : "text-[#000000] dark:text-white"}`}>
+                      ${plan.priceMonthly}
+                    </span>
+                    <span className="text-[#585858] dark:text-[#a0a0a0] font-bold pb-2">/ month</span>
+                  </div>
+                  <p className="text-[#585858] dark:text-[#a0a0a0] mb-4 min-h-[48px] font-medium">{plan.description}</p>
+                  <p className="mb-8 text-[12px] font-bold uppercase tracking-[0.18em] text-[#166534] dark:text-[#faff69]">
+                    {plan.monthlyCredits} monthly credits
+                  </p>
+                  {!session ? (
+                    <button
+                      onClick={showSignIn}
+                      className={`w-full rounded px-6 py-3 mb-8 transition-colors active:scale-[0.98] ${plan.isHighlighted ? "bg-[#faff69] text-[#151515] border border-[#161600] dark:border-[#faff69] font-black hover:bg-[#e0e64c] dark:hover:bg-[#1d1d1d] dark:hover:text-[#faff69]" : "bg-transparent text-[#000000] dark:text-[#ffffff] border border-[#000000] dark:border-[#4f5100] font-bold hover:bg-[#e5e7eb] dark:hover:bg-[#3a3a3a]"}`}
+                    >
+                      {plan.id === "free" ? "Start Free" : "Sign In to Upgrade"}
+                    </button>
+                  ) : (
+                    <Link href="/dashboard" className="w-full">
+                      <span className={`flex w-full items-center justify-center rounded px-6 py-3 mb-8 transition-colors active:scale-[0.98] ${plan.isHighlighted ? "bg-[#faff69] text-[#151515] border border-[#161600] dark:border-[#faff69] font-black hover:bg-[#e0e64c] dark:hover:bg-[#1d1d1d] dark:hover:text-[#faff69]" : "bg-transparent text-[#000000] dark:text-[#ffffff] border border-[#000000] dark:border-[#4f5100] font-bold hover:bg-[#e5e7eb] dark:hover:bg-[#3a3a3a]"}`}>
+                        {plan.id === "free" ? "Go to Dashboard" : "Manage Plan in Dashboard"}
+                      </span>
+                    </Link>
+                  )}
+                  <ul className="space-y-4 flex-1">
+                    {plan.features.map((feature) => (
+                      <li key={feature} className="flex items-center gap-3 text-[#151515] dark:text-[#ffffff] font-bold">
+                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${plan.isHighlighted ? "bg-[#166534] dark:bg-[#faff69]" : "bg-[#000000] dark:bg-[#faff69]"}`} />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )
+            })}
           </div>
         </section>
 
@@ -317,10 +309,17 @@ export function LandingPage() {
           </div>
           
           <div className="flex gap-8 text-[14px] font-bold text-[#585858] dark:text-[#a0a0a0]">
-            <Link href="#" className="hover:text-[#000000] dark:hover:text-[#faff69] transition-colors">Documentation</Link>
-            <Link href="#" className="hover:text-[#000000] dark:hover:text-[#faff69] transition-colors">Privacy Policy</Link>
-            <Link href="#" className="hover:text-[#000000] dark:hover:text-[#faff69] transition-colors">Terms of Service</Link>
-            <Link href="#" className="hover:text-[#000000] dark:hover:text-[#faff69] transition-colors">GitHub</Link>
+            {FOOTER_LINKS.map((link) => (
+              <Link
+                key={link.label}
+                href={link.href}
+                target={link.external ? "_blank" : undefined}
+                rel={link.external ? "noreferrer" : undefined}
+                className="hover:text-[#000000] dark:hover:text-[#faff69] transition-colors"
+              >
+                {link.label}
+              </Link>
+            ))}
           </div>
           
           <p className="text-[#585858] dark:text-[#a0a0a0] text-[14px] font-bold">
