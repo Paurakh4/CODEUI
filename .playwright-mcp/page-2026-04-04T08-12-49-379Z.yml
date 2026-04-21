@@ -1,0 +1,13 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]: Welcome to CodeUI
+      - generic [ref=e8]: Sign in to access your AI-powered code editor
+    - button "Continue with Google" [ref=e11]:
+      - img
+      - text: Continue with Google
+  - region "Notifications (F8)":
+    - list
+  - button "Open Next.js Dev Tools" [ref=e17] [cursor=pointer]:
+    - img [ref=e18]
+  - alert [ref=e21]
