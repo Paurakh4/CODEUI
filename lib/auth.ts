@@ -13,6 +13,7 @@ import {
   normalizeAuthEmail,
   verifyPassword,
 } from "./local-auth";
+import { applyDbUserSnapshotToToken, shouldRefreshDbBackedToken } from "./auth-session-sync";
 import { normalizeUserPreferences } from "./user-preferences";
 
 const credentialsSchema = z.object({
@@ -163,33 +164,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
       // Refresh user data from DB periodically or on update trigger
       if (
-        trigger === "update" ||
-        (token.id && (!token.subscription || !token.role || !Array.isArray(token.permissions)))
+        shouldRefreshDbBackedToken({
+          token,
+          trigger,
+        })
       ) {
         try {
           await connectDB();
           const dbUser = await User.findById(token.id);
           if (dbUser) {
-            const adminAccess = resolveAdminAccess({
-              email: dbUser.email,
-              role: dbUser.role,
-              accountStatus: dbUser.accountStatus,
-              permissionOverrides: dbUser.permissionOverrides,
+            applyDbUserSnapshotToToken({
+              token,
+              user: dbUser,
             });
-            token.name = dbUser.name;
-            token.email = dbUser.email;
-            token.picture = dbUser.image;
-            token.subscription = dbUser.subscription.tier as SubscriptionTier;
-            token.role = adminAccess.role;
-            token.accountStatus = adminAccess.accountStatus;
-            token.permissions = adminAccess.permissions;
-            // New credit fields
-            token.monthlyCredits = dbUser.monthlyCredits ?? 0;
-            token.topupCredits = dbUser.topupCredits ?? 0;
-            token.totalCredits =
-              (dbUser.monthlyCredits ?? 0) + (dbUser.topupCredits ?? 0);
-            // Legacy field
-            token.credits = dbUser.credits ?? dbUser.monthlyCredits ?? 0;
           }
         } catch (error) {
           console.error("Error fetching user data for JWT:", error);

@@ -31,6 +31,7 @@ declare module "next-auth/jwt" {
     role?: UserRole;
     accountStatus?: AccountStatus;
     permissions?: AdminPermission[];
+    userDataSyncedAt?: number;
     // New credit system fields
     monthlyCredits?: number;
     topupCredits?: number;

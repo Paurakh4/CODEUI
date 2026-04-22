@@ -426,33 +426,6 @@ function isRecoverableModelFailure(status: number): boolean {
   return status >= 500
 }
 
-function buildEnhancedPromptPrefix(settings: {
-  enhancedPrompts?: boolean
-  primaryColor?: string
-  secondaryColor?: string
-  theme?: "light" | "dark"
-}) {
-  if (!settings.enhancedPrompts) {
-    return ""
-  }
-
-  const preferredTheme = settings.theme || "dark"
-  const preferredPrimary = settings.primaryColor || "blue"
-  const preferredSecondary = settings.secondaryColor || "slate"
-
-  return [
-    "ENHANCED PROMPT MODE: ENABLED",
-    "",
-    "Apply these additional generation requirements:",
-    `- Preferred theme direction: ${preferredTheme}.`,
-    `- Preferred primary color family: ${preferredPrimary}.`,
-    `- Preferred secondary color family: ${preferredSecondary}.`,
-    "- Expand the user's request into a detailed UX structure with clear sections and polished interaction states.",
-    "- Keep output production-ready and responsive.",
-    "",
-  ].join("\n")
-}
-
 function normalizeConversationHistory(
   conversationHistory: ConversationHistoryItem[] | undefined,
   maxTokens: number,
@@ -687,13 +660,8 @@ export async function POST(req: NextRequest) {
     const continuationThresholdChars = continuationThresholdTokens * 4
     const conversationBudgetTokens = Math.floor((modelContextWindow ?? 64_000) * 0.15)
     const historyMessages = normalizeConversationHistory(conversationHistory, conversationBudgetTokens)
-    const enhancedPromptPrefix = buildEnhancedPromptPrefix({
-      enhancedPrompts,
-      primaryColor,
-      secondaryColor,
-      theme,
-    })
-    const promptAdaptationGuidance = getPromptAdaptationGuidance(sanitizedPrompt || prompt)
+    const requestPrompt = sanitizedPrompt || prompt
+    const promptAdaptationGuidance = getPromptAdaptationGuidance(requestPrompt)
     const adaptationPrefix = promptAdaptationGuidance ? `${promptAdaptationGuidance}\n\n` : ""
 
     const baseMessages: Message[] = [{ role: "system", content: systemPrompt }]
@@ -718,14 +686,12 @@ export async function POST(req: NextRequest) {
 
       baseMessages.push({
         role: "user",
-        content: `${context}\n\n${enhancedPromptPrefix}${adaptationPrefix}User Request: ${sanitizedPrompt || prompt}${recoveryInstruction}`,
+        content: `${context}\n\n${adaptationPrefix}User Request: ${requestPrompt}${recoveryInstruction}`,
       })
     } else {
       baseMessages.push({
         role: "user",
-        content: enhancedPromptPrefix
-          ? `${enhancedPromptPrefix}${adaptationPrefix}User Request: ${sanitizedPrompt || prompt}`
-          : `${adaptationPrefix}User Request: ${sanitizedPrompt || prompt}`,
+        content: `${adaptationPrefix}User Request: ${requestPrompt}`,
       })
     }
 

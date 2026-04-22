@@ -25,6 +25,7 @@ import {
   selectStableHtmlDocument,
   type PatchFailureContext,
 } from "@/lib/ai-update-recovery"
+import { buildEnhancedPrompt } from "@/lib/enhanced-prompts"
 import { getElementPropertyFields } from "@/lib/design-element-properties"
 import { validatePromptScope } from "@/lib/prompt-scope"
 import { isFullDocumentRecoveryMode, resolveRecoveryMode, type RecoveryMode } from "@/lib/recovery-mode"
@@ -1489,8 +1490,16 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       recoveryMode: recoveryRequest.mode,
     }
 
-    void sendAIMessage({
+    const enhancedRecoveryPrompt = buildEnhancedPrompt({
       prompt: recoveryRequest.prompt,
+      enhancedPrompts: state.enhancedPrompts,
+      primaryColor: state.primaryColor,
+      secondaryColor: state.secondaryColor,
+      theme: state.theme,
+    })
+
+    void sendAIMessage({
+      prompt: enhancedRecoveryPrompt,
       currentHtml: recoveryRequest.baseHtml ?? htmlContentRef.current,
       selectedElement: recoveryRequest.selectedElement,
       isFollowUp: true,
@@ -1528,6 +1537,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     }) => {
       const trimmedMessage = message.trim()
       if (!trimmedMessage) return
+      const enhancedPrompt = buildEnhancedPrompt({
+        prompt: trimmedMessage,
+        enhancedPrompts: state.enhancedPrompts,
+        primaryColor: state.primaryColor,
+        secondaryColor: state.secondaryColor,
+        theme: state.theme,
+      })
 
       recoveryInFlightRef.current = false
       promptScopeRecoveryInFlightRef.current = false
@@ -1577,17 +1593,30 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       }
 
       if (useExistingUserMessage) {
-        setMessages((prev) => [...prev, assistantMessage])
+        setMessages((prev) => {
+          const nextMessages = [...prev]
+          const lastMessage = nextMessages[nextMessages.length - 1]
+
+          if (lastMessage?.role === "user" && lastMessage.content !== enhancedPrompt) {
+            nextMessages[nextMessages.length - 1] = {
+              ...lastMessage,
+              content: enhancedPrompt,
+            }
+          }
+
+          nextMessages.push(assistantMessage)
+          return nextMessages
+        })
       } else {
         const userMessage: Message = {
           id: createEditorEntityId("user"),
-          content: trimmedMessage,
+          content: enhancedPrompt,
           role: "user",
           timestamp: new Date(),
         }
 
         setMessages((prev) => [...prev, userMessage, assistantMessage])
-        saveMessageToMongo({ role: "user", content: trimmedMessage })
+        saveMessageToMongo({ role: "user", content: enhancedPrompt })
       }
 
       lastUserPromptRef.current = trimmedMessage
@@ -1618,7 +1647,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       try {
         activeAiRequestRef.current = { isFollowUp }
         await sendAIMessage({
-          prompt: trimmedMessage,
+          prompt: enhancedPrompt,
           currentHtml: isFollowUp ? htmlContentRef.current : undefined,
           selectedElement: selectedElementHtml,
           isFollowUp,

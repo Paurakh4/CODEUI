@@ -7,6 +7,8 @@ import {
   ArrowUp, 
   MoreHorizontal,
   Heart,
+  Globe,
+  Lock,
   ChevronRight,
   ChevronDown,
   Code,
@@ -21,6 +23,7 @@ import {
   FolderOpen,
   Crown,
   Info,
+  ExternalLink,
   Trash2
 } from "lucide-react"
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
@@ -72,6 +75,8 @@ interface DashboardMainProps {
   onStart: (prompt?: string, model?: string) => void
   billingSyncState?: 'idle' | 'processing' | 'confirmed' | 'failed'
   billingSyncMessage?: string | null
+  isPricingOpen?: boolean
+  onPricingOpenChange?: (open: boolean) => void
   onRetryBillingSync?: () => void | Promise<void>
 }
 
@@ -82,6 +87,8 @@ export function DashboardMain({
   onStart,
   billingSyncState = 'idle',
   billingSyncMessage = null,
+  isPricingOpen: controlledPricingOpen,
+  onPricingOpenChange,
   onRetryBillingSync,
 }: DashboardMainProps) {
   const { data: session } = useSession()
@@ -101,11 +108,20 @@ export function DashboardMain({
   }, [])
   const [promptValue, setPromptValue] = useState("")
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
-  const [isPricingOpen, setIsPricingOpen] = useState(false)
+  const [internalPricingOpen, setInternalPricingOpen] = useState(false)
   const { credits: realTimeCredits, refreshCredits } = useLiveCredits({
     enabled: Boolean(session?.user),
     refreshIntervalMs: 30_000,
   })
+  const isPricingOpen = controlledPricingOpen ?? internalPricingOpen
+  const setPricingOpen = useCallback((open: boolean) => {
+    if (onPricingOpenChange) {
+      onPricingOpenChange(open)
+      return
+    }
+
+    setInternalPricingOpen(open)
+  }, [onPricingOpenChange])
   
   // Projects state
   const [projects, setProjects] = useState<Project[]>([])
@@ -114,6 +130,7 @@ export function DashboardMain({
   const [isSearchFocused, setIsSearchFocused] = useState(false)
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
   const [updatingFavoriteIds, setUpdatingFavoriteIds] = useState<string[]>([])
+  const [updatingVisibilityIds, setUpdatingVisibilityIds] = useState<string[]>([])
   
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -180,12 +197,12 @@ export function DashboardMain({
   }, [onStart, selectedModelId])
 
   const openCreditsInfo = useCallback(() => {
-    setIsPricingOpen(true)
+    setPricingOpen(true)
     toast({
       title: "Credits overview",
       description: "Monthly credits reset each billing cycle. Top-up credits stay available until you use them.",
     })
-  }, [toast])
+  }, [setPricingOpen, toast])
 
   const getModelIcon = (modelId: string) => {
     if (modelId.includes('gemini') || modelId.includes('google')) return <Sparkles className="w-3.5 h-3.5" />
@@ -348,6 +365,70 @@ export function DashboardMain({
     }
   }, [projects, toast])
 
+  const handleToggleVisibility = useCallback(async (projectId: string) => {
+    const targetProject = projects.find((project) => project.id === projectId)
+    if (!targetProject) return
+
+    const nextPrivateState = !targetProject.isPrivate
+
+    setUpdatingVisibilityIds((current) =>
+      current.includes(projectId) ? current : [...current, projectId]
+    )
+    setProjects((current) =>
+      current.map((project) =>
+        project.id === projectId ? { ...project, isPrivate: nextPrivateState } : project
+      )
+    )
+
+    try {
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ isPrivate: nextPrivateState }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to update project visibility")
+      }
+
+      const data = await response.json()
+      const updatedProject = data.project as Project | undefined
+
+      if (updatedProject) {
+        setProjects((current) =>
+          current.map((project) => (project.id === projectId ? updatedProject : project))
+        )
+      }
+
+      toast({
+        title: nextPrivateState ? "Project is now private" : "Project is now public",
+        description: nextPrivateState
+          ? "The project was removed from public discover."
+          : "Anyone can now open the project from the discover gallery in read-only mode.",
+      })
+    } catch (error) {
+      console.error("Failed to update project visibility:", error)
+      setProjects((current) =>
+        current.map((project) =>
+          project.id === projectId ? { ...project, isPrivate: targetProject.isPrivate } : project
+        )
+      )
+      toast({
+        title: "Visibility update failed",
+        description: "The project visibility could not be saved.",
+        variant: "destructive",
+      })
+    } finally {
+      setUpdatingVisibilityIds((current) => current.filter((id) => id !== projectId))
+    }
+  }, [projects, toast])
+
+  const handleOpenPublicProject = useCallback((projectId: string) => {
+    window.open(`/discover/${projectId}`, "_blank", "noopener,noreferrer")
+  }, [])
+
   return (
     <div className="flex h-screen bg-black text-white font-sans selection:bg-white/20">
       {/* Sidebar Overlay for Mobile */}
@@ -405,7 +486,7 @@ export function DashboardMain({
             <label htmlFor="project-search" className="text-[11px] font-bold text-[#a0a0a0]">
               Search projects
             </label>
-            <div className="relative">
+            <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#a0a0a0]" />
               <input
                 id="project-search"
@@ -417,11 +498,11 @@ export function DashboardMain({
                   setTimeout(() => setIsSearchFocused(false), 120)
                 }}
                 placeholder="Search by project name"
-                className="w-full h-9 bg-[#141414] border border-[#414141]/80 rounded-[4px] pl-9 pr-3 text-sm text-white placeholder:text-[#a0a0a0] outline-none focus-visible:ring-1 focus-visible:ring-[#faff69]"
+                className="w-full max-w-full box-border h-9 bg-[#141414] border border-[#414141]/80 rounded-[4px] pl-9 pr-3 text-sm text-white placeholder:text-[#a0a0a0] outline-none focus-visible:ring-1 focus-visible:ring-[#faff69] focus-visible:ring-offset-0"
                 aria-label="Search projects"
               />
               {isSearchFocused && searchQuery.trim().length > 0 && (
-                <div className="absolute z-40 mt-2 w-full rounded-[4px] border border-[#414141]/80 bg-black shadow-[0_1px_3px_rgba(0,0,0,0.1)]-[0_10px_15px_-3px_rgba(0,0,0,0.1)] overflow-hidden">
+                <div className="absolute z-40 mt-2 left-0 right-0 rounded-[4px] border border-[#414141]/80 bg-black shadow-[0_1px_3px_rgba(0,0,0,0.1)]-[0_10px_15px_-3px_rgba(0,0,0,0.1)] overflow-hidden">
                   <div className="max-h-64 overflow-auto py-1">
                     {filteredProjects.length > 0 ? (
                       filteredProjects.map((project) => (
@@ -476,7 +557,7 @@ export function DashboardMain({
                     </Link>
                   ))
                 ) : (
-                  <div className="px-2 py-3 text-xs text-[#a0a0a0] text-center">
+                  <div className="px-2 py-3 text-xs text-[#a0a0a0] text-left">
                     {normalizedSearchQuery ? "No favorite projects match your search." : "Favorite projects to pin them here."}
                   </div>
                 )}
@@ -582,7 +663,7 @@ export function DashboardMain({
                 </div>
                  <Button 
                    variant="link" 
-                   onClick={() => setIsPricingOpen(true)}
+                   onClick={() => setPricingOpen(true)}
                    className="h-auto p-0 text-[10px] text-[#faff69] hover:text-[#faff69] font-bold mt-1"
                  >
                      View plans →
@@ -609,9 +690,17 @@ export function DashboardMain({
         {/* Top Navigation */}
         <header className="absolute top-0 right-0 p-4 z-20 flex items-center gap-2 sm:gap-3">
             <Button 
+              asChild
               variant="ghost" 
               size="sm" 
-              onClick={() => setIsPricingOpen(true)}
+              className="hidden sm:flex text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#141414] h-8 text-xs"
+            >
+              <Link href="/discover">Discover</Link>
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setPricingOpen(true)}
               className="hidden sm:flex text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#141414] h-8 text-xs"
             >
               Upgrade
@@ -625,7 +714,7 @@ export function DashboardMain({
               Feedback
             </Button>
             <div 
-              onClick={() => setIsPricingOpen(true)}
+              onClick={() => setPricingOpen(true)}
               className="flex items-center gap-2 bg-[#141414] hover:bg-[#141414] rounded-full px-3 py-1.5 sm:py-1 border border-[#414141]/80 transition-colors cursor-pointer group"
             >
                 {userTier === 'proplus' ? (
@@ -820,8 +909,11 @@ export function DashboardMain({
                             project={project} 
                             onDelete={handleDeleteProject}
                             onToggleFavorite={handleToggleFavorite}
+                            onToggleVisibility={handleToggleVisibility}
+                            onOpenPublic={handleOpenPublicProject}
                             isDeleting={deletingProjectId === project.id}
                             isFavoriteUpdating={updatingFavoriteIds.includes(project.id)}
+                            isVisibilityUpdating={updatingVisibilityIds.includes(project.id)}
                           />
                       ))}
                   </div>
@@ -868,8 +960,11 @@ export function DashboardMain({
                       project={project} 
                       onDelete={handleDeleteProject}
                       onToggleFavorite={handleToggleFavorite}
+                      onToggleVisibility={handleToggleVisibility}
+                      onOpenPublic={handleOpenPublicProject}
                       isDeleting={deletingProjectId === project.id}
                       isFavoriteUpdating={updatingFavoriteIds.includes(project.id)}
+                      isVisibilityUpdating={updatingVisibilityIds.includes(project.id)}
                     />
                   ))}
                 </div>
@@ -895,19 +990,22 @@ export function DashboardMain({
       />
       <PricingModal
         isOpen={isPricingOpen}
-        onClose={() => setIsPricingOpen(false)}
+        onClose={() => setPricingOpen(false)}
         currentTier={userTier}
       />
     </div>
   )
 }
 
-function ProjectCard({ project, onDelete, isDeleting = false, onToggleFavorite, isFavoriteUpdating = false }: { 
+function ProjectCard({ project, onDelete, isDeleting = false, onToggleFavorite, onToggleVisibility, onOpenPublic, isFavoriteUpdating = false, isVisibilityUpdating = false }: { 
   project: Project
   onDelete?: (projectId: string) => void
   isDeleting?: boolean
   onToggleFavorite?: (projectId: string) => void
+  onToggleVisibility?: (projectId: string) => void
+  onOpenPublic?: (projectId: string) => void
   isFavoriteUpdating?: boolean
+  isVisibilityUpdating?: boolean
 }) {
   // Format numbers for display
   const formatNumber = (num: number) => {
@@ -981,6 +1079,39 @@ function ProjectCard({ project, onDelete, isDeleting = false, onToggleFavorite, 
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="bg-black border-[#414141]/80 text-white">
+                {!project.isPrivate && (
+                  <DropdownMenuItem
+                    onSelect={(e) => {
+                      e.preventDefault()
+                      onOpenPublic?.(project.id)
+                    }}
+                    className="gap-2 cursor-pointer focus:bg-[#141414] focus:text-white"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Open public page
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault()
+                    if (!isVisibilityUpdating) onToggleVisibility?.(project.id)
+                  }}
+                  className="gap-2 cursor-pointer focus:bg-[#141414] focus:text-white"
+                  disabled={isVisibilityUpdating}
+                >
+                  {isVisibilityUpdating ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : project.isPrivate ? (
+                    <Globe className="w-4 h-4" />
+                  ) : (
+                    <Lock className="w-4 h-4" />
+                  )}
+                  {isVisibilityUpdating
+                    ? "Saving visibility..."
+                    : project.isPrivate
+                      ? "Make public"
+                      : "Make private"}
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={(e) => {
                     e.preventDefault()
@@ -995,14 +1126,18 @@ function ProjectCard({ project, onDelete, isDeleting = false, onToggleFavorite, 
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          {/* Private indicator */}
-          {project.isPrivate && (
-            <div className="absolute top-2 left-2">
-              <span className="text-[10px] bg-[#141414]/80 text-[#a0a0a0] px-1.5 py-0.5 rounded border border-[#414141]/80">
-                Private
-              </span>
-            </div>
-          )}
+          <div className="absolute top-2 left-2">
+            <span
+              className={cn(
+                "text-[10px] px-1.5 py-0.5 rounded border",
+                project.isPrivate
+                  ? "bg-[#141414]/80 text-[#a0a0a0] border-[#414141]/80"
+                  : "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+              )}
+            >
+              {project.isPrivate ? "Private" : "Public"}
+            </span>
+          </div>
         </div>
         
         {/* Info */}

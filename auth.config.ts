@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
+import { resolveAccountStatus } from "@/lib/admin/rbac";
 
 export const authConfig = {
   trustHost: true,
@@ -11,9 +12,14 @@ export const authConfig = {
       const isLoggedIn = !!auth?.user;
       const isOnDashboard = nextUrl.pathname.startsWith("/dashboard");
       const isOnAdmin = nextUrl.pathname.startsWith("/admin");
+      const isActiveAccount = resolveAccountStatus(auth?.user?.accountStatus) === "active";
       
-      if (isOnDashboard || isOnAdmin) {
-        if (isLoggedIn) return true;
+      if (isOnAdmin) {
+        return true; // Defer all admin auth decisions to the server-side admin layout
+      }
+
+      if (isOnDashboard) {
+        if (isLoggedIn && isActiveAccount) return true;
         return false; // Redirect unauthenticated users to login page
       } 
       

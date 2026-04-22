@@ -17,6 +17,7 @@ function DashboardContent() {
   const { data: session, status, update: updateSession } = useSession()
   const [billingSyncState, setBillingSyncState] = useState<BillingSyncState>("idle")
   const [billingSyncMessage, setBillingSyncMessage] = useState<string | null>(null)
+  const [isPricingOpen, setIsPricingOpen] = useState(false)
 
   const clearPaymentParams = useEffectEvent(() => {
     const nextParams = new URLSearchParams(searchParams.toString())
@@ -191,13 +192,17 @@ function DashboardContent() {
           const data = await res.json().catch(() => null)
 
           if (data?.code === "FREE_PROJECT_LIMIT_REACHED") {
-            throw new Error(data.error || "Free project limit reached")
+            const message = data.error || "Free tier allows up to 4 active projects. Delete an existing project or upgrade to Pro for unlimited projects."
+            toast("Project limit reached", {
+              description: message,
+            })
+            setIsPricingOpen(true)
+            return
           }
 
           throw new Error(data?.error || "Failed to create project")
         }
       } catch (error) {
-        console.error("Error creating project:", error)
         const message = error instanceof Error ? error.message : "Failed to create project"
         toast.error(message)
         return
@@ -224,6 +229,8 @@ function DashboardContent() {
       onStart={handleStart}
       billingSyncState={billingSyncState}
       billingSyncMessage={billingSyncMessage}
+      isPricingOpen={isPricingOpen}
+      onPricingOpenChange={setIsPricingOpen}
       onRetryBillingSync={async () => {
         const checkoutSessionId = searchParams.get("session_id")
 

@@ -8,5 +8,9 @@ interface Props {
 }
 
 export function AuthSessionProvider({ children }: Props) {
-  return <SessionProvider>{children}</SessionProvider>;
+  return (
+    <SessionProvider refetchInterval={60} refetchOnWindowFocus>
+      {children}
+    </SessionProvider>
+  );
 }

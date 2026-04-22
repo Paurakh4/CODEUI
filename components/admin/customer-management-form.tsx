@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -18,7 +18,7 @@ interface CustomerManagementFormProps {
   initialMonthlyCredits: number
   initialTopupCredits: number
   initialAdminNotes: string
-  availableRoles: UserRole[]
+  availableRoles: readonly UserRole[]
   readOnly?: boolean
   readOnlyReason?: string
 }
@@ -60,6 +60,22 @@ export function CustomerManagementForm({
   const [adminNotes, setAdminNotes] = useState(initialAdminNotes)
   const [reason, setReason] = useState("")
   const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    setRole(initialRole)
+    setAccountStatus(initialAccountStatus)
+    setSubscriptionTier(initialSubscriptionTier)
+    setMonthlyCredits(String(initialMonthlyCredits))
+    setTopupCredits(String(initialTopupCredits))
+    setAdminNotes(initialAdminNotes)
+  }, [
+    initialAccountStatus,
+    initialAdminNotes,
+    initialMonthlyCredits,
+    initialRole,
+    initialSubscriptionTier,
+    initialTopupCredits,
+  ])
 
   const hasChanges = useMemo(() => {
     return (
