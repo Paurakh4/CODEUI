@@ -1288,6 +1288,20 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       const shouldRecoverForPromptScope = hasPromptScopeIssues && canRetryPromptScope
       const shouldRecover = shouldRecoverForOutputIssues || shouldRecoverForPromptScope
       const scopeFailureMessage = formatMissingScopeMessage(promptScopeValidation.missingRequirements)
+      const followUpOutputFailureMessage = "Could not complete the update automatically. The previous page was kept."
+
+      if (isFollowUp && shouldRecoverForOutputIssues && !recoveryMode) {
+        restorePreservedHtml(preservedHtml)
+        recoveryInFlightRef.current = false
+        promptScopeRecoveryInFlightRef.current = false
+        scopeRecoveryAttemptsRef.current = 0
+        setPendingRecovery(null)
+        setDraftAiOutput("")
+        setApplyingPatch(false)
+        setViewMode("preview")
+        finalizeAssistantMessage(followUpOutputFailureMessage)
+        return
+      }
 
       if (shouldRecover && !recoveryMode) {
         const failedFileSummary = (failedFiles || []).join(", ") || "index.html"
@@ -1404,11 +1418,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           })
         }
         finalizeAssistantMessage(
-          hasPromptScopeIssues
-            ? `${scopeFailureMessage} Try a more explicit follow-up request if you want another pass.`
-            : isFullDocumentRecoveryMode(requestRecoveryMode)
-              ? FULL_DOCUMENT_RECOVERY_FAILURE_MESSAGE
-              : preservedLayoutMessage,
+          isFollowUp
+            ? followUpOutputFailureMessage
+            : hasPromptScopeIssues
+              ? `${scopeFailureMessage} Try a more explicit follow-up request if you want another pass.`
+              : isFullDocumentRecoveryMode(requestRecoveryMode)
+                ? FULL_DOCUMENT_RECOVERY_FAILURE_MESSAGE
+                : preservedLayoutMessage,
         )
         return
       }
@@ -1427,8 +1443,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           })
         }
       } else {
-        // If it was a follow-up, patches were applied in real-time via onPatch.
-        // If it was the first generation, or if the AI decided to send full content anyway
         if ((!isFollowUp || extractedHtml) && extractedHtml && (extractedHtml.includes("<!DOCTYPE") || extractedHtml.includes("<html"))) {
           commitHtmlContentUpdate(extractedHtml)
         }

@@ -29,15 +29,16 @@ import {
 import { isInternalUserRole, resolveUserRole } from "@/lib/admin/rbac"
 import {
   NEW_FILE_END,
-  NEW_FILE_START,
   PROJECT_NAME_END,
-  PROJECT_NAME_START,
   REPLACE_END,
-  SEARCH_START,
   UPDATE_FILE_END,
-  UPDATE_FILE_START,
 } from "@/lib/constants"
 import { detectIncompletePatchBlocks, validateAIResponse } from "@/lib/parsers/stream-parser"
+import {
+  getAtomicFollowUpOutputIssue,
+  hasCompleteHtmlDocument,
+  hasStructuredPatchMarkers,
+} from "@/lib/reprompting/atomic-follow-up"
 import { estimateTokenCount } from "@/lib/token-counter"
 import { getPromptAdaptationGuidance } from "@/lib/prompt-adaptation"
 import { createRepromptLogger } from "@/lib/utils/reprompt-logger"
@@ -170,25 +171,6 @@ const UPSTREAM_READ_TIMEOUT_MS = parsePositiveInteger(
   120_000,
 )
 
-function hasCompleteHtmlDocument(content: string): boolean {
-  const trimmed = content.trim()
-  if (!trimmed) {
-    return false
-  }
-
-  const hasRoot = trimmed.includes("<!DOCTYPE") || trimmed.includes("<html")
-  return hasRoot && trimmed.includes("</html>")
-}
-
-function hasStructuredPatchMarkers(content: string): boolean {
-  return (
-    content.includes(SEARCH_START) ||
-    content.includes(UPDATE_FILE_START) ||
-    content.includes(NEW_FILE_START) ||
-    content.includes(PROJECT_NAME_START)
-  )
-}
-
 function endsWithStructuredBoundary(content: string): boolean {
   const trimmed = content.trim()
   return (
@@ -197,32 +179,6 @@ function endsWithStructuredBoundary(content: string): boolean {
     trimmed.endsWith(NEW_FILE_END) ||
     trimmed.endsWith(PROJECT_NAME_END)
   )
-}
-
-function getAtomicFollowUpOutputIssue(content: string): string | null {
-  const trimmed = content.trim()
-  if (!trimmed) {
-    return "The model returned an empty follow-up response."
-  }
-
-  if (detectIncompletePatchBlocks(content) > 0) {
-    return "The model returned an incomplete patch response instead of a complete HTML document."
-  }
-
-  if (hasStructuredPatchMarkers(content)) {
-    return "The model returned patch markers instead of a complete HTML document."
-  }
-
-  const validation = validateAIResponse(content)
-  if (!validation.valid) {
-    return validation.reason ?? "The model response was not actionable."
-  }
-
-  if (!hasCompleteHtmlDocument(content)) {
-    return "The model did not return a complete HTML document."
-  }
-
-  return null
 }
 
 function shouldContinueGeneration(options: {
