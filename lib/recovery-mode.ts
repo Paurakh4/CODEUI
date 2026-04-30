@@ -1,8 +1,8 @@
 export type RecoveryMode = "patch-repair" | "full-document"
 export type RecoveryModeValue = RecoveryMode | boolean | undefined
 
-export function resolveRecoveryMode(isFollowUp: boolean): RecoveryMode {
-  return isFollowUp ? "patch-repair" : "full-document"
+export function resolveRecoveryMode(_isFollowUp: boolean): RecoveryMode {
+  return "full-document"
 }
 
 export function isRecoveryModeActive(recoveryMode: RecoveryModeValue): boolean {

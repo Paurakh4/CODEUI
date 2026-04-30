@@ -28,7 +28,7 @@ import {
 import { buildEnhancedPrompt } from "@/lib/enhanced-prompts"
 import { getElementPropertyFields } from "@/lib/design-element-properties"
 import { validatePromptScope } from "@/lib/prompt-scope"
-import { isFullDocumentRecoveryMode, resolveRecoveryMode, type RecoveryMode } from "@/lib/recovery-mode"
+import { isFullDocumentRecoveryMode, isPatchRepairRecoveryMode, resolveRecoveryMode, type RecoveryMode } from "@/lib/recovery-mode"
 import { dedupeAdjacentAssistantMessages } from "@/lib/utils/chat-message-dedupe"
 import { cn } from "@/lib/utils"
 import { convertHtmlToReactComponent, sanitizeFileName } from "@/lib/utils/export"
@@ -78,6 +78,26 @@ interface Message {
   isThinking?: boolean
   thinkingContent?: string
   progressLabel?: string
+}
+
+function normalizeMessageRole(value: unknown): Message["role"] {
+  return value === "assistant" ? "assistant" : "user"
+}
+
+function normalizeMessageTimestamp(value: unknown): Date {
+  const candidate = value instanceof Date ? value : new Date(typeof value === "string" || typeof value === "number" ? value : Date.now())
+  return Number.isNaN(candidate.getTime()) ? new Date() : candidate
+}
+
+function getAtomicFollowUpProgressLabel(progress: AIStreamProgress): string {
+  switch (progress.stage) {
+    case "preparing":
+      return "Analyzing update..."
+    case "finalizing":
+      return "Finalizing update..."
+    default:
+      return "Updating page..."
+  }
 }
 
 interface CheckpointOptions {
@@ -684,13 +704,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   const applyElementProperties = useCallback((element: HTMLElement, properties?: SelectedElement["properties"]) => {
     if (!properties) return
 
-    if (properties.id) {
+    if (typeof properties.id === "string" && properties.id) {
       element.id = properties.id
     } else {
       element.removeAttribute("id")
     }
 
-    if (properties.className) {
+    if (typeof properties.className === "string" && properties.className) {
       element.className = properties.className
     } else {
       element.removeAttribute("class")
@@ -884,12 +904,12 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           }
           // Restore messages from MongoDB
           if (project.messages && project.messages.length > 0) {
-            const restoredMessages = dedupeAdjacentAssistantMessages(project.messages.map((m: { role: string; content: string; thinkingContent?: string; createdAt: string }, index: number) => ({
+            const restoredMessages = dedupeAdjacentAssistantMessages<Message>(project.messages.map((m: { role: string; content: string; thinkingContent?: string; createdAt: string }, index: number): Message => ({
               id: createEditorEntityId(`mongo_${index}`),
-              role: m.role,
-              content: m.content,
-              thinkingContent: m.thinkingContent,
-              timestamp: new Date(m.createdAt),
+              role: normalizeMessageRole(m.role),
+              content: typeof m.content === "string" ? m.content : "",
+              thinkingContent: typeof m.thinkingContent === "string" ? m.thinkingContent : undefined,
+              timestamp: normalizeMessageTimestamp(m.createdAt),
               isThinking: false,
             })))
             setMessages(restoredMessages)
@@ -966,9 +986,14 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         if (parsed.projectName) setProjectName(parsed.projectName)
         // Convert date strings back to Date objects for messages
         if (parsed.messages) {
-          const restoredMessages = dedupeAdjacentAssistantMessages(parsed.messages.map((m: any) => ({
-            ...m,
-            timestamp: new Date(m.timestamp)
+          const restoredMessages = dedupeAdjacentAssistantMessages<Message>(parsed.messages.map((m: any, index: number): Message => ({
+            id: typeof m?.id === "string" && m.id ? m.id : createEditorEntityId(`local_restore_${index}`),
+            role: normalizeMessageRole(m?.role),
+            content: typeof m?.content === "string" ? m.content : "",
+            thinkingContent: typeof m?.thinkingContent === "string" ? m.thinkingContent : undefined,
+            timestamp: normalizeMessageTimestamp(m?.timestamp),
+            isThinking: Boolean(m?.isThinking),
+            progressLabel: typeof m?.progressLabel === "string" ? m.progressLabel : undefined,
           })))
           setMessages(restoredMessages)
         }
@@ -1074,6 +1099,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   )
 
   const updateAssistantProgress = useCallback((progress: AIStreamProgress) => {
+    const activeRequest = activeAiRequestRef.current
+    const progressLabel = activeRequest.isFollowUp
+      ? getAtomicFollowUpProgressLabel(progress)
+      : progress.message
+
     setMessages((prev) => {
       const lastMessage = prev[prev.length - 1]
       if (!lastMessage || lastMessage.role !== "assistant") {
@@ -1082,7 +1112,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
       return prev.map((message, index) =>
         index === prev.length - 1
-          ? { ...message, progressLabel: progress.message, isThinking: true }
+          ? { ...message, progressLabel, isThinking: true }
           : message,
       )
     })
@@ -1120,7 +1150,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
       const streamingHtml = getRenderableStreamingHtml(content)
       const activeRequest = activeAiRequestRef.current
-      if (streamingHtml && (!activeRequest.isFollowUp || isFullDocumentRecoveryMode(activeRequest.recoveryMode))) {
+      if (streamingHtml && !activeRequest.isFollowUp) {
         commitHtmlContentUpdate(streamingHtml)
       }
     },
@@ -1178,6 +1208,15 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       saveProjectToMongo(htmlContentRef.current, normalizedName)
     },
     onPatch: (filePath, search, replace) => {
+      const activeRequest = activeAiRequestRef.current
+      if (activeRequest.isFollowUp && !isPatchRepairRecoveryMode(activeRequest.recoveryMode)) {
+        lastPatchFailureRef.current = {
+          kind: "response-validation-failed",
+          detail: "Expected a complete HTML document for the follow-up update.",
+        }
+        return false
+      }
+
       const normalizedPath = filePath.trim().replace(/^\.?\//, "")
       if (normalizedPath !== "index.html") {
         lastPatchFailureRef.current = {
@@ -1219,20 +1258,21 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     onComplete: (result) => {
       const activeRequest = activeAiRequestRef.current
       const requestRecoveryMode = result.recoveryMode ?? activeRequest.recoveryMode
+      const usesPatchRepairFlow = isPatchRepairRecoveryMode(requestRecoveryMode)
       resetActiveAiRequest()
 
       const { rawContent, extractedHtml, failedFiles, recoveryMode, incompletePatches, validationError } = result
       const isFollowUp = activeRequest.isFollowUp
       const hasPatchFailures = !!failedFiles?.length
       const hasCompleteHtml = isCompleteHtmlDocument(extractedHtml)
-      const hasUnexpectedFullDocument = isFollowUp && !isFullDocumentRecoveryMode(requestRecoveryMode) && hasCompleteHtml
+      const hasUnexpectedFullDocument = usesPatchRepairFlow && hasCompleteHtml
       const preservedHtml = selectStableHtmlDocument(
         [requestStableHtmlRef.current, lastAppliedHtml.current, htmlContentRef.current, htmlContent],
         LOADING_HTML,
       )
       const hasCommittedUpdatedHtml =
         isCompleteHtmlDocument(htmlContentRef.current) && htmlContentRef.current.trim() !== preservedHtml
-      const expectsFullDocument = !isFollowUp || isFullDocumentRecoveryMode(requestRecoveryMode)
+      const expectsFullDocument = !usesPatchRepairFlow
       const looksLikeHtmlResponse = /<!DOCTYPE|<html\b/i.test(rawContent)
       const missingExpectedFullDocument =
         expectsFullDocument && !hasCompleteHtml && (looksLikeHtmlResponse || !hasCommittedUpdatedHtml)
@@ -1288,20 +1328,20 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         if (hasPromptScopeIssues) {
           updateAssistantProgress({
             stage: "continuing",
-            message: nextRecoveryMode === "patch-repair"
-              ? "Retrying the targeted update without redesigning the page..."
-              : "Expanding requested UI coverage...",
+            message: "Refining update...",
             partNumber: (result.meta?.totalParts ?? 1) + 1,
             continuationCount: scopeRecoveryAttemptsRef.current,
             totalContentLength: finalHtmlForValidation.length,
             thresholdReached: result.meta?.thresholdReached,
           })
         } else {
-          toast({
-            title: "Recovering update",
-            description: nextRecoveryMode === "patch-repair"
-              ? `${recoveryReason}. Retrying as a targeted patch update...`
-              : `${recoveryReason}. Applying a full-document recovery update...`,
+          updateAssistantProgress({
+            stage: "continuing",
+            message: "Refining update...",
+            partNumber: (result.meta?.totalParts ?? 1) + 1,
+            continuationCount: scopeRecoveryAttemptsRef.current,
+            totalContentLength: finalHtmlForValidation.length,
+            thresholdReached: result.meta?.thresholdReached,
           })
         }
 
@@ -1333,9 +1373,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
         updateAssistantProgress({
           stage: "continuing",
-          message: nextRecoveryMode === "patch-repair"
-            ? "Retrying the targeted update without redesigning the page..."
-            : "Refining missing UI sections...",
+          message: "Refining update...",
           partNumber: (result.meta?.totalParts ?? 1) + 1,
           continuationCount: scopeRecoveryAttemptsRef.current,
           totalContentLength: extractedHtml.length,
@@ -1356,9 +1394,9 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         restorePreservedHtml(preservedHtml)
         setApplyingPatch(false)
         setViewMode("preview")
-        if (!hasPromptScopeIssues) {
+        if (!hasPromptScopeIssues && !isFollowUp) {
           toast({
-            title: "Recovery failed",
+            title: "Update failed",
             description: isFullDocumentRecoveryMode(requestRecoveryMode)
               ? FULL_DOCUMENT_RECOVERY_FAILURE_MESSAGE
               : preservedLayoutMessage,
@@ -1428,9 +1466,9 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       }
       setApplyingPatch(false)
       setViewMode("preview")
-      if (!(isRecoveryFailure && isPromptScopeRecoveryFailure)) {
+      if (!(isRecoveryFailure && isPromptScopeRecoveryFailure) && !activeRequest.isFollowUp) {
         toast({
-          title: isRecoveryFailure ? "Recovery failed" : "Generation failed",
+          title: isRecoveryFailure ? "Update failed" : "Generation failed",
           description: isRecoveryFailure
             ? isFullDocumentRecoveryMode(activeRecoveryMode)
               ? FULL_DOCUMENT_RECOVERY_FAILURE_MESSAGE
@@ -1450,6 +1488,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
               : isFullDocumentRecoveryMode(activeRecoveryMode)
                 ? FULL_DOCUMENT_RECOVERY_FAILURE_MESSAGE
                 : targetedFailureMessage
+            : activeRequest.isFollowUp
+              ? "Could not complete the update automatically. The previous page was kept."
             : shouldRestorePreviousPage
               ? `Error: ${error.message}. The previous page was restored.`
               : `Error: ${error.message}`

@@ -8,8 +8,8 @@ import {
 } from "@/lib/recovery-mode"
 
 describe("recovery mode helpers", () => {
-  it("uses patch repair for follow-up retries", () => {
-    expect(resolveRecoveryMode(true)).toBe("patch-repair")
+  it("uses full-document recovery for follow-up retries", () => {
+    expect(resolveRecoveryMode(true)).toBe("full-document")
   })
 
   it("uses full-document recovery for initial generation retries", () => {

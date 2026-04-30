@@ -7,7 +7,7 @@ import {
   StreamParser,
   validateAIResponse,
 } from "@/lib/parsers/stream-parser"
-import { isRecoveryModeActive, type RecoveryModeValue } from "@/lib/recovery-mode"
+import { isPatchRepairRecoveryMode, isRecoveryModeActive, type RecoveryModeValue } from "@/lib/recovery-mode"
 import { createRepromptLogger } from "@/lib/utils/reprompt-logger"
 
 export interface ConversationHistoryItem {
@@ -184,6 +184,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       let responseMeta: AIStreamMeta | undefined
       let latestProgress: AIStreamProgress | undefined
       let chunkCount = 0
+      const shouldParseIncrementalPatches = !isFollowUp || isPatchRepairRecoveryMode(recoveryMode)
 
       const isRequestActive = () => {
         return activeRequestIdRef.current === requestId && !abortController.signal.aborted
@@ -241,7 +242,9 @@ export function useAIChat(options: UseAIChatOptions = {}) {
               fullContent += data.data
               setContent(fullContent)
               optionsRef.current.onContentUpdate?.(fullContent)
-              parserRef.current?.parse(fullContent)
+              if (shouldParseIncrementalPatches) {
+                parserRef.current?.parse(fullContent)
+              }
               continue
             }
 

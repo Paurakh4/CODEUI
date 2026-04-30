@@ -9,7 +9,6 @@ import {
 import { FOLLOW_UP_REPAIR_INSTRUCTION, FOLLOW_UP_SYSTEM_PROMPT } from "@/lib/prompts/reprompt-system"
 import {
   isFullDocumentRecoveryMode,
-  isPatchRepairRecoveryMode,
   isRecoveryModeActive,
   type RecoveryModeValue,
 } from "@/lib/recovery-mode"
@@ -129,6 +128,7 @@ const MAX_PROMPT_LENGTH = 10_000
 const UPSTREAM_MAX_TOKENS = 16_000
 const DEFAULT_CONTINUATION_THRESHOLD_TOKENS = 8_000
 const DEFAULT_MAX_CONTINUATIONS = 3
+const MAX_HIDDEN_FOLLOW_UP_RETRIES = 1
 const DEFAULT_CONTINUATION_CONTEXT_BUFFER_TOKENS = 4_000
 const DEFAULT_UPSTREAM_READ_TIMEOUT_MS = 45_000
 const logger = createRepromptLogger("api-ai-route")
@@ -197,6 +197,32 @@ function endsWithStructuredBoundary(content: string): boolean {
     trimmed.endsWith(NEW_FILE_END) ||
     trimmed.endsWith(PROJECT_NAME_END)
   )
+}
+
+function getAtomicFollowUpOutputIssue(content: string): string | null {
+  const trimmed = content.trim()
+  if (!trimmed) {
+    return "The model returned an empty follow-up response."
+  }
+
+  if (detectIncompletePatchBlocks(content) > 0) {
+    return "The model returned an incomplete patch response instead of a complete HTML document."
+  }
+
+  if (hasStructuredPatchMarkers(content)) {
+    return "The model returned patch markers instead of a complete HTML document."
+  }
+
+  const validation = validateAIResponse(content)
+  if (!validation.valid) {
+    return validation.reason ?? "The model response was not actionable."
+  }
+
+  if (!hasCompleteHtmlDocument(content)) {
+    return "The model did not return a complete HTML document."
+  }
+
+  return null
 }
 
 function shouldContinueGeneration(options: {
@@ -544,7 +570,6 @@ export async function POST(req: NextRequest) {
       isFollowUp &&
       (isFullDocumentRecoveryMode(recoveryMode) ||
         (typeof prompt === "string" && prompt.includes(FULL_DOCUMENT_RECOVERY_FLAG)))
-    const isPatchRepairRecovery = isFollowUp && isPatchRepairRecoveryMode(recoveryMode)
 
     const recoveryHeader = req.headers.get("x-codeui-recovery") === "1"
     const shouldChargeCredits = !(isRecoveryRequest || recoveryHeader || isRecoveryModeActive(recoveryMode) || isFullDocumentRecovery)
@@ -651,9 +676,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Credit system error. Please try again." }, { status: 500 })
     }
 
-    const systemPrompt = isFullDocumentRecovery || !isFollowUp
-      ? getCombinedSystemPrompt()
-      : FOLLOW_UP_SYSTEM_PROMPT
+    const systemPrompt = isFollowUp ? FOLLOW_UP_SYSTEM_PROMPT : getCombinedSystemPrompt()
 
     const modelContextWindow = getModelById(model)?.contextLength
     const continuationThresholdTokens = CONTINUATION_THRESHOLD_TOKENS
@@ -678,10 +701,8 @@ export async function POST(req: NextRequest) {
         reservedOutputTokens: continuationThresholdTokens + CONTINUATION_CONTEXT_BUFFER_TOKENS,
       })
 
-      const recoveryInstruction = isFullDocumentRecovery
-        ? "\n\nRecovery instructions: Return one COMPLETE HTML document that keeps the current design, structure, spacing, colors, and typography unless the user explicitly requested a redesign. Apply only the requested change."
-        : isPatchRepairRecovery
-          ? `\n\n${FOLLOW_UP_REPAIR_INSTRUCTION.trim()}`
+      const recoveryInstruction = isRecoveryModeActive(recoveryMode)
+        ? `\n\n${FOLLOW_UP_REPAIR_INSTRUCTION.trim()}`
         : ""
 
       baseMessages.push({
@@ -810,7 +831,9 @@ export async function POST(req: NextRequest) {
         let totalEmittedContentLength = 0
         let continuationCount = 0
         let totalParts = 0
+        let hiddenFollowUpRetryCount = 0
         let requestAborted = requestSignal.aborted
+        const streamContentIncrementally = !isFollowUp
         const modelsUsed = new Set<string>()
         let lastModelUsed = initialUpstreamRequest.modelUsed
 
@@ -886,6 +909,72 @@ export async function POST(req: NextRequest) {
           ]
         }
 
+        const buildHiddenFollowUpRetryMessages = (reason: string): Message[] => [
+          ...baseMessages,
+          {
+            role: "user" as const,
+            content: [
+              "The previous follow-up attempt was rejected before it reached the editor.",
+              `Rejection reason: ${reason}`,
+              "Try again from the original current HTML and original user request.",
+              FOLLOW_UP_REPAIR_INSTRUCTION.trim(),
+            ].join("\n\n"),
+          },
+        ]
+
+        const retryAtomicFollowUpIfNeeded = async (): Promise<"retry" | "continue" | "closed"> => {
+          if (streamContentIncrementally) {
+            return "continue"
+          }
+
+          const outputIssue = getAtomicFollowUpOutputIssue(aggregatedContent)
+          if (!outputIssue) {
+            return "continue"
+          }
+
+          if (hiddenFollowUpRetryCount >= MAX_HIDDEN_FOLLOW_UP_RETRIES) {
+            logger.warn("Atomic follow-up failed validation after hidden retry budget", {
+              phase: "validation",
+              requestId,
+              reason: outputIssue,
+            })
+            emitEvent("error", "Could not complete the update automatically. The previous page was kept.")
+            closeController()
+            return "closed"
+          }
+
+          hiddenFollowUpRetryCount += 1
+          logger.warn("Retrying atomic follow-up inside API", {
+            phase: "validation",
+            requestId,
+            reason: outputIssue,
+            hiddenFollowUpRetryCount,
+          })
+          emitProgress({
+            stage: "continuing",
+            message: "Refining update...",
+            partNumber: totalParts + 1,
+            continuationCount,
+            totalContentLength: totalEmittedContentLength,
+            thresholdReached: continuationCount > 0,
+          })
+
+          const retryUpstreamRequest = await requestOpenRouterStream(buildHiddenFollowUpRetryMessages(outputIssue))
+          if (!retryUpstreamRequest.response || !retryUpstreamRequest.response.body) {
+            emitEvent("error", "Could not complete the update automatically. The previous page was kept.")
+            closeController()
+            return "closed"
+          }
+
+          aggregatedContent = ""
+          totalEmittedContentLength = 0
+          continuationCount = 0
+          totalParts = 0
+          activeResponse = retryUpstreamRequest.response
+          activeModelUsed = retryUpstreamRequest.modelUsed
+          return "retry"
+        }
+
         let activeResponse: Response | null = initialUpstreamRequest.response
         let activeModelUsed = initialUpstreamRequest.modelUsed
 
@@ -911,8 +1000,12 @@ export async function POST(req: NextRequest) {
               stage: totalParts === 1 ? "generating" : "continuing",
               message:
                 totalParts === 1
-                  ? "Generating code..."
-                  : `Continuing generation (part ${totalParts})...`,
+                  ? isFollowUp
+                    ? "Updating page..."
+                    : "Generating code..."
+                  : isFollowUp
+                    ? "Refining update..."
+                    : `Continuing generation (part ${totalParts})...`,
               partNumber: totalParts,
               continuationCount,
               totalContentLength: totalEmittedContentLength,
@@ -926,7 +1019,9 @@ export async function POST(req: NextRequest) {
               onContent: (content) => {
                 aggregatedContent += content
                 totalEmittedContentLength += content.length
-                emitEvent("content", content)
+                if (streamContentIncrementally) {
+                  emitEvent("content", content)
+                }
               },
               onThinking: (thinking) => {
                 emitEvent("thinking", thinking)
@@ -953,6 +1048,14 @@ export async function POST(req: NextRequest) {
             })
 
             if (!needsContinuation) {
+              const retryDecision = await retryAtomicFollowUpIfNeeded()
+              if (retryDecision === "retry") {
+                continue
+              }
+              if (retryDecision === "closed") {
+                return
+              }
+
               emitMeta()
               emitProgress({
                 stage: "finalizing",
@@ -962,6 +1065,9 @@ export async function POST(req: NextRequest) {
                 totalContentLength: totalEmittedContentLength,
                 thresholdReached: continuationCount > 0,
               })
+              if (!streamContentIncrementally && aggregatedContent) {
+                emitEvent("content", aggregatedContent)
+              }
               closeController()
               return
             }
@@ -970,7 +1076,9 @@ export async function POST(req: NextRequest) {
             emitMeta()
             emitProgress({
               stage: "continuing",
-              message: `Preparing continuation part ${continuationCount + 1}...`,
+              message: isFollowUp
+                ? "Refining update..."
+                : `Preparing continuation part ${continuationCount + 1}...`,
               partNumber: continuationCount + 1,
               continuationCount,
               totalContentLength: totalEmittedContentLength,
@@ -985,6 +1093,19 @@ export async function POST(req: NextRequest) {
                 partNumber: continuationCount + 1,
                 fatalStatus: nextUpstreamRequest.fatalStatus,
               })
+
+              if (!streamContentIncrementally) {
+                const retryDecision = await retryAtomicFollowUpIfNeeded()
+                if (retryDecision === "retry") {
+                  continue
+                }
+                if (retryDecision === "closed") {
+                  return
+                }
+                if (aggregatedContent) {
+                  emitEvent("content", aggregatedContent)
+                }
+              }
 
               emitProgress({
                 stage: "finalizing",
@@ -1002,6 +1123,93 @@ export async function POST(req: NextRequest) {
             activeModelUsed = nextUpstreamRequest.modelUsed
           }
 
+          const retryDecision = await retryAtomicFollowUpIfNeeded()
+          if (retryDecision === "retry") {
+            while (activeResponse && totalParts < MAX_CONTINUATIONS + 1) {
+              throwIfAborted(requestSignal)
+
+              totalParts += 1
+              lastModelUsed = activeModelUsed
+              modelsUsed.add(activeModelUsed)
+
+              emitMeta()
+              emitProgress({
+                stage: totalParts === 1 ? "generating" : "continuing",
+                message: totalParts === 1 ? "Updating page..." : "Refining update...",
+                partNumber: totalParts,
+                continuationCount,
+                totalContentLength: totalEmittedContentLength,
+                thresholdReached: continuationCount > 0,
+              })
+
+              const partResult = await streamOpenRouterResponse({
+                response: activeResponse,
+                thresholdChars: continuationThresholdChars,
+                signal: requestSignal,
+                onContent: (content) => {
+                  aggregatedContent += content
+                  totalEmittedContentLength += content.length
+                },
+                onThinking: (thinking) => {
+                  emitEvent("thinking", thinking)
+                },
+              })
+
+              if (requestAborted) {
+                closeController()
+                return
+              }
+
+              if (partResult.contentLength === 0 && totalEmittedContentLength === 0) {
+                await maybeRefundForEmptyStream("empty-stream")
+                emitEvent("error", "Empty or insufficient response from AI")
+                closeController()
+                return
+              }
+
+              const needsContinuation = shouldContinueGeneration({
+                aggregateContent: aggregatedContent,
+                thresholdReached: partResult.thresholdReached,
+                continuationCount,
+                isFollowUp,
+              })
+
+              if (!needsContinuation) {
+                const secondRetryDecision = await retryAtomicFollowUpIfNeeded()
+                if (secondRetryDecision === "retry") {
+                  continue
+                }
+                if (secondRetryDecision === "closed") {
+                  return
+                }
+                break
+              }
+
+              continuationCount += 1
+              emitMeta()
+              emitProgress({
+                stage: "continuing",
+                message: "Refining update...",
+                partNumber: continuationCount + 1,
+                continuationCount,
+                totalContentLength: totalEmittedContentLength,
+                thresholdReached: true,
+              })
+
+              const nextUpstreamRequest = await requestOpenRouterStream(buildMessagesForPart(continuationCount + 1))
+              if (!nextUpstreamRequest.response || !nextUpstreamRequest.response.body) {
+                emitEvent("error", "Could not complete the update automatically. The previous page was kept.")
+                closeController()
+                return
+              }
+
+              activeResponse = nextUpstreamRequest.response
+              activeModelUsed = nextUpstreamRequest.modelUsed
+            }
+          } else if (retryDecision === "closed") {
+            return
+          }
+
           emitMeta()
           emitProgress({
             stage: "finalizing",
@@ -1011,6 +1219,9 @@ export async function POST(req: NextRequest) {
             totalContentLength: totalEmittedContentLength,
             thresholdReached: continuationCount > 0,
           })
+          if (!streamContentIncrementally && aggregatedContent) {
+            emitEvent("content", aggregatedContent)
+          }
           closeController()
         } catch (error) {
           if (isAbortError(error) || requestSignal.aborted) {
