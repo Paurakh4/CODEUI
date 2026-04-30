@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth"
 import connectDB from "@/lib/db"
+import { getPublicOwnerName } from "@/lib/discover-projects"
 import { Project, ProjectLike } from "@/lib/models"
 import { NextResponse } from "next/server"
 
@@ -16,7 +17,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
     const project = await Project.findOne({ _id: id, isPrivate: false })
       .select("_id userId name emoji htmlContent views likes createdAt updatedAt")
-      .populate("userId", "name")
+      .populate("userId", "name email")
       .lean()
 
     if (!project) {
@@ -34,7 +35,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
         )
       : false
 
-    const owner = project.userId as { name?: string } | null
+    const owner = project.userId as { name?: string; email?: string } | null
 
     return NextResponse.json({
       project: {
@@ -44,7 +45,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
         htmlContent: project.htmlContent,
         views: project.views,
         likes: project.likes,
-        ownerName: owner?.name || "Anonymous",
+        ownerName: getPublicOwnerName(owner || undefined),
         createdAt: project.createdAt,
         updatedAt: project.updatedAt,
         viewerHasLiked,

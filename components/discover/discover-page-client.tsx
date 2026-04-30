@@ -39,6 +39,10 @@ const SORT_LABELS: Record<DiscoverSortOption, string> = {
   "most-liked": "Most liked",
 }
 
+function isAbortLikeError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError"
+}
+
 export function DiscoverPageClient() {
   const [projects, setProjects] = React.useState<DiscoverProject[]>([])
   const [search, setSearch] = React.useState("")
@@ -50,6 +54,7 @@ export function DiscoverPageClient() {
 
   React.useEffect(() => {
     const controller = new AbortController()
+    let isDisposed = false
     const query = new URLSearchParams({
       page: String(page),
       sort,
@@ -65,25 +70,39 @@ export function DiscoverPageClient() {
           signal: controller.signal,
         })
 
+        if (isDisposed || controller.signal.aborted) {
+          return
+        }
+
         if (!response.ok) {
           throw new Error("Failed to load public projects")
         }
 
         const data = (await response.json()) as DiscoverResponse
+
+        if (isDisposed || controller.signal.aborted) {
+          return
+        }
+
         setProjects(data.projects)
         setPagination(data.pagination)
       } catch (error) {
-        if ((error as Error).name !== "AbortError") {
+        if (!isDisposed && !controller.signal.aborted && !isAbortLikeError(error)) {
           setErrorMessage(error instanceof Error ? error.message : "Failed to load public projects")
         }
       } finally {
-        setIsLoading(false)
+        if (!isDisposed && !controller.signal.aborted) {
+          setIsLoading(false)
+        }
       }
     }
 
     void loadProjects()
 
-    return () => controller.abort()
+    return () => {
+      isDisposed = true
+      controller.abort()
+    }
   }, [page, search, sort])
 
   const totalProjects = pagination?.totalProjects ?? 0

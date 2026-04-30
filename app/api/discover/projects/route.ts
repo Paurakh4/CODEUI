@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth"
 import connectDB from "@/lib/db"
-import { getDiscoverSortStage, parseDiscoverQuery } from "@/lib/discover-projects"
+import { getDiscoverSortStage, getPublicOwnerName, parseDiscoverQuery } from "@/lib/discover-projects"
 import { Project, ProjectLike } from "@/lib/models"
 import { NextResponse } from "next/server"
 
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
     const [projects, totalProjects] = await Promise.all([
       Project.find(filters)
         .select("_id userId name emoji htmlContent views likes createdAt updatedAt")
-        .populate("userId", "name")
+        .populate("userId", "name email")
         .sort(getDiscoverSortStage(query.sort))
         .skip(offset)
         .limit(query.pageSize)
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
       : new Set<string>()
 
     const items = projects.map((project) => {
-      const owner = project.userId as { name?: string } | null
+      const owner = project.userId as { name?: string; email?: string } | null
 
       return {
         id: project._id.toString(),
@@ -59,7 +59,7 @@ export async function GET(request: Request) {
         htmlContent: project.htmlContent,
         views: project.views,
         likes: project.likes,
-        ownerName: owner?.name || "Anonymous",
+        ownerName: getPublicOwnerName(owner || undefined),
         createdAt: project.createdAt,
         updatedAt: project.updatedAt,
         viewerHasLiked: likedProjectIds.has(project._id.toString()),

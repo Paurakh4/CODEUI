@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { useSession } from "next-auth/react"
+import { useToast } from "@/hooks/use-toast"
 import { 
   Bug, 
   Lightbulb, 
@@ -31,15 +32,27 @@ interface FeedbackModalProps {
 
 export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
   const { data: session } = useSession()
+  const { toast } = useToast()
   const [type, setType] = React.useState<FeedbackType>("general")
   const [message, setMessage] = React.useState("")
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [isSuccess, setIsSuccess] = React.useState(false)
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null)
 
+  const resetForm = React.useCallback(() => {
+    setIsSuccess(false)
+    setMessage("")
+    setType("general")
+    setErrorMessage(null)
+    setIsSubmitting(false)
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!message.trim()) return
+    if (!message.trim()) {
+      setErrorMessage("Add a message before sending feedback.")
+      return
+    }
 
     if (!session?.user?.id) {
       setErrorMessage("You need to be signed in to send feedback.")
@@ -68,14 +81,15 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
       }
 
       setIsSuccess(true)
+      toast({
+        title: "Feedback sent",
+        description: "Thanks. Your feedback was submitted successfully.",
+      })
 
       setTimeout(() => {
-        setIsSuccess(false)
-        setMessage("")
-        setType("general")
-        setErrorMessage(null)
+        resetForm()
         onClose()
-      }, 2000)
+      }, 3000)
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Failed to submit feedback")
     } finally {
@@ -85,9 +99,9 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
 
   React.useEffect(() => {
     if (!isOpen) {
-      setErrorMessage(null)
+      resetForm()
     }
-  }, [isOpen])
+  }, [isOpen, resetForm])
 
   const feedbackTypes = [
     {
@@ -183,6 +197,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                   placeholder="Describe your feedback..."
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
+                  aria-invalid={Boolean(errorMessage) || undefined}
                   className="min-h-[120px] bg-zinc-900 border-white/10 focus:border-white/20 focus:ring-0 resize-none text-sm placeholder:text-zinc-600"
                   required
                 />

@@ -34,6 +34,10 @@ describe("prompt enhancement", () => {
     expect(detectPromptEnhancementWarning("Write a poem about the ocean")).toContain("designed for UI prompts")
   })
 
+  it("treats targeted UI edit requests as enhanceable prompts", () => {
+    expect(isLikelyUiPrompt("Add a testimonials section below the pricing cards and tighten the spacing")).toBe(true)
+  })
+
   it("flags very long prompts for summarize-and-structure handling", () => {
     const longPrompt = `${"Build a web app dashboard for finance teams with dense tables and filters. ".repeat(30)}`
 
@@ -61,6 +65,16 @@ describe("prompt enhancement", () => {
     })
 
     expect(result.enhancedPrompt).toContain("Design brief guidance:")
+  })
+
+  it("falls back deterministically when the enhancer returns the original prompt unchanged", () => {
+    const result = resolvePromptEnhancement("Create a landing page for a recruiting platform", {
+      prompt: "Create a landing page for a recruiting platform",
+      strength: "standard",
+    })
+
+    expect(result.enhancedPrompt).toContain("Design brief guidance:")
+    expect(result.enhancedPrompt).not.toBe("Create a landing page for a recruiting platform")
   })
 
   it("returns the original prompt for non-ui requests", () => {

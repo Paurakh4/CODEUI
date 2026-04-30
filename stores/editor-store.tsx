@@ -7,6 +7,7 @@ import React, {
   useCallback,
   ReactNode,
   useEffect,
+  useRef,
   useState,
 } from "react"
 import { useSession } from "next-auth/react"
@@ -310,12 +311,14 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(editorReducer, initialState)
   const [hasHydratedSelectedModel, setHasHydratedSelectedModel] = useState(false)
   const [hasHydratedGenerationSettings, setHasHydratedGenerationSettings] = useState(false)
+  const persistedSelectedModelRef = useRef<string | null>(null)
   const { toast } = useToast()
   const { data: session, status } = useSession()
   const { setTheme: applyTheme } = useTheme()
 
   const applyPersistedSettings = useCallback((settings: ReturnType<typeof createDefaultUserPreferences>) => {
     dispatch({ type: "SET_MODEL", payload: settings.defaultModel })
+    persistedSelectedModelRef.current = settings.defaultModel
     dispatch({ type: "SET_PRIMARY_COLOR", payload: settings.primaryColor })
     dispatch({ type: "SET_SECONDARY_COLOR", payload: settings.secondaryColor })
     dispatch({ type: "SET_THEME", payload: settings.theme })
@@ -332,6 +335,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       type: "SET_MODEL",
       payload: savedModel || defaults.defaultModel,
     })
+    persistedSelectedModelRef.current = savedModel || defaults.defaultModel
 
     if (savedGenerationSettings) {
       try {
@@ -462,6 +466,43 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
     if (state.selectedModel) {
       localStorage.setItem("selected_model", state.selectedModel)
+    }
+  }, [hasHydratedSelectedModel, session?.user?.id, state.selectedModel])
+
+  useEffect(() => {
+    if (!hasHydratedSelectedModel || !session?.user?.id || !state.selectedModel) {
+      return
+    }
+
+    if (persistedSelectedModelRef.current === state.selectedModel) {
+      return
+    }
+
+    const previousPersistedModel = persistedSelectedModelRef.current
+    persistedSelectedModelRef.current = state.selectedModel
+    let cancelled = false
+
+    ;(async () => {
+      try {
+        const response = await fetch("/api/user/settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ defaultModel: state.selectedModel }),
+        })
+
+        if (!response.ok) {
+          throw new Error("Failed to persist selected model")
+        }
+      } catch (error) {
+        if (!cancelled) {
+          persistedSelectedModelRef.current = previousPersistedModel
+          console.error("Failed to persist selected model:", error)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
     }
   }, [hasHydratedSelectedModel, session?.user?.id, state.selectedModel])
 

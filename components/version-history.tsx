@@ -25,7 +25,7 @@ interface VersionHistoryProps {
   versions: Version[]
   currentVersionId?: string | null
   onRestore: (version: Version) => void | boolean | Promise<void | boolean>
-  onPreview: (version: Version | null) => void
+  onPreview: (version: Version | null) => void | boolean
   trigger?: React.ReactNode | null
   open?: boolean
   onOpenChange?: (open: boolean) => void
@@ -67,8 +67,12 @@ export function VersionHistory({
       return
     }
 
+    const didPreview = onPreview(version)
+    if (didPreview === false) {
+      return
+    }
+
     setPreviewingId(version.id)
-    onPreview(version)
   }
 
   const handleRestore = async (version: Version) => {

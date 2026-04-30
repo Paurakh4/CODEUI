@@ -183,6 +183,7 @@ const coerceVersionId = (value: unknown): string => {
 }
 
 const CINEMATHEQUE_TEMPLATE_ENDPOINT = "/api/templates/cinematheque-preview"
+const CINEMATHEQUE_TEMPLATE_LOADING_MARKER = "CINEMATHEQUE_TEMPLATE_LOADING"
 const TEXT_CONTENT_PROPERTY = "__textContent__"
 const MAX_SCOPE_RECOVERY_ATTEMPTS = 2
 const LOADING_HTML = `<!DOCTYPE html>
@@ -199,7 +200,7 @@ const LOADING_HTML = `<!DOCTYPE html>
   </style>
 </head>
 <body>
-  <!-- CINEMATHEQUE_TEMPLATE_LOADING -->
+  <!-- ${CINEMATHEQUE_TEMPLATE_LOADING_MARKER} -->
   <div class="wrap">
     <div class="card">
       <div>Loading Cinematheque preview template…</div>
@@ -208,6 +209,14 @@ const LOADING_HTML = `<!DOCTYPE html>
   </div>
 </body>
 </html>`
+
+function isCinemathequeTemplateLoadingDocument(value: string | null | undefined): boolean {
+  return (value || "").includes(CINEMATHEQUE_TEMPLATE_LOADING_MARKER)
+}
+
+function canUseStableProjectHtml(value: string | null | undefined): value is string {
+  return Boolean(value && isCompleteHtmlDocument(value) && !isCinemathequeTemplateLoadingDocument(value))
+}
 
 // Random prompt examples for the dice button
 const EXAMPLE_PROMPTS = [
@@ -388,6 +397,101 @@ function buildGenerationSummary(options: {
   ].join("\n")
 }
 
+function extractFollowUpContentNotes(prompt: string): string[] {
+  const lowerPrompt = prompt.toLowerCase()
+  const notes: string[] = []
+
+  if (/testimonial|review|social proof|client quote/.test(lowerPrompt)) {
+    notes.push("testimonials")
+  }
+  if (/pricing|plan|tier|subscription/.test(lowerPrompt)) {
+    notes.push("pricing content")
+  }
+  if (/hero|headline|masthead/.test(lowerPrompt)) {
+    notes.push("hero content")
+  }
+  if (/feature|benefit|capability/.test(lowerPrompt)) {
+    notes.push("feature messaging")
+  }
+  if (/faq|question|answer/.test(lowerPrompt)) {
+    notes.push("an FAQ section")
+  }
+  if (/nav|navbar|navigation|menu/.test(lowerPrompt)) {
+    notes.push("navigation")
+  }
+  if (/footer/.test(lowerPrompt)) {
+    notes.push("footer content")
+  }
+  if (/form|contact|signup|sign up|login|log in|newsletter/.test(lowerPrompt)) {
+    notes.push("form flows")
+  }
+  if (/gallery|portfolio|image|photo|media/.test(lowerPrompt)) {
+    notes.push("visual content")
+  }
+  if (/dashboard|chart|metric|table|analytics/.test(lowerPrompt)) {
+    notes.push("data presentation")
+  }
+  if (/card|tile/.test(lowerPrompt)) {
+    notes.push("card content")
+  }
+  if (/copy|text|messaging|content/.test(lowerPrompt)) {
+    notes.push("copy hierarchy")
+  }
+  if (/cta|button|call to action/.test(lowerPrompt)) {
+    notes.push("call-to-action areas")
+  }
+
+  return uniqueSummaryItems(notes, 4)
+}
+
+function extractFollowUpDesignNotes(prompt: string): string[] {
+  const lowerPrompt = prompt.toLowerCase()
+  const notes: string[] = []
+
+  if (/spacing|padding|margin|gap|compact|dense|airy|breathing room/.test(lowerPrompt)) {
+    notes.push("spacing refinements")
+  }
+  if (/layout|grid|column|alignment|position|structure|responsive/.test(lowerPrompt)) {
+    notes.push("layout adjustments")
+  }
+  if (/color|palette|theme|dark|light|contrast|background/.test(lowerPrompt)) {
+    notes.push("palette refinements")
+  }
+  if (/typography|font|headline|heading|text size|copy/.test(lowerPrompt)) {
+    notes.push("typography updates")
+  }
+  if (/button|card|section|component|navbar|footer|form|modal/.test(lowerPrompt)) {
+    notes.push("component polish")
+  }
+  if (/animation|motion|transition|hover|microinteraction/.test(lowerPrompt)) {
+    notes.push("motion updates")
+  }
+
+  return uniqueSummaryItems(notes, 4)
+}
+
+function buildFollowUpSummary(prompt: string, html: string): string {
+  const normalizedPrompt = cleanSummaryText(prompt)
+  const projectType = inferProjectType(prompt, html)
+  const contentNotes = extractFollowUpContentNotes(prompt)
+  const designNotes = extractFollowUpDesignNotes(prompt)
+  const requestLine = normalizedPrompt
+    ? `Updated the current UI to ${normalizedPrompt.charAt(0).toLowerCase()}${normalizedPrompt.slice(1)}.`
+    : "Updated the current UI."
+
+  const generatedLine = contentNotes.length > 0
+    ? `Generated: an updated ${projectType} with ${joinSummaryParts(contentNotes)} aligned to the latest request.`
+    : `Generated: an updated ${projectType} aligned to the latest request.`
+
+  const designLine = designNotes.length > 0
+    ? `UI design: ${joinSummaryParts(designNotes)} while preserving the existing visual system.`
+    : contentNotes.length > 0
+      ? `UI design: integrated ${joinSummaryParts(contentNotes)} into the existing visual system with consistent hierarchy.`
+      : "UI design: integrated the requested update into the existing visual system."
+
+  return [requestLine, generatedLine, designLine].join("\n")
+}
+
 function buildPromptScopeRecoveryPrompt(prompt: string, missingRequirements: string[]): string {
   const missingList = missingRequirements.join(", ")
 
@@ -506,6 +610,9 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   // Project State
   const [projectName, setProjectName] = useState("untitled-project")
   const [htmlContent, setHtmlContent] = useState(LOADING_HTML)
+  const [isTemplateLoading, setIsTemplateLoading] = useState(() => isCinemathequeTemplateLoadingDocument(LOADING_HTML))
+  const [templateLoadError, setTemplateLoadError] = useState<string | null>(null)
+  const [templateReloadKey, setTemplateReloadKey] = useState(0)
   const htmlContentRef = useRef(htmlContent)
 
   const [versions, setVersions] = useState<HistoryVersion[]>([])
@@ -695,6 +802,19 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     commitHtmlContentUpdate(restoredHtml)
     return restoredHtml
   }, [commitHtmlContentUpdate, htmlContent])
+
+  const getStableCheckpointHtml = useCallback((preferredHtml?: string | null) => {
+    const candidates = [
+      preferredHtml,
+      requestStableHtmlRef.current,
+      lastAppliedHtml.current,
+      htmlContentRef.current,
+      htmlContent,
+    ]
+
+    const stableCandidate = candidates.find((candidate) => canUseStableProjectHtml(candidate))
+    return stableCandidate?.trim() || null
+  }, [htmlContent])
 
   const getTargetedRecoveryFailureMessage = useCallback((validationError?: string) => {
     return describeTargetedUpdateFailure(
@@ -899,9 +1019,18 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         })
       }
 
-      return typeof data?.enhancedPrompt === "string" && data.enhancedPrompt.trim()
+      const enhancedPrompt = typeof data?.enhancedPrompt === "string" && data.enhancedPrompt.trim()
         ? data.enhancedPrompt.trim()
         : trimmedPrompt
+
+      if (enhancedPrompt === trimmedPrompt && !data?.warning) {
+        toast({
+          title: "Prompt already clear",
+          description: "Prompt Enhance did not need to rewrite the current request.",
+        })
+      }
+
+      return enhancedPrompt
     } catch (error) {
       toast({
         title: "Prompt Enhance unavailable",
@@ -960,7 +1089,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     description?: string,
     options?: CheckpointOptions
   ) => {
-    const content = htmlContentRef.current || htmlContent
+    const content = getStableCheckpointHtml(htmlContentRef.current || htmlContent)
     if (!content) return
 
     const savedVersion = await saveVersionToMongo(content, description, options)
@@ -981,7 +1110,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         description: description || "Saved a new version.",
       })
     }
-  }, [htmlContent, makeLocalVersion, normalizeVersion, projectId, saveVersionToMongo, session?.user?.id, toast])
+  }, [getStableCheckpointHtml, htmlContent, makeLocalVersion, normalizeVersion, projectId, saveVersionToMongo, session?.user?.id, toast])
 
   // Load project from MongoDB on mount (if projectId exists)
   useEffect(() => {
@@ -1157,19 +1286,35 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     }
   }, [previewHtmlContent, versionHistoryOpen])
 
-  // Load default preview template (Cinematheque) once on mount.
+  const retryTemplateLoad = useCallback(() => {
+    setTemplateLoadError(null)
+    setTemplateReloadKey((current) => current + 1)
+  }, [])
+
+  // Load the default preview template whenever the editor is showing the loading sentinel.
   useEffect(() => {
+    if (!isCinemathequeTemplateLoadingDocument(htmlContent)) {
+      setIsTemplateLoading(false)
+      setTemplateLoadError(null)
+      return
+    }
+
     let cancelled = false
+    setIsTemplateLoading(true)
+    setTemplateLoadError(null)
 
     ;(async () => {
       try {
         const res = await fetch(CINEMATHEQUE_TEMPLATE_ENDPOINT)
-        if (!res.ok) return
+        if (!res.ok) {
+          throw new Error(`Template request failed with ${res.status}`)
+        }
+
         const templateHtml = await res.text()
         if (cancelled) return
 
         setHtmlContent((current) => {
-          if (!current.includes("CINEMATHEQUE_TEMPLATE_LOADING")) {
+          if (!isCinemathequeTemplateLoadingDocument(current)) {
             return current
           }
 
@@ -1178,15 +1323,23 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           requestStableHtmlRef.current = templateHtml.trim()
           return templateHtml
         })
-      } catch {
-        // Keep LOADING_HTML on failure.
+
+        setIsTemplateLoading(false)
+      } catch (error) {
+        if (cancelled) {
+          return
+        }
+
+        console.error("Failed to load Cinematheque preview template", error)
+        setIsTemplateLoading(false)
+        setTemplateLoadError("Preview starter failed to load. Retry to restore the default canvas.")
       }
     })()
 
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [htmlContent, templateReloadKey])
 
   const finalizeAssistantMessage = useCallback(
     (content: string) => {
@@ -1573,10 +1726,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       scopeRecoveryAttemptsRef.current = 0
       setPendingRecovery(null)
       lastPatchFailureRef.current = null
-      const summary = buildGenerationSummary({
-        prompt: lastUserPromptRef.current,
-        html: hasCompleteHtml ? extractedHtml : htmlContentRef.current,
-      })
+      const finalHtml = hasCompleteHtml ? extractedHtml : htmlContentRef.current
+      const summary = isFollowUp
+        ? buildFollowUpSummary(lastUserPromptRef.current, finalHtml)
+        : buildGenerationSummary({
+            prompt: lastUserPromptRef.current,
+            html: finalHtml,
+          })
       const finalSummary = hasPromptScopeIssues && hasCompleteHtml
         ? `${summary}\nScope note: ${scopeFailureMessage} The latest complete UI was kept in the editor.`
         : summary
@@ -2302,15 +2458,58 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     })
   }, [createCheckpoint, viewMode])
 
+  const applyVersionSnapshot = useCallback((version: HistoryVersion) => {
+    if (!version || !canUseStableProjectHtml(version.htmlContent)) {
+      toast({
+        title: "Version unavailable",
+        description: "This checkpoint cannot be restored from the current undo stack.",
+        variant: "destructive",
+      })
+      return false
+    }
+
+    const normalizedHtml = version.htmlContent.trim()
+    const normalizedVersionId = coerceVersionId(version.id)
+
+    setHtmlContent(normalizedHtml)
+    htmlContentRef.current = normalizedHtml
+    lastAppliedHtml.current = normalizedHtml
+    requestStableHtmlRef.current = normalizedHtml
+    setCurrentVersionId(normalizedVersionId)
+    setHasUnsavedChanges(lastSavedContentRef.current !== normalizedHtml)
+    setPreviewHtmlContent(null)
+    setViewMode("preview")
+    return true
+  }, [toast])
+
+  const stableVersions = versions.filter((version) => canUseStableProjectHtml(version.htmlContent))
+  const currentStableVersionIndex = stableVersions.findIndex(
+    (version) => coerceVersionId(version.id) === currentVersionId,
+  )
+  const canUndoVersionNavigation = currentStableVersionIndex > 0
+  const canRedoVersionNavigation =
+    currentStableVersionIndex >= 0 && currentStableVersionIndex < stableVersions.length - 1
+
   const handlePreviewVersion = useCallback((version: HistoryVersion | null) => {
     if (!version) {
       setPreviewHtmlContent(null)
-      return
+      return true
+    }
+
+    if (!canUseStableProjectHtml(version.htmlContent)) {
+      toast({
+        title: "Version preview unavailable",
+        description: "This checkpoint only captured a temporary loading state and cannot be previewed.",
+        variant: "destructive",
+      })
+      setPreviewHtmlContent(null)
+      return false
     }
 
     setPreviewHtmlContent(version.htmlContent)
     setViewMode("preview")
-  }, [])
+    return true
+  }, [toast])
 
   const handleRestoreVersion = useCallback(async (version: HistoryVersion) => {
     if (!version || !version.htmlContent) {
@@ -2323,15 +2522,12 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     }
 
     const targetVersionId = coerceVersionId(version.id)
+    const didApply = applyVersionSnapshot(version)
+    if (!didApply) {
+      return false
+    }
 
-    setHtmlContent(version.htmlContent)
-    htmlContentRef.current = version.htmlContent
-    lastAppliedHtml.current = version.htmlContent.trim()
-    requestStableHtmlRef.current = version.htmlContent.trim()
-    setCurrentVersionId(targetVersionId)
     setHasUnsavedChanges(true)
-    setPreviewHtmlContent(null)
-    setViewMode("preview")
 
     toast({
       title: "Version restored",
@@ -2345,7 +2541,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       restoredFromId: MONGO_OBJECT_ID_REGEX.test(targetVersionId) ? targetVersionId : undefined,
     })
     return true
-  }, [createCheckpoint, toast, versions])
+  }, [applyVersionSnapshot, createCheckpoint, toast])
 
   const handleElementSelect = useCallback((info: SelectedElementInfo) => {
     if (!info.selector.trim()) {
@@ -2514,7 +2710,18 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   // Undo handler
   const handleUndo = useCallback(() => {
     const undoneChanges = styleHistoryActions.undo()
-    if (!undoneChanges || undoneChanges.length === 0) return
+    if (!undoneChanges || undoneChanges.length === 0) {
+      if (canUndoVersionNavigation) {
+        const targetVersion = stableVersions[currentStableVersionIndex - 1]
+        if (targetVersion && applyVersionSnapshot(targetVersion)) {
+          toast({
+            title: "Reverted version",
+            description: targetVersion.description || "Moved to the previous checkpoint.",
+          })
+        }
+      }
+      return
+    }
     
     // Apply the old values
     try {
@@ -2548,12 +2755,23 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     } catch (e) {
       console.error("Failed to undo", e)
     }
-  }, [applyChangeToIframe, commitHtmlContentUpdate, styleHistoryActions, htmlContent, selectedElement, syncSelectedElementFromIframe])
+  }, [applyChangeToIframe, applyVersionSnapshot, canUndoVersionNavigation, commitHtmlContentUpdate, currentStableVersionIndex, htmlContent, selectedElement, stableVersions, styleHistoryActions, syncSelectedElementFromIframe, toast])
 
   // Redo handler
   const handleRedo = useCallback(() => {
     const redoneChanges = styleHistoryActions.redo()
-    if (!redoneChanges || redoneChanges.length === 0) return
+    if (!redoneChanges || redoneChanges.length === 0) {
+      if (canRedoVersionNavigation) {
+        const targetVersion = stableVersions[currentStableVersionIndex + 1]
+        if (targetVersion && applyVersionSnapshot(targetVersion)) {
+          toast({
+            title: "Reapplied version",
+            description: targetVersion.description || "Moved to the next checkpoint.",
+          })
+        }
+      }
+      return
+    }
     
     // Apply the new values
     try {
@@ -2587,7 +2805,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     } catch (e) {
       console.error("Failed to redo", e)
     }
-  }, [applyChangeToIframe, commitHtmlContentUpdate, styleHistoryActions, htmlContent, selectedElement, syncSelectedElementFromIframe])
+  }, [applyChangeToIframe, applyVersionSnapshot, canRedoVersionNavigation, commitHtmlContentUpdate, currentStableVersionIndex, htmlContent, selectedElement, stableVersions, styleHistoryActions, syncSelectedElementFromIframe, toast])
 
   const handleElementChange = useCallback((element: SelectedElement) => {
     if (!selectedElement) return
@@ -2624,6 +2842,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   const renderContent = () => {
     const hasProtocolDraft = hasStreamProtocolMarkers(draftAiOutput)
     const liveDraftHtml = getRenderableStreamingHtml(draftAiOutput)
+    const isLoadingTemplateDocument = isCinemathequeTemplateLoadingDocument(htmlContent)
 
     switch (viewMode) {
       case "preview":
@@ -2644,6 +2863,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
               forwardedRef={previewRef}
               previewUpdateToken={previewUpdateSignal.token}
               previewUpdateMode={previewUpdateSignal.mode}
+              templateLoadError={templateLoadError}
+              onRetryLoadingTemplate={retryTemplateLoad}
             />
             {isDesignCanvasMode && selectedElement && panelPos && (
               <div 
@@ -2669,7 +2890,37 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           </div>
         )
       case "code":
-        const liveEditorValue = liveDraftHtml || draftAiOutput || htmlContent
+        const liveEditorValue = liveDraftHtml || draftAiOutput || (isLoadingTemplateDocument ? "" : htmlContent)
+
+        if (isLoadingTemplateDocument && !liveEditorValue) {
+          return (
+            <div className="flex h-full items-center justify-center bg-zinc-950 px-6">
+              <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900/70 p-6 text-left shadow-2xl">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-zinc-100">
+                    {isTemplateLoading ? "Loading starter canvas..." : "Starter canvas unavailable"}
+                  </p>
+                  <p className="text-sm leading-6 text-zinc-400">
+                    {templateLoadError || "Code view will appear once the default Cinematheque template is ready."}
+                  </p>
+                </div>
+
+                <div className="mt-4 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={retryTemplateLoad}
+                    disabled={isTemplateLoading}
+                    className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm font-medium text-zinc-100 transition-colors hover:border-zinc-600 hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isTemplateLoading ? "Loading..." : "Retry template load"}
+                  </button>
+                  <span className="text-xs text-zinc-500">The internal loading scaffold stays hidden from the editor.</span>
+                </div>
+              </div>
+            </div>
+          )
+        }
+
         return (
           <CodeEditor
             value={isGenerating && !hasProtocolDraft ? liveEditorValue : htmlContent}
@@ -2972,8 +3223,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           onSave={handleSaveCheckpoint}
           onUndo={handleUndo}
           onRedo={handleRedo}
-          canUndo={styleHistoryActions.canUndo}
-          canRedo={styleHistoryActions.canRedo}
+          canUndo={styleHistoryActions.canUndo || canUndoVersionNavigation}
+          canRedo={styleHistoryActions.canRedo || canRedoVersionNavigation}
           onHistoryOpen={() => setVersionHistoryOpen(true)}
           isGenerating={isGenerating}
           hasUnsavedChanges={hasUnsavedChanges}

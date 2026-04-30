@@ -25,6 +25,10 @@ interface PublicProjectDetailClientProps {
   id: string
 }
 
+function isAbortLikeError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError"
+}
+
 export function PublicProjectDetailClient({ id }: PublicProjectDetailClientProps) {
   const { data: session } = useSession()
   const { showSignIn } = useAuthDialog()
@@ -36,35 +40,52 @@ export function PublicProjectDetailClient({ id }: PublicProjectDetailClientProps
 
   React.useEffect(() => {
     const controller = new AbortController()
+    let isDisposed = false
+    hasTrackedViewRef.current = false
 
     const loadProject = async () => {
       setIsLoading(true)
       setErrorMessage(null)
+      setProject(null)
 
       try {
         const response = await fetch(`/api/discover/projects/${id}`, {
           signal: controller.signal,
         })
 
+        if (isDisposed || controller.signal.aborted) {
+          return
+        }
+
         if (!response.ok) {
           throw new Error(response.status === 404 ? "This public project could not be found." : "Failed to load project")
         }
 
         const data = (await response.json()) as { project: PublicProject }
+
+        if (isDisposed || controller.signal.aborted) {
+          return
+        }
+
         setProject(data.project)
       } catch (error) {
-        if ((error as Error).name !== "AbortError") {
+        if (!isDisposed && !controller.signal.aborted && !isAbortLikeError(error)) {
           setErrorMessage(error instanceof Error ? error.message : "Failed to load project")
         }
       } finally {
-        setIsLoading(false)
+        if (!isDisposed && !controller.signal.aborted) {
+          setIsLoading(false)
+        }
       }
     }
 
     void loadProject()
 
-    return () => controller.abort()
-  }, [id, session?.user?.id])
+    return () => {
+      isDisposed = true
+      controller.abort()
+    }
+  }, [id])
 
   React.useEffect(() => {
     if (!project || hasTrackedViewRef.current) {

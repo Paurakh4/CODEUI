@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils"
 import { Grip, Loader2, LocateFixed, RefreshCw } from "lucide-react"
 import { DeviceMode } from "@/stores/editor-store"
 
+const CINEMATHEQUE_TEMPLATE_LOADING_MARKER = "CINEMATHEQUE_TEMPLATE_LOADING"
+
 export interface SelectedElementInfo {
   selector: string;
   type: string;
@@ -25,6 +27,12 @@ export interface PreviewFrameProps {
   forwardedRef?: React.RefObject<HTMLIFrameElement | null>
   previewUpdateToken?: number
   previewUpdateMode?: "full" | "style"
+  templateLoadError?: string | null
+  onRetryLoadingTemplate?: () => void
+}
+
+function isCinemathequeTemplateLoadingDocument(value: string | null | undefined): boolean {
+  return (value || "").includes(CINEMATHEQUE_TEMPLATE_LOADING_MARKER)
 }
 
 const TRACKED_STYLE_PROPERTIES = [
@@ -202,6 +210,8 @@ export function PreviewFrame({
   forwardedRef,
   previewUpdateToken = 0,
   previewUpdateMode = "full",
+  templateLoadError,
+  onRetryLoadingTemplate,
 }: PreviewFrameProps) {
   const localIframeRef = useRef<HTMLIFrameElement>(null)
   const iframeRef = forwardedRef || localIframeRef
@@ -220,6 +230,7 @@ export function PreviewFrame({
 
   const hasPreviewShell = deviceMode === "desktop"
   const isTabletMode = deviceMode === "tablet"
+  const isTemplateLoadingDocument = isCinemathequeTemplateLoadingDocument(htmlContent)
   const frameShellClassName = cn(
     "relative flex-none touch-none",
     activeInteraction ? "transition-none" : "transition-all duration-300",
@@ -455,7 +466,7 @@ export function PreviewFrame({
     
     // Handle load event
     const handleLoad = () => {
-      setIsLoading(false)
+      setIsLoading(isTemplateLoadingDocument)
     }
     
     iframe.onload = handleLoad
@@ -467,7 +478,7 @@ export function PreviewFrame({
     return () => {
       iframe.onload = null
     }
-  }, [htmlContent, previewUpdateMode, previewUpdateToken, reloadToken])
+  }, [htmlContent, isTemplateLoadingDocument, previewUpdateMode, previewUpdateToken, reloadToken])
 
   // Refresh the preview
   const handleRefresh = useCallback(() => {
@@ -782,9 +793,33 @@ export function PreviewFrame({
       </div>
       
       {/* Loading indicator */}
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/50 z-10">
-          <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+      {(isLoading || isTemplateLoadingDocument || Boolean(templateLoadError)) && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-zinc-950/72 backdrop-blur-sm">
+          {isTemplateLoadingDocument || templateLoadError ? (
+            <div className="mx-6 w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950/95 p-5 shadow-2xl">
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-zinc-100">
+                  {templateLoadError ? "Starter canvas unavailable" : "Loading starter canvas..."}
+                </p>
+                <p className="text-sm leading-6 text-zinc-400">
+                  {templateLoadError || "The preview will unlock once the default Cinematheque template has loaded."}
+                </p>
+              </div>
+
+              <div className="mt-4 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={onRetryLoadingTemplate || handleRefresh}
+                  className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm font-medium text-zinc-100 transition-colors hover:border-zinc-600 hover:bg-zinc-800"
+                >
+                  Retry template load
+                </button>
+                {!templateLoadError ? <Loader2 className="h-4 w-4 animate-spin text-blue-500" /> : null}
+              </div>
+            </div>
+          ) : (
+            <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+          )}
         </div>
       )}
       
@@ -795,12 +830,19 @@ export function PreviewFrame({
         <div
           className={cn(
             "absolute inset-0 touch-none",
-            activeInteraction === "pan" ? "cursor-grabbing" : "cursor-grab"
+            isDesignMode
+              ? activeInteraction === "pan"
+                ? "cursor-grabbing"
+                : "cursor-grab"
+              : "cursor-default"
           )}
-          onPointerDown={startPanInteraction}
+          onPointerDown={isDesignMode ? startPanInteraction : undefined}
         >
           <div
-            className="pointer-events-none absolute inset-0 opacity-70"
+            className={cn(
+              "pointer-events-none absolute inset-0",
+              isDesignMode ? "opacity-70" : "opacity-35",
+            )}
             style={{
               backgroundImage: [
                 "linear-gradient(to right, rgba(255,255,255,0.055) 1px, transparent 1px)",
@@ -832,20 +874,22 @@ export function PreviewFrame({
           }}
         >
           <div className="relative">
-            <button
-              onPointerDown={startMoveInteraction}
-              className={cn(
-                "absolute left-1/2 -top-12 z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-white/10 bg-zinc-950/80 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-300 shadow-[0_12px_30px_rgba(0,0,0,0.3)] backdrop-blur-sm",
-                activeInteraction === "move" ? "cursor-grabbing" : "cursor-grab"
-              )}
-              title="Drag preview"
-            >
-              <Grip className="h-3.5 w-3.5" />
-              Move
-            </button>
+            {isDesignMode ? (
+              <button
+                onPointerDown={startMoveInteraction}
+                className={cn(
+                  "absolute left-1/2 -top-12 z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-white/10 bg-zinc-950/80 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-300 shadow-[0_12px_30px_rgba(0,0,0,0.3)] backdrop-blur-sm",
+                  activeInteraction === "move" ? "cursor-grabbing" : "cursor-grab"
+                )}
+                title="Drag preview"
+              >
+                <Grip className="h-3.5 w-3.5" />
+                Move
+              </button>
+            ) : null}
 
             <div className="relative">
-              {resizeHandleConfig.map((handle) => (
+              {isDesignMode ? resizeHandleConfig.map((handle) => (
                 <button
                   key={handle.direction}
                   type="button"
@@ -857,7 +901,7 @@ export function PreviewFrame({
                   )}
                   title={`Resize preview ${handle.label}`}
                 />
-              ))}
+              )) : null}
 
               <div className={frameShellClassName}>
                 <div
@@ -889,7 +933,11 @@ export function PreviewFrame({
       {/* Floating Device info pill */}
       <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 items-center justify-center gap-3 rounded-full border border-zinc-800/80 bg-zinc-900/90 px-4 py-2 text-[11px] text-zinc-400 shadow-2xl backdrop-blur-md z-30 pointer-events-none">
         <span className="font-medium text-zinc-300">{deviceMode.charAt(0).toUpperCase() + deviceMode.slice(1)} • {frameSize.width}×{frameSize.height}</span>
-        <span className="hidden md:inline text-zinc-500">Drag background to pan • drag handle to move • drag corners to resize</span>
+        <span className="hidden md:inline text-zinc-500">
+          {isDesignMode
+            ? "Drag background to pan • drag handle to move • drag corners to resize"
+            : "Preview mode • read-only canvas"}
+        </span>
       </div>
     </div>
   )

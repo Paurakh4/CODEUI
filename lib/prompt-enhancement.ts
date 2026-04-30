@@ -44,6 +44,62 @@ const NON_UI_PATTERNS = [
   /\bsummarize article\b/i,
 ]
 
+const UI_EDIT_ACTION_PATTERNS = [
+  /\badd\b/i,
+  /\bupdate\b/i,
+  /\bchange\b/i,
+  /\bimprove\b/i,
+  /\bmake\b/i,
+  /\brefine\b/i,
+  /\badjust\b/i,
+  /\bredesign\b/i,
+  /\brestyle\b/i,
+  /\btighten\b/i,
+  /\bsimplify\b/i,
+  /\bremove\b/i,
+  /\bmove\b/i,
+  /\breorder\b/i,
+  /\btweak\b/i,
+  /\bincrease\b/i,
+  /\bdecrease\b/i,
+  /\bpolish\b/i,
+]
+
+const UI_EDIT_TARGET_PATTERNS = [
+  /\bsection\b/i,
+  /\blayout\b/i,
+  /\bspacing\b/i,
+  /\btypography\b/i,
+  /\bcolor\b/i,
+  /\bpalette\b/i,
+  /\btheme\b/i,
+  /\bbutton\b/i,
+  /\bcta\b/i,
+  /\bnavbar\b/i,
+  /\bnavigation\b/i,
+  /\bheader\b/i,
+  /\bfooter\b/i,
+  /\bhero\b/i,
+  /\bcard\b/i,
+  /\bmodal\b/i,
+  /\bform\b/i,
+  /\binput\b/i,
+  /\btable\b/i,
+  /\bchart\b/i,
+  /\bgrid\b/i,
+  /\bgallery\b/i,
+  /\btestimonial\b/i,
+  /\bpricing\b/i,
+  /\bfaq\b/i,
+  /\bfeature\b/i,
+  /\bsidebar\b/i,
+  /\bpanel\b/i,
+  /\bcanvas\b/i,
+  /\bpreview\b/i,
+  /\banimation\b/i,
+  /\binteraction\b/i,
+]
+
 const PLATFORM_SIGNALS = [
   "website",
   "web app",
@@ -87,6 +143,14 @@ export function isLikelyUiPrompt(prompt: string): boolean {
 
   if (NON_UI_PATTERNS.some((pattern) => pattern.test(normalizedPrompt))) {
     return false
+  }
+
+  const looksLikeUiEditRequest =
+    UI_EDIT_ACTION_PATTERNS.some((pattern) => pattern.test(normalizedPrompt)) &&
+    UI_EDIT_TARGET_PATTERNS.some((pattern) => pattern.test(normalizedPrompt))
+
+  if (looksLikeUiEditRequest) {
+    return true
   }
 
   return UI_PROMPT_PATTERNS.some((pattern) => pattern.test(normalizedPrompt))
@@ -217,6 +281,13 @@ export function resolvePromptEnhancement(
 
   const sanitizedOutput = sanitizeEnhancedPromptOutput(aiOutput)
   if (!isPromptEnhancementSafe(normalizedPrompt, sanitizedOutput)) {
+    return {
+      enhancedPrompt: buildDeterministicPromptEnhancement(context),
+      warning,
+    }
+  }
+
+  if (normalizeWhitespace(sanitizedOutput) === normalizedPrompt) {
     return {
       enhancedPrompt: buildDeterministicPromptEnhancement(context),
       warning,

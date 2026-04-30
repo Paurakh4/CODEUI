@@ -196,14 +196,6 @@ export function DashboardMain({
     )
   }, [onStart, selectedModelId])
 
-  const openCreditsInfo = useCallback(() => {
-    setPricingOpen(true)
-    toast({
-      title: "Credits overview",
-      description: "Monthly credits reset each billing cycle. Top-up credits stay available until you use them.",
-    })
-  }, [setPricingOpen, toast])
-
   const getModelIcon = (modelId: string) => {
     if (modelId.includes('gemini') || modelId.includes('google')) return <Sparkles className="w-3.5 h-3.5" />
     if (modelId.includes('r1')) return <Bot className="w-3.5 h-3.5" />
@@ -635,7 +627,6 @@ export function DashboardMain({
                         <TooltipTrigger asChild>
                           <button
                             aria-label="How credits work"
-                            onClick={openCreditsInfo}
                             className="text-[#a0a0a0] hover:text-[#faff69] transition-colors"
                           >
                             <Info className="w-3 h-3" />
