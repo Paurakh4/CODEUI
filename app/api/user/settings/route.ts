@@ -16,7 +16,6 @@ const updateSettingsSchema = z
     primaryColor: z.enum(USER_PREFERENCE_COLOR_NAMES).optional(),
     secondaryColor: z.enum(USER_PREFERENCE_COLOR_NAMES).optional(),
     defaultModel: z.string().min(1).optional(),
-    enhancedPrompts: z.boolean().optional(),
     contactPreferences: z
       .object({
         productUpdates: z.boolean().optional(),

@@ -57,11 +57,9 @@ interface TopNavProps {
   primaryColor?: string
   secondaryColor?: string
   theme?: "light" | "dark"
-  enhancedPrompts?: boolean
   onPrimaryColorChange?: (color: string) => void
   onSecondaryColorChange?: (color: string) => void
   onThemeChange?: (theme: "light" | "dark") => void
-  onEnhancedPromptsChange?: (enabled: boolean) => void
 }
 
 export function TopNav({ 
@@ -83,11 +81,9 @@ export function TopNav({
   primaryColor: _primaryColor = "blue",
   secondaryColor: _secondaryColor = "slate",
   theme: _theme = "dark",
-  enhancedPrompts: _enhancedPrompts = false,
   onPrimaryColorChange: _onPrimaryColorChange,
   onSecondaryColorChange: _onSecondaryColorChange,
   onThemeChange: _onThemeChange,
-  onEnhancedPromptsChange: _onEnhancedPromptsChange,
 }: TopNavProps) {
   const [copied, setCopied] = useState(false)
   const copyResetTimeoutRef = useRef<number | null>(null)

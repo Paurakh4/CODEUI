@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Settings, X, Palette, Sparkles, Moon, Sun } from "lucide-react"
+import { Settings, X, Palette, Moon, Sun } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   Sheet,
@@ -11,7 +11,6 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 
 // Tailwind color palette
@@ -44,11 +43,9 @@ interface SettingsPanelProps {
   primaryColor: string
   secondaryColor: string
   theme: "light" | "dark"
-  enhancedPrompts: boolean
   onPrimaryColorChange: (color: string) => void
   onSecondaryColorChange: (color: string) => void
   onThemeChange: (theme: "light" | "dark") => void
-  onEnhancedPromptsChange: (enabled: boolean) => void
   trigger?: React.ReactNode
 }
 
@@ -56,11 +53,9 @@ export function SettingsPanel({
   primaryColor,
   secondaryColor,
   theme,
-  enhancedPrompts,
   onPrimaryColorChange,
   onSecondaryColorChange,
   onThemeChange,
-  onEnhancedPromptsChange,
   trigger,
 }: SettingsPanelProps) {
   const [open, setOpen] = useState(false)
@@ -177,28 +172,6 @@ export function SettingsPanel({
               ))}
             </div>
           </div>
-
-          {/* Enhanced Prompts */}
-          <div className="flex items-center justify-between p-3 bg-zinc-900 rounded-lg border border-zinc-800">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-purple-500/10 rounded-lg flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-purple-400" />
-              </div>
-              <div>
-                <Label className="text-sm font-medium text-zinc-200">
-                  Enhanced Prompts
-                </Label>
-                <p className="text-xs text-zinc-500">
-                  Add more details to your prompts
-                </p>
-              </div>
-            </div>
-            <Switch
-              checked={enhancedPrompts}
-              onCheckedChange={onEnhancedPromptsChange}
-            />
-          </div>
-
           {/* Color Preview */}
           <div className="space-y-2">
             <Label className="text-sm font-medium text-zinc-200">Preview</Label>

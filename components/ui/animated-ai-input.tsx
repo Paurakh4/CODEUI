@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Bot, Check, ChevronDown, Loader2, Paperclip, X } from "lucide-react";
+import { ArrowRight, Bot, Check, ChevronDown, Loader2, Paperclip, Sparkles, X } from "lucide-react";
 import { useState, useRef, useCallback, useEffect, type ChangeEvent } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { motion, AnimatePresence } from "@/components/ui/no-motion";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface UseAutoResizeTextareaProps {
     minHeight: number;
@@ -98,6 +99,8 @@ const OPENAI_ICON = (
 
 interface AI_PromptProps {
     onSend?: (message: string, model?: string) => void;
+    onEnhance?: (message: string, model?: string) => Promise<string>;
+    onDraftChange?: (message: string) => void;
     onCancel?: () => void;
     onFileSelect?: (event: ChangeEvent<HTMLInputElement>) => void;
     fileUploadAccept?: string;
@@ -111,6 +114,8 @@ interface AI_PromptProps {
 
 export function AI_Prompt({ 
     onSend, 
+    onEnhance,
+    onDraftChange,
     onCancel,
     onFileSelect,
     fileUploadAccept,
@@ -122,6 +127,7 @@ export function AI_Prompt({
     isGenerating = false,
 }: AI_PromptProps) {
     const [value, setValue] = useState("");
+    const [isEnhancing, setIsEnhancing] = useState(false);
     const { textareaRef, adjustHeight } = useAutoResizeTextarea({
         minHeight: 48,
         maxHeight: 200,
@@ -150,6 +156,10 @@ export function AI_Prompt({
             onModelChange(selectedModelId);
         }
     }, [selectedModelId, onModelChange]);
+
+    useEffect(() => {
+        onDraftChange?.(value);
+    }, [onDraftChange, value]);
 
     // Fetch available models on mount only if props are not provided
     useEffect(() => {
@@ -189,11 +199,34 @@ export function AI_Prompt({
     }, [propAvailableModels, initialModelId]);
 
     const handleSubmit = () => {
-        if (!value.trim() || isGenerating) return;
+        if (!value.trim() || isGenerating || isEnhancing) return;
 
         onSend?.(value.trim(), selectedModelId);
         setValue("");
         adjustHeight(true);
+    };
+
+    const handleEnhance = async () => {
+        if (!onEnhance || !value.trim() || isGenerating || isEnhancing) {
+            return;
+        }
+
+        setIsEnhancing(true);
+
+        try {
+            const enhancedPrompt = await onEnhance(value.trim(), selectedModelId);
+
+            if (!enhancedPrompt || !enhancedPrompt.trim()) {
+                return;
+            }
+
+            setValue(enhancedPrompt.trim());
+            window.requestAnimationFrame(() => {
+                adjustHeight();
+            });
+        } finally {
+            setIsEnhancing(false);
+        }
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -201,7 +234,7 @@ export function AI_Prompt({
 
         e.preventDefault();
 
-        if (isGenerating) {
+        if (isGenerating || isEnhancing) {
             return;
         }
 
@@ -225,9 +258,11 @@ export function AI_Prompt({
                             <Textarea
                                 id="ai-input-15"
                                 value={value}
-                                placeholder={"What can I do for you?"}
+                                placeholder={onEnhance
+                                    ? "What can I do for you? Type a UI prompt to unlock Prompt Enhance."
+                                    : "What can I do for you?"}
                                 className={cn(
-                                    "w-full rounded-lg rounded-b-none px-3 py-2 bg-black/5 dark:bg-white/5 border-none dark:text-white placeholder:text-black/70 dark:placeholder:text-white/70 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 text-sm",
+                                    "w-full rounded-lg rounded-b-none px-3 py-2 pr-12 bg-black/5 dark:bg-white/5 border-none dark:text-white placeholder:text-black/70 dark:placeholder:text-white/70 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 text-sm",
                                     "min-h-[48px]"
                                 )}
                                 ref={textareaRef}
@@ -237,6 +272,33 @@ export function AI_Prompt({
                                     adjustHeight();
                                 }}
                             />
+
+                            {onEnhance && value.trim() ? (
+                                <div className="absolute right-2 top-2">
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon-sm"
+                                                onClick={handleEnhance}
+                                                disabled={isGenerating || isEnhancing}
+                                                aria-label="Enhance prompt"
+                                                className="rounded-md bg-black/5 text-black/50 hover:bg-black/10 hover:text-black dark:bg-white/5 dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white"
+                                            >
+                                                {isEnhancing ? (
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                ) : (
+                                                    <Sparkles className="h-3.5 w-3.5" />
+                                                )}
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="left" sideOffset={8}>
+                                            Improve this UI prompt without changing its meaning
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </div>
+                            ) : null}
                         </div>
 
                         <div className="h-12 bg-black/5 dark:bg-white/5 rounded-b-lg flex items-center">
@@ -247,7 +309,7 @@ export function AI_Prompt({
                                             <Button
                                                 variant="ghost"
                                                 className="flex items-center gap-1 h-7 pl-1 pr-1.5 text-xs rounded-md dark:text-white hover:bg-black/10 dark:hover:bg-white/10 focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-blue-500"
-                                                disabled={isLoadingModels || isGenerating}
+                                                disabled={isLoadingModels || isGenerating || isEnhancing}
                                             >
                                                 <AnimatePresence mode="wait">
                                                     <motion.div
@@ -317,8 +379,8 @@ export function AI_Prompt({
                                             "rounded-md p-1.5 bg-black/5 dark:bg-white/5",
                                             "hover:bg-black/10 dark:hover:bg-white/10 focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-blue-500",
                                             "text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white",
-                                            (isFileUploadDisabled || isGenerating) && "opacity-50 cursor-not-allowed pointer-events-none",
-                                            !isFileUploadDisabled && !isGenerating && "cursor-pointer"
+                                            (isFileUploadDisabled || isGenerating || isEnhancing) && "opacity-50 cursor-not-allowed pointer-events-none",
+                                            !isFileUploadDisabled && !isGenerating && !isEnhancing && "cursor-pointer"
                                         )}
                                         aria-label="Attach file"
                                     >
@@ -327,7 +389,7 @@ export function AI_Prompt({
                                             className="hidden"
                                             onChange={onFileSelect}
                                             accept={fileUploadAccept}
-                                            disabled={isFileUploadDisabled || isGenerating}
+                                            disabled={isFileUploadDisabled || isGenerating || isEnhancing}
                                         />
                                         <Paperclip className="w-3.5 h-3.5 transition-colors" />
                                     </label>
@@ -342,7 +404,7 @@ export function AI_Prompt({
                                             : "hover:bg-black/10 dark:hover:bg-white/10"
                                     )}
                                     aria-label={isGenerating ? "Cancel generation" : "Send message"}
-                                    disabled={!isGenerating && !value.trim()}
+                                    disabled={(!isGenerating && !value.trim()) || isEnhancing}
                                     onClick={() => {
                                         if (isGenerating) {
                                             onCancel?.();

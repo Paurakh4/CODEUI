@@ -70,7 +70,6 @@ interface SendMessageOptions {
   model?: string
   isFollowUp?: boolean
   recoveryMode?: RecoveryModeValue
-  enhancedPrompts?: boolean
   primaryColor?: string
   secondaryColor?: string
   theme?: "light" | "dark"
@@ -155,7 +154,6 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       model,
       isFollowUp,
       recoveryMode,
-      enhancedPrompts,
       primaryColor,
       secondaryColor,
       theme,
@@ -290,7 +288,6 @@ export function useAIChat(options: UseAIChatOptions = {}) {
             model,
             isFollowUp,
             recoveryMode,
-            enhancedPrompts,
             primaryColor,
             secondaryColor,
             theme,

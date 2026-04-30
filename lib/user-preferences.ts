@@ -49,7 +49,6 @@ export interface UserPreferences {
   primaryColor: (typeof USER_PREFERENCE_COLOR_NAMES)[number];
   secondaryColor: (typeof USER_PREFERENCE_COLOR_NAMES)[number];
   defaultModel: string;
-  enhancedPrompts: boolean;
   contactPreferences: ContactPreferences;
   privacyPreferences: PrivacyPreferences;
 }
@@ -67,7 +66,6 @@ export function createDefaultUserPreferences(
     primaryColor: "blue",
     secondaryColor: "slate",
     defaultModel: options.defaultModel || getDefaultModelId(),
-    enhancedPrompts: false,
     contactPreferences: {
       productUpdates: true,
       marketingEmails: false,
@@ -108,10 +106,6 @@ export function normalizeUserPreferences(
       preferences?.defaultModel && isEnabled(preferences.defaultModel)
         ? preferences.defaultModel
         : defaults.defaultModel,
-    enhancedPrompts:
-      typeof preferences?.enhancedPrompts === "boolean"
-        ? preferences.enhancedPrompts
-        : defaults.enhancedPrompts,
     contactPreferences: {
       ...defaults.contactPreferences,
       ...preferences?.contactPreferences,

@@ -197,9 +197,6 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
             <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
               <p className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Default Model</p>
               <p className="mt-2 font-medium text-white">{detail.customer.preferences.defaultModel || "Not set"}</p>
-              <p className="mt-1 text-[#A6A6A6]">
-                Enhanced prompts {detail.customer.preferences.enhancedPrompts ? "enabled" : "disabled"}
-              </p>
             </div>
             <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
               <p className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Privacy</p>

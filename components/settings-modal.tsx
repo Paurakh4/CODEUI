@@ -34,7 +34,6 @@ function getDraftFromEditor(state: ReturnType<typeof useEditor>["state"]): UserP
     primaryColor: state.primaryColor as UserPreferences["primaryColor"],
     secondaryColor: state.secondaryColor as UserPreferences["secondaryColor"],
     defaultModel: state.selectedModel,
-    enhancedPrompts: state.enhancedPrompts,
   };
 }
 
@@ -43,7 +42,7 @@ function getColorValue(name: UserPreferences["primaryColor"]) {
 }
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
-  const { state, setModel, setPrimaryColor, setSecondaryColor, setTheme, setEnhancedPrompts } = useEditor();
+  const { state, setModel, setPrimaryColor, setSecondaryColor, setTheme } = useEditor();
   const { toast } = useToast();
   const [draft, setDraft] = useState<UserPreferences>(getDraftFromEditor(state));
   const [isLoading, setIsLoading] = useState(false);
@@ -53,7 +52,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     primaryColor,
     secondaryColor,
     selectedModel,
-    enhancedPrompts,
   } = state;
 
   useEffect(() => {
@@ -70,7 +68,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         primaryColor: primaryColor as UserPreferences["primaryColor"],
         secondaryColor: secondaryColor as UserPreferences["secondaryColor"],
         defaultModel: selectedModel,
-        enhancedPrompts,
       });
       setIsLoading(true);
 
@@ -110,7 +107,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
       cancelled = true;
     };
   }, [
-    enhancedPrompts,
     open,
     primaryColor,
     secondaryColor,
@@ -142,7 +138,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
       setTheme(savedSettings.theme);
       setPrimaryColor(savedSettings.primaryColor);
       setSecondaryColor(savedSettings.secondaryColor);
-      setEnhancedPrompts(savedSettings.enhancedPrompts);
       setModel(savedSettings.defaultModel);
       setDraft(savedSettings);
 
@@ -395,19 +390,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                             </div>
                           </motion.div>
 
-                          <motion.div custom={2} initial="hidden" animate="visible" variants={cardVariants} className="rounded-2xl bg-[#0F1113] border border-white/[0.04] p-6 shadow-xl">
-                            <div className="flex items-center justify-between gap-4">
-                              <div>
-                                <Label className="text-sm font-medium text-[#E6E7E8]">Enhanced Prompts</Label>
-                                <p className="mt-1 text-sm text-[#A6A6A6]">Automatically enrich your prompts for better results.</p>
-                              </div>
-                              <Switch
-                                checked={draft.enhancedPrompts}
-                                onCheckedChange={(checked) => setDraft((current) => ({ ...current, enhancedPrompts: checked }))}
-                                className="data-[state=checked]:bg-[#0AA6FF]"
-                              />
-                            </div>
-                          </motion.div>
                         </div>
                       )}
 

@@ -64,7 +64,6 @@ interface RequestBody {
   model?: ModelId
   isFollowUp?: boolean
   recoveryMode?: RecoveryModeValue
-  enhancedPrompts?: boolean
   primaryColor?: string
   secondaryColor?: string
   theme?: "light" | "dark"
@@ -491,7 +490,6 @@ export async function POST(req: NextRequest) {
       model = runtimeDefaultModelId,
       isFollowUp = false,
       recoveryMode,
-      enhancedPrompts = false,
       primaryColor,
       secondaryColor,
       theme,

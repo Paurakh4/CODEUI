@@ -92,10 +92,6 @@ const PreferencesSchema = new Schema(
       type: String,
       default: createDefaultUserPreferences().defaultModel,
     },
-    enhancedPrompts: {
-      type: Boolean,
-      default: false,
-    },
     contactPreferences: {
       type: ContactPreferencesSchema,
       default: () => createDefaultUserPreferences().contactPreferences,

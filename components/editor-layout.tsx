@@ -1,8 +1,10 @@
 "use client"
 
 import { startTransition, useEffect, useState, useCallback, useRef, type ChangeEvent } from "react"
+import { AnimatePresence, motion } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { TopNav } from "@/components/top-nav-new"
+import { DesignDiscoveryBlock } from "@/components/design-discovery-block"
 import { VersionHistory, type Version as HistoryVersion } from "@/components/version-history"
 import { AI_Prompt } from "@/components/ui/animated-ai-input"
 import { PreviewFrame, extractSelectedElementInfo, type SelectedElementInfo } from "@/components/preview-frame"
@@ -25,7 +27,6 @@ import {
   selectStableHtmlDocument,
   type PatchFailureContext,
 } from "@/lib/ai-update-recovery"
-import { buildEnhancedPrompt } from "@/lib/enhanced-prompts"
 import { getElementPropertyFields } from "@/lib/design-element-properties"
 import { validatePromptScope } from "@/lib/prompt-scope"
 import { isFullDocumentRecoveryMode, isPatchRepairRecoveryMode, resolveRecoveryMode, type RecoveryMode } from "@/lib/recovery-mode"
@@ -41,6 +42,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  composePromptWithDiscoveryAnswers,
+  type DesignDiscoveryAnswer,
+  type DesignDiscoveryQuestion,
+} from "@/lib/design-discovery"
 
 // Debounce helper for auto-save
 function useDebouncedCallback<T extends (...args: Parameters<T>) => void>(
@@ -118,8 +124,21 @@ interface PendingRecovery {
   mode: RecoveryMode
 }
 
+interface PendingDesignDiscovery {
+  prompt: string
+  model?: string
+  reasoning: string
+  questions: DesignDiscoveryQuestion[]
+  answers: Record<string, DesignDiscoveryAnswer | undefined>
+  currentQuestionIndex: number
+  isLoading: boolean
+  isSubmitting: boolean
+}
+
 const MONGO_OBJECT_ID_REGEX = /^[a-f\d]{24}$/i
 const STREAM_PROTOCOL_MARKER_REGEX = /(?:^|\n)\s*(?:<<<<<<<|=======|>>>>>>>)/m
+const STREAM_CODE_FENCE_LINE_REGEX = /^```[a-z0-9_-]*\s*$/i
+const STREAM_PROTOCOL_LINE_REGEX = /^(<<<<<<<|=======|>>>>>>>)/
 
 const createEditorEntityId = (prefix: string): string => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -421,6 +440,32 @@ function getRenderableStreamingHtml(value: string): string | null {
   return candidate
 }
 
+function getStreamingCodePreview(value: string): string {
+  const normalizedValue = value.replace(/\r\n/g, "\n")
+  if (!normalizedValue.trim()) {
+    return ""
+  }
+
+  const extractedHtml = extractHtml(normalizedValue)
+  if (extractedHtml) {
+    return extractedHtml
+  }
+
+  return normalizedValue
+    .split("\n")
+    .filter((line) => {
+      const trimmedLine = line.trim()
+      return !STREAM_CODE_FENCE_LINE_REGEX.test(trimmedLine) && !STREAM_PROTOCOL_LINE_REGEX.test(trimmedLine)
+    })
+    .join("\n")
+    .trimEnd()
+}
+
+function getStreamingPreviewEditorHeight(value: string): number {
+  const lineCount = Math.max(4, value.split("\n").length)
+  return Math.min(360, Math.max(128, lineCount * 18 + 40))
+}
+
 interface EditorLayoutNewProps {
   initialPrompt?: string
   initialModel?: string
@@ -437,7 +482,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     setPrimaryColor,
     setSecondaryColor,
     setTheme,
-    setEnhancedPrompts,
   } = useEditor()
   const { toast } = useToast()
   
@@ -507,9 +551,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   const promptScopeRecoveryInFlightRef = useRef(false)
   const scopeRecoveryAttemptsRef = useRef(0)
   const [pendingRecovery, setPendingRecovery] = useState<PendingRecovery | null>(null)
+  const [pendingDesignDiscovery, setPendingDesignDiscovery] = useState<PendingDesignDiscovery | null>(null)
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
   const activeProjectKeyRef = useRef<string | null>(null)
   const messagesRef = useRef<Message[]>([])
+  const designDiscoveryRequestRef = useRef(0)
   
   // Sync initialModel with global store
   useEffect(() => {
@@ -549,6 +595,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   const [isRestored, setIsRestored] = useState(false)
   const [isLoadingProject, setIsLoadingProject] = useState(false)
 
+  const clearPendingDesignDiscovery = useCallback(() => {
+    designDiscoveryRequestRef.current += 1
+    setPendingDesignDiscovery(null)
+  }, [])
+
   const resetTransientProjectState = useCallback(() => {
     if (initialPromptStartTimerRef.current !== null) {
       window.clearTimeout(initialPromptStartTimerRef.current)
@@ -565,6 +616,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     lastPatchFailureRef.current = null
 
     setPendingRecovery(null)
+  clearPendingDesignDiscovery()
     setMessages([])
     setThinkingExpanded(true)
     setSelectedElement(null)
@@ -586,7 +638,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     setSidebarOpen(true)
     setIsRestored(false)
     setApplyingPatch(false)
-  }, [setApplyingPatch])
+  }, [clearPendingDesignDiscovery, setApplyingPatch])
 
   useEffect(() => {
     const nextProjectKey = projectId || "new"
@@ -802,6 +854,74 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       console.error("Error saving message:", error)
     }
   }, [projectId, session?.user?.id])
+
+  const handleEnhancePrompt = useCallback(async (prompt: string, model?: string) => {
+    const trimmedPrompt = prompt.trim()
+    if (!trimmedPrompt) {
+      toast({
+        title: "Prompt Enhance needs text",
+        description: "Add a UI prompt first.",
+      })
+      return ""
+    }
+
+    if (!session) {
+      showSignIn()
+      return trimmedPrompt
+    }
+
+    try {
+      const response = await fetch("/api/ai/enhance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: trimmedPrompt,
+          model: model ?? state.selectedModel,
+          strength: "standard",
+        }),
+      })
+
+      if (response.status === 401) {
+        showSignIn()
+        return trimmedPrompt
+      }
+
+      const data = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to enhance prompt")
+      }
+
+      if (data?.warning) {
+        toast({
+          title: data?.skipped ? "Prompt Enhance skipped" : "Prompt Enhance",
+          description: data.warning,
+        })
+      }
+
+      return typeof data?.enhancedPrompt === "string" && data.enhancedPrompt.trim()
+        ? data.enhancedPrompt.trim()
+        : trimmedPrompt
+    } catch (error) {
+      toast({
+        title: "Prompt Enhance unavailable",
+        description: error instanceof Error ? error.message : "Failed to enhance prompt.",
+        variant: "destructive",
+      })
+      return trimmedPrompt
+    }
+  }, [session, showSignIn, state.selectedModel, toast])
+
+  const handleComposerDraftChange = useCallback((draft: string) => {
+    const trimmedDraft = draft.trim()
+    if (
+      pendingDesignDiscovery &&
+      trimmedDraft &&
+      trimmedDraft !== pendingDesignDiscovery.prompt.trim()
+    ) {
+      clearPendingDesignDiscovery()
+    }
+  }, [clearPendingDesignDiscovery, pendingDesignDiscovery])
 
   // Save version to MongoDB
   const saveVersionToMongo = useCallback(async (
@@ -1544,22 +1664,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       recoveryMode: recoveryRequest.mode,
     }
 
-    const enhancedRecoveryPrompt = buildEnhancedPrompt({
-      prompt: recoveryRequest.prompt,
-      enhancedPrompts: state.enhancedPrompts,
-      primaryColor: state.primaryColor,
-      secondaryColor: state.secondaryColor,
-      theme: state.theme,
-    })
-
     void sendAIMessage({
-      prompt: enhancedRecoveryPrompt,
+      prompt: recoveryRequest.prompt,
       currentHtml: recoveryRequest.baseHtml ?? htmlContentRef.current,
       selectedElement: recoveryRequest.selectedElement,
       isFollowUp: true,
       recoveryMode: recoveryRequest.mode,
       model: recoveryRequest.model ?? state.selectedModel,
-      enhancedPrompts: state.enhancedPrompts,
       primaryColor: state.primaryColor,
       secondaryColor: state.secondaryColor,
       theme: state.theme,
@@ -1571,7 +1682,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     pendingRecovery,
     sendAIMessage,
     setApplyingPatch,
-    state.enhancedPrompts,
     state.selectedModel,
     state.primaryColor,
     state.secondaryColor,
@@ -1591,13 +1701,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     }) => {
       const trimmedMessage = message.trim()
       if (!trimmedMessage) return
-      const enhancedPrompt = buildEnhancedPrompt({
-        prompt: trimmedMessage,
-        enhancedPrompts: state.enhancedPrompts,
-        primaryColor: state.primaryColor,
-        secondaryColor: state.secondaryColor,
-        theme: state.theme,
-      })
+
+      setPendingDesignDiscovery(null)
 
       recoveryInFlightRef.current = false
       promptScopeRecoveryInFlightRef.current = false
@@ -1651,10 +1756,10 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           const nextMessages = [...prev]
           const lastMessage = nextMessages[nextMessages.length - 1]
 
-          if (lastMessage?.role === "user" && lastMessage.content !== enhancedPrompt) {
+          if (lastMessage?.role === "user" && lastMessage.content !== trimmedMessage) {
             nextMessages[nextMessages.length - 1] = {
               ...lastMessage,
-              content: enhancedPrompt,
+              content: trimmedMessage,
             }
           }
 
@@ -1664,13 +1769,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       } else {
         const userMessage: Message = {
           id: createEditorEntityId("user"),
-          content: enhancedPrompt,
+          content: trimmedMessage,
           role: "user",
           timestamp: new Date(),
         }
 
         setMessages((prev) => [...prev, userMessage, assistantMessage])
-        saveMessageToMongo({ role: "user", content: enhancedPrompt })
+        saveMessageToMongo({ role: "user", content: trimmedMessage })
       }
 
       lastUserPromptRef.current = trimmedMessage
@@ -1701,12 +1806,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       try {
         activeAiRequestRef.current = { isFollowUp }
         await sendAIMessage({
-          prompt: enhancedPrompt,
+          prompt: trimmedMessage,
           currentHtml: isFollowUp ? htmlContentRef.current : undefined,
           selectedElement: selectedElementHtml,
           isFollowUp,
           model: model ?? state.selectedModel,
-          enhancedPrompts: state.enhancedPrompts,
           primaryColor: state.primaryColor,
           secondaryColor: state.secondaryColor,
           theme: state.theme,
@@ -1727,7 +1831,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       messages,
       selectedElement,
       extractSelectedElementHtmlFromContent,
-      state.enhancedPrompts,
       state.selectedModel,
       state.primaryColor,
       state.secondaryColor,
@@ -1741,10 +1844,256 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
   const handleSend = useCallback(
     async (message: string, model?: string) => {
-      await startGeneration({ message, model })
+      const trimmedMessage = message.trim()
+      if (!trimmedMessage) {
+        return
+      }
+
+      if (pendingDesignDiscovery?.isLoading || pendingDesignDiscovery?.isSubmitting) {
+        return
+      }
+
+      if (messagesRef.current.length > 0) {
+        clearPendingDesignDiscovery()
+        await startGeneration({ message: trimmedMessage, model })
+        return
+      }
+
+      if (!session) {
+        showSignIn()
+        return
+      }
+
+      const requestToken = designDiscoveryRequestRef.current + 1
+      designDiscoveryRequestRef.current = requestToken
+
+      setPendingDesignDiscovery({
+        prompt: trimmedMessage,
+        model,
+        reasoning: "Checking whether a short design discovery pass would materially improve the prompt before generation.",
+        questions: [],
+        answers: {},
+        currentQuestionIndex: 0,
+        isLoading: true,
+        isSubmitting: false,
+      })
+
+      try {
+        const response = await fetch("/api/ai/design-discovery", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: trimmedMessage,
+            model: model ?? state.selectedModel,
+          }),
+        })
+
+        if (requestToken !== designDiscoveryRequestRef.current) {
+          return
+        }
+
+        if (response.status === 401) {
+          clearPendingDesignDiscovery()
+          showSignIn()
+          return
+        }
+
+        const data = await response.json().catch(() => null)
+
+        if (!response.ok) {
+          throw new Error(data?.error || "Failed to evaluate prompt detail")
+        }
+
+        if (!data?.needsClarification || !Array.isArray(data.questions) || data.questions.length === 0) {
+          clearPendingDesignDiscovery()
+          await startGeneration({ message: trimmedMessage, model })
+          return
+        }
+
+        setPendingDesignDiscovery({
+          prompt: trimmedMessage,
+          model,
+          reasoning:
+            typeof data.reasoning === "string" && data.reasoning.trim()
+              ? data.reasoning.trim()
+              : "A few high-impact design details are still missing.",
+          questions: data.questions,
+          answers: {},
+          currentQuestionIndex: 0,
+          isLoading: false,
+          isSubmitting: false,
+        })
+      } catch (error) {
+        if (requestToken === designDiscoveryRequestRef.current) {
+          clearPendingDesignDiscovery()
+        }
+
+        toast({
+          title: "Skipping discovery",
+          description:
+            error instanceof Error
+              ? error.message
+              : "Continuing directly to generation.",
+        })
+
+        await startGeneration({ message: trimmedMessage, model })
+      }
     },
-    [startGeneration]
+    [clearPendingDesignDiscovery, pendingDesignDiscovery?.isLoading, pendingDesignDiscovery?.isSubmitting, session, showSignIn, startGeneration, state.selectedModel, toast]
   )
+
+  const completeDesignDiscovery = useCallback(
+    async (
+      discoveryState: PendingDesignDiscovery,
+      answers: Record<string, DesignDiscoveryAnswer | undefined>,
+    ) => {
+      const compiledPrompt = composePromptWithDiscoveryAnswers(
+        discoveryState.prompt,
+        Object.values(answers).filter((answer): answer is DesignDiscoveryAnswer => Boolean(answer)),
+      )
+
+      clearPendingDesignDiscovery()
+      await startGeneration({
+        message: compiledPrompt,
+        model: discoveryState.model,
+      })
+    },
+    [clearPendingDesignDiscovery, startGeneration],
+  )
+
+  const handleDesignDiscoveryOptionSelect = useCallback(async (
+    question: DesignDiscoveryQuestion,
+    optionLabel: string,
+  ) => {
+    if (!pendingDesignDiscovery || pendingDesignDiscovery.isSubmitting) {
+      return
+    }
+
+    const nextAnswers = {
+      ...pendingDesignDiscovery.answers,
+      [question.id]: {
+        questionId: question.id,
+        focusArea: question.focusArea,
+        question: question.question,
+        answer: optionLabel,
+        source: "option" as const,
+      },
+    }
+
+    if (pendingDesignDiscovery.currentQuestionIndex >= pendingDesignDiscovery.questions.length - 1) {
+      setPendingDesignDiscovery((current) => current ? { ...current, answers: nextAnswers, isSubmitting: true } : current)
+      await completeDesignDiscovery(pendingDesignDiscovery, nextAnswers)
+      return
+    }
+
+    setPendingDesignDiscovery((current) => current ? {
+      ...current,
+      answers: nextAnswers,
+      currentQuestionIndex: Math.min(current.currentQuestionIndex + 1, current.questions.length - 1),
+    } : current)
+  }, [completeDesignDiscovery, pendingDesignDiscovery])
+
+  const handleDesignDiscoveryCustomAnswerChange = useCallback((question: DesignDiscoveryQuestion, value: string) => {
+    setPendingDesignDiscovery((current) => {
+      if (!current) {
+        return current
+      }
+
+      const trimmedValue = value.trim()
+      const nextAnswers = { ...current.answers }
+
+      if (!trimmedValue) {
+        delete nextAnswers[question.id]
+      } else {
+        nextAnswers[question.id] = {
+          questionId: question.id,
+          focusArea: question.focusArea,
+          question: question.question,
+          answer: value,
+          source: "custom",
+        }
+      }
+
+      return {
+        ...current,
+        answers: nextAnswers,
+      }
+    })
+  }, [])
+
+  const handleDesignDiscoveryNext = useCallback(async () => {
+    if (!pendingDesignDiscovery || pendingDesignDiscovery.isSubmitting) {
+      return
+    }
+
+    const currentQuestion = pendingDesignDiscovery.questions[pendingDesignDiscovery.currentQuestionIndex]
+    if (!currentQuestion) {
+      return
+    }
+
+    const currentAnswer = pendingDesignDiscovery.answers[currentQuestion.id]
+    if (!currentAnswer || currentAnswer.source === "skip" || !currentAnswer.answer.trim()) {
+      return
+    }
+
+    if (pendingDesignDiscovery.currentQuestionIndex >= pendingDesignDiscovery.questions.length - 1) {
+      setPendingDesignDiscovery((current) => current ? { ...current, isSubmitting: true } : current)
+      await completeDesignDiscovery(pendingDesignDiscovery, pendingDesignDiscovery.answers)
+      return
+    }
+
+    setPendingDesignDiscovery((current) => current ? {
+      ...current,
+      currentQuestionIndex: Math.min(current.currentQuestionIndex + 1, current.questions.length - 1),
+    } : current)
+  }, [completeDesignDiscovery, pendingDesignDiscovery])
+
+  const handleDesignDiscoveryPrevious = useCallback(() => {
+    setPendingDesignDiscovery((current) => {
+      if (!current) {
+        return current
+      }
+
+      return {
+        ...current,
+        currentQuestionIndex: Math.max(current.currentQuestionIndex - 1, 0),
+      }
+    })
+  }, [])
+
+  const handleDesignDiscoverySkip = useCallback(async () => {
+    if (!pendingDesignDiscovery || pendingDesignDiscovery.isSubmitting) {
+      return
+    }
+
+    const currentQuestion = pendingDesignDiscovery.questions[pendingDesignDiscovery.currentQuestionIndex]
+    if (!currentQuestion) {
+      return
+    }
+
+    const nextAnswers = {
+      ...pendingDesignDiscovery.answers,
+      [currentQuestion.id]: {
+        questionId: currentQuestion.id,
+        focusArea: currentQuestion.focusArea,
+        question: currentQuestion.question,
+        answer: "",
+        source: "skip" as const,
+      },
+    }
+
+    if (pendingDesignDiscovery.currentQuestionIndex >= pendingDesignDiscovery.questions.length - 1) {
+      setPendingDesignDiscovery((current) => current ? { ...current, answers: nextAnswers, isSubmitting: true } : current)
+      await completeDesignDiscovery(pendingDesignDiscovery, nextAnswers)
+      return
+    }
+
+    setPendingDesignDiscovery((current) => current ? {
+      ...current,
+      answers: nextAnswers,
+      currentQuestionIndex: Math.min(current.currentQuestionIndex + 1, current.questions.length - 1),
+    } : current)
+  }, [completeDesignDiscovery, pendingDesignDiscovery])
 
   // Handle random prompt
   const handleRandomPrompt = useCallback(() => {
@@ -1842,6 +2191,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       return
     }
 
+    clearPendingDesignDiscovery()
     setMessages([])
     
     if (projectId && projectId !== "new" && session?.user?.id) {
@@ -1855,7 +2205,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         toast({ title: "Failed to clear chat history", variant: "destructive" })
       }
     }
-  }, [projectId, session?.user?.id, toast])
+  }, [clearPendingDesignDiscovery, projectId, session?.user?.id, toast])
 
   const handleUploadMedia = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -2332,6 +2682,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     }
   }
 
+  const liveGenerationCode = getStreamingCodePreview(draftAiOutput)
+  const liveGenerationEditorValue = liveGenerationCode || "<!-- Generating interface... -->"
+  const liveGenerationEditorHeight = getStreamingPreviewEditorHeight(liveGenerationEditorValue)
+  const liveGenerationPanelHeight = liveGenerationEditorHeight + 42
+
   return (
     <div className="flex h-dvh overflow-hidden bg-zinc-950 text-zinc-100">
       {/* Mobile overlay */}
@@ -2405,7 +2760,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
         {/* Chat Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4 min-h-0 min-w-0">
-          {messages.length === 0 ? (
+          {messages.length === 0 && !pendingDesignDiscovery ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-4">
               <div className="mb-2 flex items-center justify-center">
                 <SolarCodeSquareLinear className="w-8 h-8 text-purple-400" />
@@ -2430,7 +2785,15 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
             </div>
           ) : (
             <div className="space-y-4">
-              {messages.map((message) => (
+              {messages.map((message, index) => {
+                const isActiveAssistantGeneration =
+                  isGenerating &&
+                  index === messages.length - 1 &&
+                  message.role === "assistant" &&
+                  message.isThinking &&
+                  !message.content
+
+                return (
                 <div key={message.id} className="space-y-2">
                   <div
                     className={cn(
@@ -2447,17 +2810,70 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                       )}
                     >
                       {message.role === "assistant" && message.isThinking && !message.content ? (
-                        <div className="flex items-center gap-2">
-                          <TextShimmer className="font-mono text-sm" duration={1}>
-                            {message.progressLabel || "Generating code..."}
-                          </TextShimmer>
-                          <button
-                            onClick={cancelAI}
-                            aria-label="Cancel generation"
-                            className="p-1 rounded-md hover:bg-zinc-800 text-zinc-400"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <TextShimmer className="font-mono text-sm" duration={1}>
+                              {message.progressLabel || "Generating code..."}
+                            </TextShimmer>
+                            <button
+                              onClick={cancelAI}
+                              aria-label="Cancel generation"
+                              className="p-1 rounded-md hover:bg-zinc-800 text-zinc-400"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          <AnimatePresence initial={false}>
+                            {isActiveAssistantGeneration ? (
+                              <motion.div
+                                key="live-generation-preview"
+                                initial={{ height: 0, opacity: 0, y: -8 }}
+                                animate={{ height: liveGenerationPanelHeight, opacity: 1, y: 0 }}
+                                exit={{ height: 0, opacity: 0, y: -8 }}
+                                transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                                className="overflow-hidden"
+                              >
+                                <div className="overflow-hidden rounded-2xl border border-zinc-800/80 bg-[#050505] shadow-[0_18px_50px_rgba(0,0,0,0.35)]">
+                                  <div className="flex items-center justify-between border-b border-zinc-800/80 bg-zinc-950/90 px-3 py-2">
+                                    <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-zinc-400">
+                                      <span className="h-2 w-2 rounded-full bg-emerald-400/80 shadow-[0_0_12px_rgba(74,222,128,0.55)]" />
+                                      Live code preview
+                                    </div>
+                                    <span className="text-[11px] text-zinc-500">
+                                      {liveGenerationEditorValue.split("\n").length} lines
+                                    </span>
+                                  </div>
+
+                                  <motion.div
+                                    animate={{ height: liveGenerationEditorHeight }}
+                                    transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                                    className="bg-[#050505]"
+                                  >
+                                    <CodeEditor
+                                      value={liveGenerationEditorValue}
+                                      language="html"
+                                      readOnly
+                                      className="h-full"
+                                      modelPath={`/project/${projectId || "new"}/stream-preview.html`}
+                                      editorOptions={{
+                                        minimap: { enabled: false },
+                                        fontSize: 12,
+                                        lineHeight: 18,
+                                        lineNumbersMinChars: 3,
+                                        glyphMargin: false,
+                                        folding: false,
+                                        domReadOnly: true,
+                                        renderLineHighlight: "none",
+                                        overviewRulerLanes: 0,
+                                        padding: { top: 12, bottom: 12 },
+                                      }}
+                                    />
+                                  </motion.div>
+                                </div>
+                              </motion.div>
+                            ) : null}
+                          </AnimatePresence>
                         </div>
                       ) : (
                         <p className="text-sm whitespace-pre-wrap">{message.content}</p>
@@ -2489,7 +2905,29 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                     </div>
                   )}
                 </div>
-              ))}
+              )})}
+
+              {pendingDesignDiscovery ? (
+                <div className="flex justify-start">
+                  <DesignDiscoveryBlock
+                    reasoning={pendingDesignDiscovery.reasoning}
+                    question={pendingDesignDiscovery.questions[pendingDesignDiscovery.currentQuestionIndex]}
+                    answer={pendingDesignDiscovery.questions[pendingDesignDiscovery.currentQuestionIndex]
+                      ? pendingDesignDiscovery.answers[pendingDesignDiscovery.questions[pendingDesignDiscovery.currentQuestionIndex].id]
+                      : undefined}
+                    currentQuestionIndex={pendingDesignDiscovery.currentQuestionIndex}
+                    totalQuestions={pendingDesignDiscovery.questions.length}
+                    isLoading={pendingDesignDiscovery.isLoading}
+                    isSubmitting={pendingDesignDiscovery.isSubmitting}
+                    onSelectOption={handleDesignDiscoveryOptionSelect}
+                    onCustomAnswerChange={handleDesignDiscoveryCustomAnswerChange}
+                    onCustomAnswerSubmit={handleDesignDiscoveryNext}
+                    onPrevious={handleDesignDiscoveryPrevious}
+                    onNext={handleDesignDiscoveryNext}
+                    onSkip={handleDesignDiscoverySkip}
+                  />
+                </div>
+              ) : null}
             </div>
           )}
         </div>
@@ -2500,6 +2938,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         <div className="p-4 border-t border-zinc-800">
           <AI_Prompt 
             onSend={handleSend}
+            onEnhance={handleEnhancePrompt}
+            onDraftChange={handleComposerDraftChange}
             onCancel={cancelAI}
             onFileSelect={handleUploadMedia}
             fileUploadAccept="image/*,video/*,audio/*"
@@ -2540,11 +2980,9 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           primaryColor={state.primaryColor}
           secondaryColor={state.secondaryColor}
           theme={state.theme}
-          enhancedPrompts={state.enhancedPrompts}
           onPrimaryColorChange={setPrimaryColor}
           onSecondaryColorChange={setSecondaryColor}
           onThemeChange={setTheme}
-          onEnhancedPromptsChange={setEnhancedPrompts}
         />
 
         <Dialog open={isExportModalOpen} onOpenChange={setIsExportModalOpen}>

@@ -91,7 +91,6 @@ export interface AdminUserDetail {
     }
     preferences: {
       defaultModel: string
-      enhancedPrompts: boolean
       privateProjectsByDefault: boolean
       marketingEmails: boolean
       productUpdates: boolean
@@ -409,7 +408,6 @@ export async function getAdminUserDetail(
       },
       preferences: {
         defaultModel: user.preferences?.defaultModel || "",
-        enhancedPrompts: Boolean(user.preferences?.enhancedPrompts),
         privateProjectsByDefault: Boolean(
           user.preferences?.privacyPreferences?.privateProjectsByDefault,
         ),

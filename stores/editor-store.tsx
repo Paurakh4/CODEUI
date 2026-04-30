@@ -109,7 +109,6 @@ export interface EditorState {
   primaryColor: string
   secondaryColor: string
   theme: "light" | "dark"
-  enhancedPrompts: boolean
 }
 
 // Initial State
@@ -138,7 +137,6 @@ export const initialState: EditorState = {
   primaryColor: "blue",
   secondaryColor: "slate",
   theme: "dark",
-  enhancedPrompts: false,
 }
 
 // Action Types
@@ -163,7 +161,6 @@ export type EditorAction =
   | { type: "SET_PRIMARY_COLOR"; payload: string }
   | { type: "SET_SECONDARY_COLOR"; payload: string }
   | { type: "SET_THEME"; payload: "light" | "dark" }
-  | { type: "SET_ENHANCED_PROMPTS"; payload: boolean }
   | { type: "SET_PROJECT"; payload: Project }
   | { type: "RESET_STATE" }
 
@@ -266,9 +263,6 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     
     case "SET_THEME":
       return { ...state, theme: action.payload }
-
-    case "SET_ENHANCED_PROMPTS":
-      return { ...state, enhancedPrompts: action.payload }
     
     case "SET_PROJECT":
       return {
@@ -307,7 +301,6 @@ interface EditorContextValue {
   setPrimaryColor: (color: string) => void
   setSecondaryColor: (color: string) => void
   setTheme: (theme: "light" | "dark") => void
-  setEnhancedPrompts: (enabled: boolean) => void
 }
 
 const EditorContext = createContext<EditorContextValue | null>(null)
@@ -326,7 +319,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "SET_PRIMARY_COLOR", payload: settings.primaryColor })
     dispatch({ type: "SET_SECONDARY_COLOR", payload: settings.secondaryColor })
     dispatch({ type: "SET_THEME", payload: settings.theme })
-    dispatch({ type: "SET_ENHANCED_PROMPTS", payload: settings.enhancedPrompts })
     setHasHydratedSelectedModel(true)
     setHasHydratedGenerationSettings(true)
   }, [])
@@ -366,13 +358,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
               ? parsed.theme
               : defaults.theme,
         })
-        dispatch({
-          type: "SET_ENHANCED_PROMPTS",
-          payload:
-            typeof parsed.enhancedPrompts === "boolean"
-              ? parsed.enhancedPrompts
-              : defaults.enhancedPrompts,
-        })
       } catch (error) {
         console.error("Failed to restore generation settings", error)
         applyPersistedSettings(defaults)
@@ -382,7 +367,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       dispatch({ type: "SET_PRIMARY_COLOR", payload: defaults.primaryColor })
       dispatch({ type: "SET_SECONDARY_COLOR", payload: defaults.secondaryColor })
       dispatch({ type: "SET_THEME", payload: defaults.theme })
-      dispatch({ type: "SET_ENHANCED_PROMPTS", payload: defaults.enhancedPrompts })
     }
 
     setHasHydratedSelectedModel(true)
@@ -530,7 +514,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         primaryColor: state.primaryColor,
         secondaryColor: state.secondaryColor,
         theme: state.theme,
-        enhancedPrompts: state.enhancedPrompts,
       })
     )
   }, [
@@ -539,7 +522,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     state.primaryColor,
     state.secondaryColor,
     state.theme,
-    state.enhancedPrompts,
   ])
 
   useEffect(() => {
@@ -610,10 +592,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const setTheme = useCallback((theme: "light" | "dark") => {
     dispatch({ type: "SET_THEME", payload: theme })
   }, [])
-
-  const setEnhancedPrompts = useCallback((enabled: boolean) => {
-    dispatch({ type: "SET_ENHANCED_PROMPTS", payload: enabled })
-  }, [])
   
   const value: EditorContextValue = {
     state,
@@ -632,7 +610,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     setPrimaryColor,
     setSecondaryColor,
     setTheme,
-    setEnhancedPrompts,
   }
   
   return (

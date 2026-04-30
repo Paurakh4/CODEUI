@@ -91,6 +91,7 @@ interface CodeEditorProps {
   readOnly?: boolean
   className?: string
   modelPath?: string
+  editorOptions?: editor.IStandaloneEditorConstructionOptions
 }
 
 export function CodeEditor({
@@ -100,6 +101,7 @@ export function CodeEditor({
   readOnly = false,
   className,
   modelPath = "/project/index.html",
+  editorOptions,
 }: CodeEditorProps) {
   const { state } = useEditor()
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
@@ -391,6 +393,7 @@ export function CodeEditor({
           colorDecorators: true,
           selectionHighlight: false,
           occurrencesHighlight: "off",
+          ...editorOptions,
         }}
       />
       )}
