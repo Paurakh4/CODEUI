@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useSession } from "next-auth/react"
 import { useLiveCredits } from "@/hooks/use-live-credits"
+import { useAuthDialog } from "@/components/auth-dialog-provider"
 import Link from "next/link"
 import { useEditor } from "@/stores/editor-store"
 import type { SubscriptionTier } from "@/lib/pricing"
@@ -92,6 +93,7 @@ export function DashboardMain({
   onRetryBillingSync,
 }: DashboardMainProps) {
   const { data: session } = useSession()
+  const { showSignIn } = useAuthDialog()
   const { state, setModel } = useEditor()
   const { toast } = useToast()
   const selectedModelId = state.selectedModel
@@ -107,6 +109,7 @@ export function DashboardMain({
     }
   }, [])
   const [promptValue, setPromptValue] = useState("")
+  const [isEnhancing, setIsEnhancing] = useState(false)
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
   const [internalPricingOpen, setInternalPricingOpen] = useState(false)
   const { credits: realTimeCredits, refreshCredits } = useLiveCredits({
@@ -188,6 +191,58 @@ export function DashboardMain({
     if (!promptValue.trim()) return
     onStart(promptValue.trim(), selectedModelId)
   }
+
+  const handleEnhancePrompt = useCallback(async () => {
+    const trimmedPrompt = promptValue.trim()
+    if (!trimmedPrompt || isEnhancing) return
+
+    if (!session?.user) {
+      showSignIn()
+      return
+    }
+
+    setIsEnhancing(true)
+
+    try {
+      const response = await fetch("/api/ai/enhance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: trimmedPrompt,
+          model: selectedModelId,
+          strength: "standard",
+        }),
+      })
+
+      if (response.status === 401) {
+        showSignIn()
+        return
+      }
+
+      const data = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to enhance prompt")
+      }
+
+      const enhancedPrompt = typeof data?.enhancedPrompt === "string" && data.enhancedPrompt.trim()
+        ? data.enhancedPrompt.trim()
+        : trimmedPrompt
+
+      setPromptValue(enhancedPrompt)
+      requestAnimationFrame(() => {
+        adjustHeight()
+      })
+    } catch (error) {
+      toast({
+        title: "Prompt Enhance unavailable",
+        description: error instanceof Error ? error.message : "Failed to enhance prompt.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsEnhancing(false)
+    }
+  }, [adjustHeight, isEnhancing, promptValue, selectedModelId, session?.user, showSignIn, toast])
 
   const startLandingPage = useCallback(() => {
     onStart(
@@ -780,6 +835,32 @@ export function DashboardMain({
                                 placeholder="Ask CodeUI to build..."
                                 rows={1}
                             />
+                            {promptValue.trim() ? (
+                              <div className="absolute right-3 top-3">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon-sm"
+                                      onClick={handleEnhancePrompt}
+                                      disabled={isEnhancing}
+                                      aria-label="Enhance prompt"
+                                      className="rounded-[4px] bg-[#141414] text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#1a1a1a]"
+                                    >
+                                      {isEnhancing ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      ) : (
+                                        <Sparkles className="w-3.5 h-3.5" />
+                                      )}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="left" sideOffset={8}>
+                                    Improve this prompt without changing its meaning
+                                  </TooltipContent>
+                                </Tooltip>
+                              </div>
+                            ) : null}
                             <div className="flex items-center justify-between px-3 py-2 border-t border-[#414141]/80 bg-white/[0.02]">
                                 <div className="flex items-center gap-2">
                                     <DropdownMenu>
