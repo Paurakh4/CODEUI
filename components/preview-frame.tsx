@@ -24,6 +24,7 @@ export interface PreviewFrameProps {
   onTextChange?: (selector: string, text: string) => void
   onTextEditStart?: () => void
   isDesignMode?: boolean
+  isCanvasNavigationEnabled?: boolean
   forwardedRef?: React.RefObject<HTMLIFrameElement | null>
   previewUpdateToken?: number
   previewUpdateMode?: "full" | "style"
@@ -172,6 +173,9 @@ const CANVAS_GRID_SIZE = 32
 const CANVAS_MAJOR_GRID_SIZE = 160
 const CANVAS_FRAME_PADDING = 24
 const MOVE_HANDLE_CLEARANCE = 56
+const MIN_CANVAS_SCALE = 0.4
+const MAX_CANVAS_SCALE = 3
+const CANVAS_ZOOM_SENSITIVITY = 0.0015
 
 type CanvasPoint = { x: number; y: number }
 type FrameSize = { width: number; height: number }
@@ -207,6 +211,7 @@ export function PreviewFrame({
   onTextChange,
   onTextEditStart,
   isDesignMode = false,
+  isCanvasNavigationEnabled = true,
   forwardedRef,
   previewUpdateToken = 0,
   previewUpdateMode = "full",
@@ -217,6 +222,7 @@ export function PreviewFrame({
   const iframeRef = forwardedRef || localIframeRef
   const canvasViewportRef = useRef<HTMLDivElement>(null)
   const interactionRef = useRef<CanvasInteraction | null>(null)
+  const pointerCaptureTargetRef = useRef<HTMLElement | null>(null)
   const onElementSelectRef = useRef(onElementSelect)
   const onTextChangeRef = useRef(onTextChange)
   const onTextEditStartRef = useRef(onTextEditStart)
@@ -226,7 +232,11 @@ export function PreviewFrame({
   const [canvasOffset, setCanvasOffset] = useState<CanvasPoint>({ x: 0, y: 0 })
   const [framePosition, setFramePosition] = useState<CanvasPoint>({ x: 0, y: 0 })
   const [frameSize, setFrameSize] = useState<FrameSize>(deviceDimensions[deviceMode])
+  const [canvasScale, setCanvasScale] = useState(1)
   const [activeInteraction, setActiveInteraction] = useState<CanvasInteraction["type"] | null>(null)
+  const canvasOffsetRef = useRef(canvasOffset)
+  const framePositionRef = useRef(framePosition)
+  const canvasScaleRef = useRef(canvasScale)
 
   const hasPreviewShell = deviceMode === "desktop"
   const isTabletMode = deviceMode === "tablet"
@@ -245,16 +255,18 @@ export function PreviewFrame({
     x: canvasOffset.x + framePosition.x,
     y: canvasOffset.y + framePosition.y,
   }
+  const minorGridUnit = CANVAS_GRID_SIZE * canvasScale
+  const majorGridUnit = CANVAS_MAJOR_GRID_SIZE * canvasScale
   const minorGridOffset = {
-    x: mod(canvasOffset.x, CANVAS_GRID_SIZE),
-    y: mod(canvasOffset.y, CANVAS_GRID_SIZE),
+    x: mod(canvasOffset.x, minorGridUnit),
+    y: mod(canvasOffset.y, minorGridUnit),
   }
   const majorGridOffset = {
-    x: mod(canvasOffset.x, CANVAS_MAJOR_GRID_SIZE),
-    y: mod(canvasOffset.y, CANVAS_MAJOR_GRID_SIZE),
+    x: mod(canvasOffset.x, majorGridUnit),
+    y: mod(canvasOffset.y, majorGridUnit),
   }
 
-  const centerFrame = useCallback((nextSize: FrameSize) => {
+  const centerFrame = useCallback((nextSize: FrameSize, nextScale: number) => {
     const viewport = canvasViewportRef.current
     if (!viewport) return
 
@@ -263,15 +275,86 @@ export function PreviewFrame({
     const footprintDimensions = getFrameFootprintDimensions(deviceMode, nextSize)
 
     setCanvasOffset({
-      x: Math.round((bounds.width - outerDimensions.width) / 2),
-      y: Math.round((bounds.height - footprintDimensions.height) / 2 + MOVE_HANDLE_CLEARANCE),
+      x: Math.round((bounds.width - outerDimensions.width * nextScale) / 2),
+      y: Math.round((bounds.height - footprintDimensions.height * nextScale) / 2 + MOVE_HANDLE_CLEARANCE * nextScale),
     })
     setFramePosition({ x: 0, y: 0 })
   }, [deviceMode])
 
   const handleCenterFrame = useCallback(() => {
-    centerFrame(frameSize)
+    centerFrame(frameSize, canvasScaleRef.current)
   }, [centerFrame, frameSize])
+
+  const panCanvasByWheel = useCallback((deltaX: number, deltaY: number) => {
+    setCanvasOffset((prev) => ({
+      x: prev.x - deltaX,
+      y: prev.y - deltaY,
+    }))
+  }, [])
+
+  const zoomCanvasAtPoint = useCallback((clientX: number, clientY: number, deltaY: number) => {
+    const viewport = canvasViewportRef.current
+    if (!viewport) return
+
+    const rect = viewport.getBoundingClientRect()
+    const fallbackX = rect.left + rect.width / 2
+    const fallbackY = rect.top + rect.height / 2
+    const anchorX = Number.isFinite(clientX) ? clientX : fallbackX
+    const anchorY = Number.isFinite(clientY) ? clientY : fallbackY
+    const localX = anchorX - rect.left
+    const localY = anchorY - rect.top
+    const clampedDeltaY = Math.max(-300, Math.min(300, deltaY))
+
+    setCanvasScale((prevScale) => {
+      const nextScale = clamp(
+        prevScale * Math.exp(-clampedDeltaY * CANVAS_ZOOM_SENSITIVITY),
+        MIN_CANVAS_SCALE,
+        MAX_CANVAS_SCALE,
+      )
+
+      if (Math.abs(nextScale - prevScale) < 0.001) {
+        return prevScale
+      }
+
+      const scaleRatio = nextScale / prevScale
+      const frameOrigin = framePositionRef.current
+
+      setCanvasOffset((prevOffset) => {
+        const currentOriginX = prevOffset.x + frameOrigin.x
+        const currentOriginY = prevOffset.y + frameOrigin.y
+
+        return {
+          x: Math.round(localX - (localX - currentOriginX) * scaleRatio - frameOrigin.x),
+          y: Math.round(localY - (localY - currentOriginY) * scaleRatio - frameOrigin.y),
+        }
+      })
+
+      return nextScale
+    })
+  }, [])
+
+  const captureInteractionPointer = useCallback((target: EventTarget | null, pointerId: number) => {
+    if (!(target instanceof HTMLElement)) return
+
+    try {
+      target.setPointerCapture(pointerId)
+      pointerCaptureTargetRef.current = target
+    } catch {
+      pointerCaptureTargetRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    canvasOffsetRef.current = canvasOffset
+  }, [canvasOffset])
+
+  useEffect(() => {
+    framePositionRef.current = framePosition
+  }, [framePosition])
+
+  useEffect(() => {
+    canvasScaleRef.current = canvasScale
+  }, [canvasScale])
 
   useEffect(() => {
     const viewport = canvasViewportRef.current
@@ -280,13 +363,104 @@ export function PreviewFrame({
     setFrameSize(nextSize)
 
     const rafId = window.requestAnimationFrame(() => {
-      centerFrame(nextSize)
+      centerFrame(nextSize, canvasScaleRef.current)
     })
 
     return () => {
       window.cancelAnimationFrame(rafId)
     }
   }, [centerFrame, deviceMode])
+
+  useEffect(() => {
+    const viewport = canvasViewportRef.current
+    if (!viewport || !isCanvasNavigationEnabled) return
+
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault()
+
+      if (isZoomGesture(event)) {
+        zoomCanvasAtPoint(event.clientX, event.clientY, event.deltaY)
+        return
+      }
+
+      panCanvasByWheel(event.deltaX, event.deltaY)
+    }
+
+    viewport.addEventListener("wheel", handleWheel, { passive: false })
+
+    return () => {
+      viewport.removeEventListener("wheel", handleWheel)
+    }
+  }, [isCanvasNavigationEnabled, panCanvasByWheel, zoomCanvasAtPoint])
+
+  useEffect(() => {
+    if (isDesignMode || !isCanvasNavigationEnabled) return
+
+    const iframe = iframeRef.current
+    if (!iframe) return
+
+    let activeDoc: Document | null = null
+    let setupTimeoutId: number | null = null
+
+    const handleCanvasWheel = (event: WheelEvent) => {
+      if (!isZoomGesture(event)) {
+        return
+      }
+
+      event.preventDefault()
+      event.stopPropagation()
+
+      const iframeRect = iframe.getBoundingClientRect()
+      zoomCanvasAtPoint(iframeRect.left + event.clientX, iframeRect.top + event.clientY, event.deltaY)
+    }
+
+    const clearPendingSetup = () => {
+      if (setupTimeoutId !== null) {
+        window.clearTimeout(setupTimeoutId)
+        setupTimeoutId = null
+      }
+    }
+
+    const cleanupCurrentListener = () => {
+      if (!activeDoc) return
+      activeDoc.removeEventListener("wheel", handleCanvasWheel)
+      activeDoc = null
+    }
+
+    const setupWheelListener = () => {
+      const doc = iframe.contentDocument || iframe.contentWindow?.document
+      if (!doc || !doc.body || activeDoc === doc) return
+
+      cleanupCurrentListener()
+      activeDoc = doc
+      doc.addEventListener("wheel", handleCanvasWheel, { passive: false })
+    }
+
+    const scheduleSetup = () => {
+      clearPendingSetup()
+      setupTimeoutId = window.setTimeout(() => {
+        setupTimeoutId = null
+        setupWheelListener()
+      }, 50)
+    }
+
+    const handleIframeLoad = () => {
+      cleanupCurrentListener()
+      scheduleSetup()
+    }
+
+    iframe.addEventListener("load", handleIframeLoad)
+
+    if (iframe.contentDocument?.readyState === "complete") {
+      scheduleSetup()
+    }
+
+    return () => {
+      clearPendingSetup()
+      iframe.removeEventListener("load", handleIframeLoad)
+      cleanupCurrentListener()
+    }
+  }, [iframeRef, isCanvasNavigationEnabled, isDesignMode, reloadToken, zoomCanvasAtPoint])
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
@@ -318,23 +492,25 @@ export function PreviewFrame({
       let nextHeight = interaction.startFrameSize.height
       let nextX = interaction.startFramePosition.x
       let nextY = interaction.startFramePosition.y
+      const scaledDx = dx / canvasScaleRef.current
+      const scaledDy = dy / canvasScaleRef.current
 
       if (interaction.direction.includes("e")) {
-        nextWidth = Math.max(MIN_FRAME_WIDTH, interaction.startFrameSize.width + dx)
+        nextWidth = Math.max(MIN_FRAME_WIDTH, interaction.startFrameSize.width + scaledDx)
       }
 
       if (interaction.direction.includes("s")) {
-        nextHeight = Math.max(MIN_FRAME_HEIGHT, interaction.startFrameSize.height + dy)
+        nextHeight = Math.max(MIN_FRAME_HEIGHT, interaction.startFrameSize.height + scaledDy)
       }
 
       if (interaction.direction.includes("w")) {
-        const proposedWidth = interaction.startFrameSize.width - dx
+        const proposedWidth = interaction.startFrameSize.width - scaledDx
         nextWidth = Math.max(MIN_FRAME_WIDTH, proposedWidth)
         nextX = interaction.startFramePosition.x + (interaction.startFrameSize.width - nextWidth)
       }
 
       if (interaction.direction.includes("n")) {
-        const proposedHeight = interaction.startFrameSize.height - dy
+        const proposedHeight = interaction.startFrameSize.height - scaledDy
         nextHeight = Math.max(MIN_FRAME_HEIGHT, proposedHeight)
         nextY = interaction.startFramePosition.y + (interaction.startFrameSize.height - nextHeight)
       }
@@ -353,6 +529,19 @@ export function PreviewFrame({
       const interaction = interactionRef.current
       if (!interaction) return
       if (pointerId != null && interaction.pointerId !== pointerId) return
+
+      const releaseTarget = pointerCaptureTargetRef.current
+      const capturedPointerId = pointerId ?? interaction.pointerId
+
+      if (releaseTarget?.hasPointerCapture(capturedPointerId)) {
+        try {
+          releaseTarget.releasePointerCapture(capturedPointerId)
+        } catch {
+          // Ignore release failures when the pointer has already been cleared.
+        }
+      }
+
+      pointerCaptureTargetRef.current = null
 
       interactionRef.current = null
       setActiveInteraction(null)
@@ -401,6 +590,8 @@ export function PreviewFrame({
   const startPanInteraction = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return
 
+    captureInteractionPointer(event.currentTarget, event.pointerId)
+
     interactionRef.current = {
       type: "pan",
       pointerId: event.pointerId,
@@ -408,13 +599,15 @@ export function PreviewFrame({
       startCanvasOffset: canvasOffset,
     }
     setActiveInteraction("pan")
-  }, [canvasOffset])
+  }, [canvasOffset, captureInteractionPointer])
 
   const startMoveInteraction = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0) return
 
     event.preventDefault()
     event.stopPropagation()
+
+    captureInteractionPointer(event.currentTarget, event.pointerId)
 
     interactionRef.current = {
       type: "move",
@@ -423,7 +616,7 @@ export function PreviewFrame({
       startFramePosition: framePosition,
     }
     setActiveInteraction("move")
-  }, [framePosition])
+  }, [captureInteractionPointer, framePosition])
 
   const startResizeInteraction = useCallback((direction: ResizeHandleDirection) => {
     return (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -431,6 +624,8 @@ export function PreviewFrame({
 
       event.preventDefault()
       event.stopPropagation()
+
+      captureInteractionPointer(event.currentTarget, event.pointerId)
 
       interactionRef.current = {
         type: "resize",
@@ -442,7 +637,7 @@ export function PreviewFrame({
       }
       setActiveInteraction("resize")
     }
-  }, [framePosition, frameSize])
+  }, [captureInteractionPointer, framePosition, frameSize])
 
   // Update iframe content when HTML changes - use srcdoc for reliable rendering
   useEffect(() => {
@@ -727,11 +922,33 @@ export function PreviewFrame({
         }
       }
 
+      const handleCanvasWheel = (e: WheelEvent) => {
+        if (editingElement && !isZoomGesture(e)) {
+          return
+        }
+
+        if (editingElement) {
+          e.preventDefault()
+          return
+        }
+
+        if (!isZoomGesture(e)) {
+          return
+        }
+
+        e.preventDefault()
+        e.stopPropagation()
+
+        const iframeRect = iframe.getBoundingClientRect()
+        zoomCanvasAtPoint(iframeRect.left + e.clientX, iframeRect.top + e.clientY, e.deltaY)
+      }
+
       doc.addEventListener("click", handleClick)
       doc.addEventListener("mouseover", handleMouseOver)
       doc.addEventListener("mouseout", handleMouseOut)
       doc.addEventListener("dblclick", handleDoubleClick)
       doc.addEventListener("keydown", handleKeyDown, true)
+      doc.addEventListener("wheel", handleCanvasWheel, { passive: false })
 
       cleanupFn = () => {
         clearPendingSelection()
@@ -741,6 +958,7 @@ export function PreviewFrame({
         doc.removeEventListener("mouseout", handleMouseOut)
         doc.removeEventListener("dblclick", handleDoubleClick)
         doc.removeEventListener("keydown", handleKeyDown, true)
+        doc.removeEventListener("wheel", handleCanvasWheel)
         stopEditing({ cancel: true })
       }
     }
@@ -771,7 +989,7 @@ export function PreviewFrame({
       iframe.removeEventListener("load", handleIframeLoad)
       cleanupCurrentListeners()
     }
-  }, [iframeRef, isDesignMode, reloadToken])
+  }, [iframeRef, isDesignMode, reloadToken, zoomCanvasAtPoint])
 
   return (
     <div className={cn("relative flex flex-col", className)}>
@@ -830,13 +1048,13 @@ export function PreviewFrame({
         <div
           className={cn(
             "absolute inset-0 touch-none",
-            isDesignMode
+            isCanvasNavigationEnabled
               ? activeInteraction === "pan"
                 ? "cursor-grabbing"
                 : "cursor-grab"
               : "cursor-default"
           )}
-          onPointerDown={isDesignMode ? startPanInteraction : undefined}
+          onPointerDown={isCanvasNavigationEnabled ? startPanInteraction : undefined}
         >
           <div
             className={cn(
@@ -851,10 +1069,10 @@ export function PreviewFrame({
                 "linear-gradient(to bottom, rgba(255,255,255,0.085) 1px, transparent 1px)",
               ].join(", "),
               backgroundSize: [
-                `${CANVAS_GRID_SIZE}px ${CANVAS_GRID_SIZE}px`,
-                `${CANVAS_GRID_SIZE}px ${CANVAS_GRID_SIZE}px`,
-                `${CANVAS_MAJOR_GRID_SIZE}px ${CANVAS_MAJOR_GRID_SIZE}px`,
-                `${CANVAS_MAJOR_GRID_SIZE}px ${CANVAS_MAJOR_GRID_SIZE}px`,
+                `${minorGridUnit}px ${minorGridUnit}px`,
+                `${minorGridUnit}px ${minorGridUnit}px`,
+                `${majorGridUnit}px ${majorGridUnit}px`,
+                `${majorGridUnit}px ${majorGridUnit}px`,
               ].join(", "),
               backgroundPosition: [
                 `${minorGridOffset.x}px ${minorGridOffset.y}px`,
@@ -870,11 +1088,12 @@ export function PreviewFrame({
         <div
           className="absolute left-0 top-0 z-20"
           style={{
-            transform: `translate3d(${frameScreenPosition.x}px, ${frameScreenPosition.y}px, 0)`,
+            transform: `translate3d(${frameScreenPosition.x}px, ${frameScreenPosition.y}px, 0) scale(${canvasScale})`,
+            transformOrigin: "top left",
           }}
         >
           <div className="relative">
-            {isDesignMode ? (
+            {isCanvasNavigationEnabled ? (
               <button
                 onPointerDown={startMoveInteraction}
                 className={cn(
@@ -932,11 +1151,11 @@ export function PreviewFrame({
       
       {/* Floating Device info pill */}
       <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 items-center justify-center gap-3 rounded-full border border-zinc-800/80 bg-zinc-900/90 px-4 py-2 text-[11px] text-zinc-400 shadow-2xl backdrop-blur-md z-30 pointer-events-none">
-        <span className="font-medium text-zinc-300">{deviceMode.charAt(0).toUpperCase() + deviceMode.slice(1)} • {frameSize.width}×{frameSize.height}</span>
+        <span className="font-medium text-zinc-300">{deviceMode.charAt(0).toUpperCase() + deviceMode.slice(1)} • {frameSize.width}×{frameSize.height} • {Math.round(canvasScale * 100)}%</span>
         <span className="hidden md:inline text-zinc-500">
           {isDesignMode
-            ? "Drag background to pan • drag handle to move • drag corners to resize"
-            : "Preview mode • read-only canvas"}
+            ? "Scroll on canvas background to pan • pinch or Ctrl/Cmd + wheel to zoom • drag handle or corners to adjust"
+            : "Preview mode • scroll on canvas background to pan • pinch or Ctrl/Cmd + wheel to zoom"}
         </span>
       </div>
     </div>
@@ -1087,4 +1306,12 @@ function getDefaultFrameSize(
 
 function mod(value: number, divisor: number): number {
   return ((value % divisor) + divisor) % divisor
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function isZoomGesture(event: Pick<WheelEvent, "ctrlKey" | "metaKey">): boolean {
+  return event.ctrlKey || event.metaKey
 }
