@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useEffectEvent, useState } from "react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -8,11 +9,13 @@ import {
   CreditCard,
   FolderKanban,
   LayoutDashboard,
+  MessageSquare,
   ScrollText,
   ShieldCheck,
   Users,
 } from "lucide-react"
 import { AdminNavItem } from "@/components/admin/nav-item"
+import type { AdminFeedbackPageData } from "@/lib/admin/feedback-types"
 
 interface AdminSidebarProps {
   user: {
@@ -23,44 +26,100 @@ interface AdminSidebarProps {
   }
 }
 
-const navItems = [
-  {
-    label: "Overview",
-    href: "/admin",
-    icon: LayoutDashboard,
-  },
-  {
-    label: "Customers",
-    href: "/admin/customers",
-    icon: Users,
-  },
-  {
-    label: "Projects",
-    href: "/admin/projects",
-    icon: FolderKanban,
-  },
-  {
-    label: "Billing",
-    href: "/admin/billing",
-    icon: CreditCard,
-  },
-  {
-    label: "Models",
-    href: "/admin/models",
-    icon: Bot,
-  },
-  {
-    label: "Audit",
-    href: "/admin/audit",
-    icon: ScrollText,
-  },
-]
-
 function formatRoleLabel(role: string) {
   return role.charAt(0).toUpperCase() + role.slice(1)
 }
 
 export function AdminSidebar({ user }: AdminSidebarProps) {
+  const canViewFeedback = user.permissions.includes("admin:view-feedback")
+  const [feedbackUnreadCount, setFeedbackUnreadCount] = useState<number | null>(null)
+
+  const syncFeedbackCount = useEffectEvent(async () => {
+    if (!canViewFeedback) {
+      return
+    }
+
+    try {
+      const response = await fetch("/api/admin/feedback?pageSize=10", {
+        cache: "no-store",
+      })
+      const payload = (await response.json().catch(() => null)) as AdminFeedbackPageData | null
+
+      if (!response.ok || !payload) {
+        return
+      }
+
+      setFeedbackUnreadCount(payload.summary.unreadCount)
+    } catch {
+      // Leave the existing badge state in place when the refresh fails.
+    }
+  })
+
+  useEffect(() => {
+    if (!canViewFeedback) {
+      return
+    }
+
+    void syncFeedbackCount()
+
+    const eventSource = new EventSource("/api/admin/feedback/stream")
+    const handleRealtimeChange = () => {
+      void syncFeedbackCount()
+    }
+
+    eventSource.addEventListener("feedback.created", handleRealtimeChange as EventListener)
+    eventSource.addEventListener("feedback.updated", handleRealtimeChange as EventListener)
+
+    return () => {
+      eventSource.removeEventListener("feedback.created", handleRealtimeChange as EventListener)
+      eventSource.removeEventListener("feedback.updated", handleRealtimeChange as EventListener)
+      eventSource.close()
+    }
+  }, [canViewFeedback])
+
+  const navItems = [
+    {
+      label: "Overview",
+      href: "/admin",
+      icon: LayoutDashboard,
+    },
+    {
+      label: "Customers",
+      href: "/admin/customers",
+      icon: Users,
+    },
+    {
+      label: "Projects",
+      href: "/admin/projects",
+      icon: FolderKanban,
+    },
+    {
+      label: "Billing",
+      href: "/admin/billing",
+      icon: CreditCard,
+    },
+    {
+      label: "Models",
+      href: "/admin/models",
+      icon: Bot,
+    },
+    ...(canViewFeedback
+      ? [
+          {
+            label: "Feedback",
+            href: "/admin/feedback",
+            icon: MessageSquare,
+            badgeCount: feedbackUnreadCount,
+          },
+        ]
+      : []),
+    {
+      label: "Audit",
+      href: "/admin/audit",
+      icon: ScrollText,
+    },
+  ]
+
   return (
     <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 border-r border-white/5 bg-[#08090B] lg:flex lg:flex-col shadow-2xl">
       <div className="px-8 py-10">

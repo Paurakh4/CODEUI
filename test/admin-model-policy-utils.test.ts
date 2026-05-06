@@ -19,8 +19,9 @@ describe("admin model policy utils", () => {
   })
 
   it("falls back when candidate ids are empty", () => {
-    expect(sanitizeEnabledModelIds([], ["deepseek/deepseek-r1"]))
-      .toEqual(["deepseek/deepseek-r1"])
+    expect(sanitizeEnabledModelIds([], ["deepseek/deepseek-r1"])).toEqual([
+      "deepseek/deepseek-r1",
+    ])
   })
 
   it("accepts admin-managed model ids when provided as known ids", () => {

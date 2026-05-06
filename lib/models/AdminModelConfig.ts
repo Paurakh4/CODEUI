@@ -1,7 +1,19 @@
 import mongoose, { Document, Model, Schema } from "mongoose"
 
-export interface IAdminModelConfig extends Document {
+export interface IAdminManagedModel {
+  id: string
+  name: string
+  provider: string
+  description?: string
+  contextLength: number
+  supportsReasoning?: boolean
+  isFast?: boolean
+  isNew?: boolean
+}
+
+export interface IAdminModelConfig extends Document<string> {
   _id: string
+  models: IAdminManagedModel[]
   enabledModelIds: string[]
   defaultModelId: string
   updatedByUserId?: mongoose.Types.ObjectId
@@ -10,11 +22,59 @@ export interface IAdminModelConfig extends Document {
   updatedAt: Date
 }
 
+const AdminManagedModelSchema = new Schema<IAdminManagedModel>(
+  {
+    id: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    provider: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    description: {
+      type: String,
+      trim: true,
+    },
+    contextLength: {
+      type: Number,
+      required: true,
+      min: 1,
+    },
+    supportsReasoning: {
+      type: Boolean,
+      default: false,
+    },
+    isFast: {
+      type: Boolean,
+      default: false,
+    },
+    isNew: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  {
+    _id: false,
+  },
+)
+
 const AdminModelConfigSchema = new Schema<IAdminModelConfig>(
   {
     _id: {
       type: String,
       default: "global",
+    },
+    models: {
+      type: [AdminManagedModelSchema],
+      default: [],
     },
     enabledModelIds: {
       type: [String],
@@ -40,8 +100,14 @@ const AdminModelConfigSchema = new Schema<IAdminModelConfig>(
   },
 )
 
+const existingAdminModelConfig = mongoose.models.AdminModelConfig as Model<IAdminModelConfig> | undefined
+
+if (existingAdminModelConfig && !existingAdminModelConfig.schema.path("models")) {
+  delete mongoose.models.AdminModelConfig
+}
+
 const AdminModelConfig: Model<IAdminModelConfig> =
-  mongoose.models.AdminModelConfig ||
+  (mongoose.models.AdminModelConfig as Model<IAdminModelConfig> | undefined) ||
   mongoose.model<IAdminModelConfig>("AdminModelConfig", AdminModelConfigSchema)
 
 export default AdminModelConfig

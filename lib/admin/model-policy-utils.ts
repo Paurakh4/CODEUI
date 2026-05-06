@@ -1,14 +1,90 @@
-import { ALL_MODELS, CODEUI_GOD_MODE_MODEL_ID } from "@/lib/ai-models"
+import { ALL_MODELS, CODEUI_GOD_MODE_MODEL_ID, type AIModel } from "@/lib/ai-models"
 
-const KNOWN_MODEL_IDS = new Set(ALL_MODELS.map((model) => model.id))
+export interface ModelCatalogEntryInput {
+  id?: string | null
+  name?: string | null
+  provider?: string | null
+  description?: string | null
+  contextLength?: number | null
+  supportsReasoning?: boolean | null
+  isFast?: boolean | null
+  isNew?: boolean | null
+}
+
+function normalizeText(value: string | null | undefined) {
+  const normalized = value?.trim()
+  return normalized && normalized.length > 0 ? normalized : undefined
+}
+
+function normalizeContextLength(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined
+  }
+
+  const normalized = Math.floor(value)
+  return normalized > 0 ? normalized : undefined
+}
+
+export function resolveModelCatalog(
+  candidateModels?: readonly ModelCatalogEntryInput[] | null,
+  baseModels: readonly AIModel[] = ALL_MODELS,
+) {
+  const baseById = new Map(baseModels.map((model) => [model.id, model]))
+  const candidateById = new Map<string, AIModel>()
+
+  for (const candidate of candidateModels || []) {
+    const id = normalizeText(candidate.id)
+    if (!id) {
+      continue
+    }
+
+    const baseModel = baseById.get(id)
+    const name = normalizeText(candidate.name) ?? baseModel?.name
+    const provider = normalizeText(candidate.provider) ?? baseModel?.provider
+    const contextLength = normalizeContextLength(candidate.contextLength) ?? baseModel?.contextLength
+
+    if (!name || !provider || !contextLength) {
+      continue
+    }
+
+    const description = normalizeText(candidate.description) ?? baseModel?.description
+    candidateById.set(id, {
+      id,
+      name,
+      provider,
+      description,
+      contextLength,
+      supportsReasoning:
+        typeof candidate.supportsReasoning === "boolean"
+          ? candidate.supportsReasoning
+          : baseModel?.supportsReasoning,
+      isFast:
+        typeof candidate.isFast === "boolean"
+          ? candidate.isFast
+          : baseModel?.isFast,
+      isNew:
+        typeof candidate.isNew === "boolean"
+          ? candidate.isNew
+          : baseModel?.isNew,
+    })
+  }
+
+  const baseIds = new Set(baseModels.map((model) => model.id))
+  const resolvedBaseModels = baseModels.map((model) => candidateById.get(model.id) ?? model)
+  const customModels = Array.from(candidateById.values()).filter((model) => !baseIds.has(model.id))
+
+  return [...resolvedBaseModels, ...customModels]
+}
 
 export function sanitizeEnabledModelIds(
   candidateIds?: readonly string[] | null,
   fallbackIds?: readonly string[] | null,
+  knownModelIds: readonly string[] = ALL_MODELS.map((model) => model.id),
 ) {
+  const knownModelIdSet = new Set(knownModelIds)
   const normalized = (candidateIds || [])
     .map((modelId) => modelId.trim())
-    .filter((modelId) => modelId.length > 0 && KNOWN_MODEL_IDS.has(modelId))
+    .filter((modelId) => modelId.length > 0 && knownModelIdSet.has(modelId))
 
   if (normalized.length > 0) {
     return Array.from(new Set(normalized))
@@ -16,13 +92,13 @@ export function sanitizeEnabledModelIds(
 
   const fallback = (fallbackIds || [])
     .map((modelId) => modelId.trim())
-    .filter((modelId) => modelId.length > 0 && KNOWN_MODEL_IDS.has(modelId))
+    .filter((modelId) => modelId.length > 0 && knownModelIdSet.has(modelId))
 
   if (fallback.length > 0) {
     return Array.from(new Set(fallback))
   }
 
-  return ALL_MODELS.map((model) => model.id)
+  return Array.from(new Set(knownModelIds.map((modelId) => modelId.trim()).filter((modelId) => modelId.length > 0)))
 }
 
 export function resolveDefaultModelId(

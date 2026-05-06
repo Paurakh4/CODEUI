@@ -23,10 +23,10 @@ export default async function AdminModelsPage() {
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-[#A6A6A6]">Models Module</p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-              Runtime model access is now admin-controlled.
+              Runtime model catalog is now admin-controlled.
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-[#C3C7CB] sm:text-base">
-              This policy now drives the public model list, AI route validation, and default model selection for authenticated user settings.
+              Add models here, set the visible name users see, and control default routing without touching source config.
             </p>
           </div>
 
@@ -69,7 +69,7 @@ export default async function AdminModelsPage() {
           </div>
           <div>
             <p className="text-xs uppercase tracking-[0.24em] text-[#A6A6A6]">Policy Editor</p>
-            <h2 className="mt-1 text-xl font-semibold tracking-tight text-white">Availability and default routing</h2>
+            <h2 className="mt-1 text-xl font-semibold tracking-tight text-white">Catalog, availability, and default routing</h2>
           </div>
           <Badge className="ml-auto border-[#0AA6FF]/30 bg-[#0AA6FF]/10 text-[#7FD0FF] hover:bg-[#0AA6FF]/10">
             {session.user.role}

@@ -14,10 +14,10 @@ import {
 } from "@/lib/recovery-mode"
 import {
   getModelById,
-  getModelsRecord,
 } from "@/lib/ai-models"
 import {
   getRuntimeDefaultModelId,
+  getRuntimeModelById,
   getRuntimeModelFallbackChain,
   isRuntimeModelEnabled,
 } from "@/lib/admin/model-policies"
@@ -43,10 +43,6 @@ import { estimateTokenCount } from "@/lib/token-counter"
 import { getPromptAdaptationGuidance } from "@/lib/prompt-adaptation"
 import { createRepromptLogger } from "@/lib/utils/reprompt-logger"
 
-export const AI_MODELS = getModelsRecord()
-
-type ModelId = keyof typeof AI_MODELS
-
 interface Message {
   role: "user" | "assistant" | "system"
   content: string
@@ -61,7 +57,7 @@ interface RequestBody {
   prompt: string
   currentHtml?: string
   selectedElement?: string
-  model?: ModelId
+  model?: string
   isFollowUp?: boolean
   recoveryMode?: RecoveryModeValue
   primaryColor?: string
@@ -632,7 +628,7 @@ export async function POST(req: NextRequest) {
 
     const systemPrompt = isFollowUp ? FOLLOW_UP_SYSTEM_PROMPT : getCombinedSystemPrompt()
 
-    const modelContextWindow = getModelById(model)?.contextLength
+    const modelContextWindow = (await getRuntimeModelById(model))?.contextLength ?? getModelById(model)?.contextLength
     const continuationThresholdTokens = CONTINUATION_THRESHOLD_TOKENS
     const continuationThresholdChars = continuationThresholdTokens * 4
     const conversationBudgetTokens = Math.floor((modelContextWindow ?? 64_000) * 0.15)

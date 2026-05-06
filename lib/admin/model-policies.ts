@@ -9,17 +9,21 @@ import {
 import { createAdminAuditEntry } from "@/lib/admin/audit"
 import { AdminModelConfig } from "@/lib/models"
 import {
+  resolveModelCatalog,
   resolveDefaultModelId,
   sanitizeEnabledModelIds,
+  type ModelCatalogEntryInput,
 } from "@/lib/admin/model-policy-utils"
 import type { UserRole } from "@/lib/admin/rbac"
 
 const ADMIN_MODEL_CONFIG_ID = "global"
+const BASE_MODEL_ID_SET = new Set(ALL_MODELS.map((model) => model.id))
 
 export interface AdminModelCatalogEntry extends AIModel {
   enabled: boolean
   isDefault: boolean
   envEnabled: boolean
+  isCustom: boolean
 }
 
 interface AdminActor {
@@ -39,6 +43,7 @@ export class AdminModelPolicyMutationError extends Error {
 }
 
 function buildCatalogSnapshot(input: {
+  models: AIModel[]
   enabledModelIds: string[]
   defaultModelId: string
 }) {
@@ -48,11 +53,12 @@ function buildCatalogSnapshot(input: {
   return {
     enabledModelIds: input.enabledModelIds,
     defaultModelId: input.defaultModelId,
-    models: ALL_MODELS.map((model) => ({
+    models: input.models.map((model) => ({
       ...model,
       enabled: enabledSet.has(model.id),
       isDefault: model.id === input.defaultModelId,
       envEnabled: envEnabledSet.has(model.id),
+      isCustom: !BASE_MODEL_ID_SET.has(model.id),
     })),
   }
 }
@@ -61,14 +67,16 @@ export async function getAdminModelCatalog() {
   await connectDB()
 
   const config = await AdminModelConfig.findById(ADMIN_MODEL_CONFIG_ID).lean()
+  const models = resolveModelCatalog(config?.models)
   const enabledModelIds = sanitizeEnabledModelIds(
     config?.enabledModelIds,
     getConfiguredEnabledModelIds(),
+    models.map((model) => model.id),
   )
   const defaultModelId = resolveDefaultModelId(config?.defaultModelId, enabledModelIds)
 
   return {
-    ...buildCatalogSnapshot({ enabledModelIds, defaultModelId }),
+    ...buildCatalogSnapshot({ models, enabledModelIds, defaultModelId }),
     updatedAt: config?.updatedAt ?? null,
     updatedByEmail: config?.updatedByEmail ?? null,
   }
@@ -86,6 +94,11 @@ export async function getPublicModelCatalog() {
 export async function isRuntimeModelEnabled(modelId: string) {
   const catalog = await getPublicModelCatalog()
   return catalog.models.some((model) => model.id === modelId)
+}
+
+export async function getRuntimeModelById(modelId: string) {
+  const catalog = await getPublicModelCatalog()
+  return catalog.models.find((model) => model.id === modelId)
 }
 
 export async function getRuntimeDefaultModelId() {
@@ -133,6 +146,7 @@ export async function getRuntimeModelFallbackChain(primaryModelId?: string) {
 
 export async function upsertAdminModelPolicy(input: {
   actor: AdminActor
+  models: ModelCatalogEntryInput[]
   enabledModelIds: string[]
   defaultModelId: string
   reason: string
@@ -140,22 +154,34 @@ export async function upsertAdminModelPolicy(input: {
   await connectDB()
 
   const currentConfig = await AdminModelConfig.findById(ADMIN_MODEL_CONFIG_ID).lean()
+  const currentModels = resolveModelCatalog(currentConfig?.models)
   const currentEnabledModelIds = sanitizeEnabledModelIds(
     currentConfig?.enabledModelIds,
     getConfiguredEnabledModelIds(),
+    currentModels.map((model) => model.id),
   )
   const currentDefaultModelId = resolveDefaultModelId(
     currentConfig?.defaultModelId,
     currentEnabledModelIds,
   )
 
-  const nextEnabledModelIds = sanitizeEnabledModelIds(input.enabledModelIds, currentEnabledModelIds)
+  const nextModels = resolveModelCatalog(input.models)
+  if (nextModels.length === 0) {
+    throw new AdminModelPolicyMutationError("At least one model must be configured.")
+  }
+
+  const nextEnabledModelIds = sanitizeEnabledModelIds(
+    input.enabledModelIds,
+    currentEnabledModelIds,
+    nextModels.map((model) => model.id),
+  )
   if (nextEnabledModelIds.length === 0) {
     throw new AdminModelPolicyMutationError("At least one model must remain enabled.")
   }
 
   const nextDefaultModelId = resolveDefaultModelId(input.defaultModelId, nextEnabledModelIds)
   const before = buildCatalogSnapshot({
+    models: currentModels,
     enabledModelIds: currentEnabledModelIds,
     defaultModelId: currentDefaultModelId,
   })
@@ -164,6 +190,7 @@ export async function upsertAdminModelPolicy(input: {
     ADMIN_MODEL_CONFIG_ID,
     {
       $set: {
+        models: nextModels,
         enabledModelIds: nextEnabledModelIds,
         defaultModelId: nextDefaultModelId,
         updatedByUserId: input.actor.id,
@@ -178,6 +205,7 @@ export async function upsertAdminModelPolicy(input: {
   )
 
   const after = buildCatalogSnapshot({
+    models: nextModels,
     enabledModelIds: nextEnabledModelIds,
     defaultModelId: nextDefaultModelId,
   })
@@ -195,6 +223,7 @@ export async function upsertAdminModelPolicy(input: {
     after,
     metadata: {
       enabledCount: nextEnabledModelIds.length,
+      totalModelCount: nextModels.length,
       defaultModelId: nextDefaultModelId,
     },
   })

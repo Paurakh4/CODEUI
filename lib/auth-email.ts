@@ -1,8 +1,8 @@
 import "server-only";
 
 import { randomBytes } from "node:crypto";
-import nodemailer from "nodemailer";
 import connectDB from "@/lib/db";
+import { sendTransactionalEmail } from "@/lib/email";
 import { normalizeAuthEmail } from "@/lib/local-auth";
 import AuthToken, { type AuthTokenType } from "@/lib/models/AuthToken";
 import {
@@ -18,43 +18,8 @@ interface AuthEmailDeliveryResult {
   debugUrl?: string;
 }
 
-let cachedTransporter: nodemailer.Transporter | null = null;
-
 function isLocalAuthDebugEnabled(): boolean {
   return process.env.NODE_ENV !== "production";
-}
-
-function isSmtpConfigured(): boolean {
-  return Boolean(
-    process.env.SMTP_HOST &&
-      process.env.SMTP_USER &&
-      process.env.SMTP_PASSWORD &&
-      process.env.SMTP_FROM
-  );
-}
-
-function getSmtpTransporter(): nodemailer.Transporter | null {
-  if (!isSmtpConfigured()) {
-    return null;
-  }
-
-  if (cachedTransporter) {
-    return cachedTransporter;
-  }
-
-  const port = Number(process.env.SMTP_PORT || "587");
-
-  cachedTransporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port,
-    secure: process.env.SMTP_SECURE === "true",
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASSWORD,
-    },
-  });
-
-  return cachedTransporter;
 }
 
 function getAuthEmailCopy(type: AuthEmailPurpose, actionUrl: string) {
@@ -140,34 +105,21 @@ export async function sendAuthActionEmail(input: {
   type: AuthEmailPurpose;
   actionUrl: string;
 }): Promise<AuthEmailDeliveryResult> {
-  const transporter = getSmtpTransporter();
-
-  if (!transporter) {
-    if (isLocalAuthDebugEnabled()) {
-      console.info(
-        `[AUTH_EMAIL:${input.type}] ${input.email} -> ${input.actionUrl}`
-      );
-    } else {
-      console.warn(
-        `[AUTH_EMAIL:${input.type}] SMTP is not configured; email delivery skipped for ${input.email}`
-      );
-    }
-
-    return {
-      delivered: false,
-      debugUrl: isLocalAuthDebugEnabled() ? input.actionUrl : undefined,
-    };
-  }
-
   const copy = getAuthEmailCopy(input.type, input.actionUrl);
-
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM,
+  const delivery = await sendTransactionalEmail({
+    logLabel: `AUTH_EMAIL:${input.type}`,
     to: input.email,
     subject: copy.subject,
     text: copy.text,
     html: copy.html,
   });
+
+  if (!delivery.delivered) {
+    return {
+      delivered: false,
+      debugUrl: isLocalAuthDebugEnabled() ? input.actionUrl : undefined,
+    };
+  }
 
   return { delivered: true };
 }

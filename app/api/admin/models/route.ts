@@ -7,8 +7,22 @@ import {
   upsertAdminModelPolicy,
 } from "@/lib/admin/model-policies"
 
+const adminModelSchema = z
+  .object({
+    id: z.string().trim().min(1),
+    name: z.string().trim().min(1),
+    provider: z.string().trim().min(1),
+    description: z.string().trim().max(280).optional().default(""),
+    contextLength: z.number().int().positive().max(10_000_000),
+    supportsReasoning: z.boolean().optional().default(false),
+    isFast: z.boolean().optional().default(false),
+    isNew: z.boolean().optional().default(false),
+  })
+  .strict()
+
 const updateAdminModelsSchema = z
   .object({
+    models: z.array(adminModelSchema).min(1),
     enabledModelIds: z.array(z.string().trim().min(1)).min(1),
     defaultModelId: z.string().trim().min(1),
     reason: z.string().trim().min(3).max(200),
@@ -59,6 +73,7 @@ export async function PATCH(request: Request) {
   try {
     const catalog = await upsertAdminModelPolicy({
       actor: authResult.session.user,
+      models: parsed.data.models,
       enabledModelIds: parsed.data.enabledModelIds,
       defaultModelId: parsed.data.defaultModelId,
       reason: parsed.data.reason,

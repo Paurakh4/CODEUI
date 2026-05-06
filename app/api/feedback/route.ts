@@ -2,11 +2,13 @@ import { z } from "zod"
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import connectDB from "@/lib/db"
+import { publishAdminFeedbackEvent } from "@/lib/admin/feedback-events"
+import { FEEDBACK_TYPES } from "@/lib/admin/feedback-types"
 import { Feedback } from "@/lib/models"
 
 const createFeedbackSchema = z
   .object({
-    type: z.enum(["bug", "feature", "general"]),
+    type: z.enum(FEEDBACK_TYPES),
     message: z.string().trim().min(1).max(4000),
     pathname: z.string().trim().max(512).optional(),
   })
@@ -35,7 +37,7 @@ export async function POST(request: Request) {
 
     await connectDB()
 
-    await Feedback.create({
+    const feedback = await Feedback.create({
       userId: session.user.id,
       type: parsed.data.type,
       message: parsed.data.message,
@@ -45,7 +47,24 @@ export async function POST(request: Request) {
       },
     })
 
-    return NextResponse.json({ success: true }, { status: 201 })
+    publishAdminFeedbackEvent({
+      type: "feedback.created",
+      data: {
+        feedbackId: feedback._id.toString(),
+        status: feedback.status,
+        feedbackType: feedback.type,
+        createdAt: feedback.createdAt.toISOString(),
+      },
+    })
+
+    return NextResponse.json(
+      {
+        success: true,
+        feedbackId: feedback._id.toString(),
+        status: feedback.status,
+      },
+      { status: 201 },
+    )
   } catch (error) {
     console.error("Error creating feedback:", error)
     return NextResponse.json(

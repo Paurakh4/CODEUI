@@ -23,10 +23,12 @@ export const ADMIN_PERMISSIONS = [
   "admin:view-billing",
   "admin:view-models",
   "admin:view-audit",
+  "admin:view-feedback",
   "admin:manage-users",
   "admin:manage-projects",
   "admin:manage-billing",
   "admin:manage-models",
+  "admin:manage-feedback",
   "admin:manage-settings",
 ] as const
 
