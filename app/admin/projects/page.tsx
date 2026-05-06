@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { ArrowRight, FolderKanban, Search } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { StatCard } from "@/components/admin/stat-card"
 import {
   Table,
   TableBody,
@@ -33,265 +34,205 @@ function buildProjectsHref(
   page: number,
 ) {
   const params = new URLSearchParams()
-
-  if (filters.search) {
-    params.set("q", filters.search)
-  }
-
-  if (filters.visibility !== "all") {
-    params.set("visibility", filters.visibility)
-  }
-
-  if (filters.ownerRole !== "all") {
-    params.set("ownerRole", filters.ownerRole)
-  }
-
-  if (filters.ownerStatus !== "all") {
-    params.set("ownerStatus", filters.ownerStatus)
-  }
-
-  if (filters.pageSize !== 25) {
-    params.set("pageSize", String(filters.pageSize))
-  }
-
-  if (page > 1) {
-    params.set("page", String(page))
-  }
-
+  if (filters.search) params.set("q", filters.search)
+  if (filters.visibility !== "all") params.set("visibility", filters.visibility)
+  if (filters.ownerRole !== "all") params.set("ownerRole", filters.ownerRole)
+  if (filters.ownerStatus !== "all") params.set("ownerStatus", filters.ownerStatus)
+  if (filters.pageSize !== 25) params.set("pageSize", String(filters.pageSize))
+  if (page > 1) params.set("page", String(page))
   const query = params.toString()
   return query ? `/admin/projects?${query}` : "/admin/projects"
 }
 
 export default async function AdminProjectsPage({ searchParams }: ProjectsPageProps) {
   await requireAdminPage("admin:view-projects")
-
   const filters = parseAdminProjectsQuery(await searchParams)
   const result = await getAdminProjectsPage(filters)
 
   return (
-    <div className="space-y-8">
-      <section className="overflow-hidden rounded-[28px] border border-white/8 bg-[radial-gradient(circle_at_top_left,_rgba(10,166,255,0.14),_transparent_38%),linear-gradient(180deg,_rgba(15,17,19,0.98),_rgba(9,10,11,0.98))] p-6 sm:p-8">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-[#A6A6A6]">Projects Module</p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-              Cross-user project oversight and cleanup.
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-[#C3C7CB] sm:text-base">
-              Review workspace ownership, privacy, embedded conversation volume, checkpoints,
-              and media footprint before opening a project detail view for moderation changes.
-            </p>
-          </div>
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Cross-user project oversight and cleanup.
+        </p>
+      </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:min-w-[360px]">
-            <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Filtered Projects</p>
-              <p className="mt-2 text-2xl font-semibold text-white">
-                {formatNumber(result.summary.filteredProjects)}
-              </p>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <StatCard title="Filtered" value={formatNumber(result.summary.filteredProjects)} icon={FolderKanban} />
+        <StatCard
+          title="Suspended Owners"
+          value={formatNumber(result.summary.suspendedOwnerProjects)}
+        />
+        <StatCard title="Private" value={formatNumber(result.summary.privateProjects)} />
+        <StatCard title="Public" value={formatNumber(result.summary.publicProjects)} />
+      </div>
+
+      <section className="rounded-lg border">
+        <div className="border-b px-5 py-4">
+          <form method="GET" className="grid gap-4 xl:grid-cols-[1.5fr_repeat(4,auto)] xl:items-end">
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Search</label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="search"
+                  name="q"
+                  defaultValue={result.filters.search}
+                  placeholder="Search project name or owner"
+                  className="h-9 w-full rounded-lg border bg-background pl-9 pr-3 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
             </div>
-            <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Suspended Owners</p>
-              <p className="mt-2 text-2xl font-semibold text-white">
-                {formatNumber(result.summary.suspendedOwnerProjects)}
-              </p>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Visibility</label>
+              <select
+                name="visibility"
+                defaultValue={result.filters.visibility}
+                className="h-9 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="all">All</option>
+                <option value="private">Private</option>
+                <option value="public">Public</option>
+              </select>
             </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-3 xl:grid-cols-4">
-        <article className="rounded-[24px] border border-white/8 bg-[#0F1113] p-5">
-          <p className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Private</p>
-          <p className="mt-3 text-3xl font-semibold text-white">{formatNumber(result.summary.privateProjects)}</p>
-        </article>
-        <article className="rounded-[24px] border border-white/8 bg-[#0F1113] p-5">
-          <p className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Public</p>
-          <p className="mt-3 text-3xl font-semibold text-white">{formatNumber(result.summary.publicProjects)}</p>
-        </article>
-        <article className="rounded-[24px] border border-white/8 bg-[#0F1113] p-5">
-          <p className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Page Size</p>
-          <p className="mt-3 text-3xl font-semibold text-white">{result.pagination.pageSize}</p>
-        </article>
-        <article className="rounded-[24px] border border-white/8 bg-[#0F1113] p-5">
-          <p className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Current Page</p>
-          <p className="mt-3 text-3xl font-semibold text-white">{result.pagination.page}</p>
-        </article>
-      </section>
-
-      <section className="rounded-[28px] border border-white/8 bg-[#0F1113] p-6">
-        <form method="GET" className="grid gap-4 xl:grid-cols-[1.8fr_repeat(4,0.8fr)_auto] xl:items-end">
-          <label className="space-y-2 text-sm text-[#D6D8DA] xl:col-span-2">
-            <span className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Search</span>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A6A6A6]" />
-              <input
-                type="search"
-                name="q"
-                defaultValue={result.filters.search}
-                placeholder="Search project name or owner"
-                className="h-10 w-full rounded-xl border border-white/10 bg-[#0B0C0D] pl-10 pr-3 text-sm text-white outline-none transition-colors focus:border-[#0AA6FF]"
-              />
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Owner Role</label>
+              <select
+                name="ownerRole"
+                defaultValue={result.filters.ownerRole}
+                className="h-9 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="all">All roles</option>
+                <option value="user">User</option>
+                <option value="support">Support</option>
+                <option value="finance">Finance</option>
+                <option value="moderator">Moderator</option>
+                <option value="admin">Admin</option>
+                <option value="owner">Owner</option>
+              </select>
             </div>
-          </label>
-
-          <label className="space-y-2 text-sm text-[#D6D8DA]">
-            <span className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Visibility</span>
-            <select
-              name="visibility"
-              defaultValue={result.filters.visibility}
-              className="h-10 w-full rounded-xl border border-white/10 bg-[#0B0C0D] px-3 text-sm text-white outline-none transition-colors focus:border-[#0AA6FF]"
-            >
-              <option value="all">All</option>
-              <option value="private">Private</option>
-              <option value="public">Public</option>
-            </select>
-          </label>
-
-          <label className="space-y-2 text-sm text-[#D6D8DA]">
-            <span className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Owner Role</span>
-            <select
-              name="ownerRole"
-              defaultValue={result.filters.ownerRole}
-              className="h-10 w-full rounded-xl border border-white/10 bg-[#0B0C0D] px-3 text-sm text-white outline-none transition-colors focus:border-[#0AA6FF]"
-            >
-              <option value="all">All roles</option>
-              <option value="user">User</option>
-              <option value="support">Support</option>
-              <option value="finance">Finance</option>
-              <option value="moderator">Moderator</option>
-              <option value="admin">Admin</option>
-              <option value="owner">Owner</option>
-            </select>
-          </label>
-
-          <label className="space-y-2 text-sm text-[#D6D8DA]">
-            <span className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Owner Status</span>
-            <select
-              name="ownerStatus"
-              defaultValue={result.filters.ownerStatus}
-              className="h-10 w-full rounded-xl border border-white/10 bg-[#0B0C0D] px-3 text-sm text-white outline-none transition-colors focus:border-[#0AA6FF]"
-            >
-              <option value="all">All statuses</option>
-              <option value="active">Active</option>
-              <option value="suspended">Suspended</option>
-            </select>
-          </label>
-
-          <label className="space-y-2 text-sm text-[#D6D8DA]">
-            <span className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Page Size</span>
-            <select
-              name="pageSize"
-              defaultValue={String(result.filters.pageSize)}
-              className="h-10 w-full rounded-xl border border-white/10 bg-[#0B0C0D] px-3 text-sm text-white outline-none transition-colors focus:border-[#0AA6FF]"
-            >
-              {ADMIN_PROJECT_PAGE_SIZES.map((size) => (
-                <option key={size} value={size}>
-                  {size}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="flex items-center gap-3 xl:justify-end">
-            <button
-              type="submit"
-              className="inline-flex h-10 items-center justify-center rounded-xl bg-[#0AA6FF] px-4 text-sm font-medium text-white transition-colors hover:bg-[#0AA6FF]/90"
-            >
-              Apply
-            </button>
-            <Link
-              href="/admin/projects"
-              className="inline-flex h-10 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-medium text-[#D6D8DA] transition-colors hover:bg-white/[0.03]"
-            >
-              Reset
-            </Link>
-          </div>
-        </form>
-      </section>
-
-      <section className="rounded-[28px] border border-white/8 bg-[#0F1113] p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-[#A6A6A6]">Projects</p>
-            <h2 className="mt-2 text-xl font-semibold tracking-tight text-white">Search results</h2>
-          </div>
-          <Badge variant="outline" className="border-white/10 text-[#D6D8DA]">
-            {formatNumber(result.pagination.totalProjects)} matched
-          </Badge>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Owner Status</label>
+              <select
+                name="ownerStatus"
+                defaultValue={result.filters.ownerStatus}
+                className="h-9 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="all">All statuses</option>
+                <option value="active">Active</option>
+                <option value="suspended">Suspended</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">Page Size</label>
+              <select
+                name="pageSize"
+                defaultValue={String(result.filters.pageSize)}
+                className="h-9 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {ADMIN_PROJECT_PAGE_SIZES.map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                className="inline-flex h-9 items-center justify-center rounded-lg bg-primary px-4 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                Apply
+              </button>
+              <Link
+                href="/admin/projects"
+                className="inline-flex h-9 items-center justify-center rounded-lg border px-4 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent"
+              >
+                Reset
+              </Link>
+            </div>
+          </form>
         </div>
 
-        <div className="mt-6 overflow-hidden rounded-2xl border border-white/8">
+        <div className="overflow-x-auto">
           <Table>
-            <TableHeader className="bg-white/[0.02]">
-              <TableRow className="border-white/8 hover:bg-transparent">
-                <TableHead className="px-4 text-[#A6A6A6]">Project</TableHead>
-                <TableHead className="text-[#A6A6A6]">Owner</TableHead>
-                <TableHead className="text-[#A6A6A6]">Visibility</TableHead>
-                <TableHead className="text-[#A6A6A6]">State</TableHead>
-                <TableHead className="text-[#A6A6A6]">Updated</TableHead>
-                <TableHead className="text-right text-[#A6A6A6]">Action</TableHead>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Project</TableHead>
+                <TableHead>Owner</TableHead>
+                <TableHead>Visibility</TableHead>
+                <TableHead>State</TableHead>
+                <TableHead>Updated</TableHead>
+                <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {result.projects.length === 0 ? (
-                <TableRow className="border-white/8">
-                  <TableCell colSpan={6} className="px-4 py-12 text-center text-sm text-[#A6A6A6]">
+                <TableRow>
+                  <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
                     No projects matched the current filters.
                   </TableCell>
                 </TableRow>
               ) : (
                 result.projects.map((project) => (
-                  <TableRow key={project.id} className="border-white/8 hover:bg-white/[0.02]">
-                    <TableCell className="px-4 py-4">
+                  <TableRow key={project.id}>
+                    <TableCell className="py-3">
                       <div className="min-w-0">
-                        <p className="truncate font-medium text-white">
+                        <p className="truncate text-sm font-medium text-foreground">
                           {project.emoji || "🎨"} {project.name}
                         </p>
-                        <p className="mt-1 text-xs text-[#A6A6A6]">
-                          {formatNumber(project.messageCount)} messages · {formatNumber(project.checkpointCount)} checkpoints · {formatNumber(project.mediaCount)} assets
+                        <p className="text-xs text-muted-foreground">
+                          {formatNumber(project.messageCount)} messages ·{" "}
+                          {formatNumber(project.checkpointCount)} checkpoints ·{" "}
+                          {formatNumber(project.mediaCount)} assets
                         </p>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="min-w-0">
-                        <p className="truncate font-medium text-white">{project.owner.name}</p>
-                        <p className="mt-1 truncate text-xs text-[#A6A6A6]">{project.owner.email}</p>
-                        <p className="mt-1 text-xs text-[#A6A6A6]">
-                          {formatRoleLabel(project.owner.role)} · {formatSubscriptionTierLabel(project.owner.tier)}
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {project.owner.name}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {project.owner.email}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatRoleLabel(project.owner.role)} ·{" "}
+                          {formatSubscriptionTierLabel(project.owner.tier)}
                         </p>
                       </div>
                     </TableCell>
                     <TableCell>
                       <Badge
-                        variant="outline"
-                        className={project.isPrivate ? "border-white/10 text-[#D6D8DA]" : "border-[#0AA6FF]/30 text-[#7FD0FF]"}
+                        variant={project.isPrivate ? "secondary" : "outline"}
+                        className="text-[10px]"
                       >
                         {project.isPrivate ? "Private" : "Public"}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="border-white/10 text-[#D6D8DA]">
+                      <div className="flex flex-col gap-1">
+                        <Badge variant="outline" className="text-[10px]">
                           {project.views} views
                         </Badge>
                         {project.owner.accountStatus === "suspended" ? (
-                          <Badge className="border-amber-500/30 bg-amber-500/10 text-amber-200 hover:bg-amber-500/10">
+                          <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px]">
                             Owner suspended
                           </Badge>
                         ) : null}
                       </div>
                     </TableCell>
-                    <TableCell className="text-[#A6A6A6]">
+                    <TableCell className="text-sm text-muted-foreground">
                       {new Date(project.updatedAt).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
                       <Link
                         href={`/admin/projects/${project.id}`}
-                        className="inline-flex items-center gap-2 text-sm font-medium text-[#7FD0FF] transition-colors hover:text-white"
+                        className="inline-flex items-center gap-1 text-sm font-medium text-foreground transition-colors hover:text-primary"
                       >
                         Open
-                        <ArrowRight className="h-4 w-4" />
+                        <ArrowRight className="h-3.5 w-3.5" />
                       </Link>
                     </TableCell>
                   </TableRow>
@@ -301,20 +242,19 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
           </Table>
         </div>
 
-        <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2 text-sm text-[#A6A6A6]">
-            <FolderKanban className="h-4 w-4" />
+        <div className="flex items-center justify-between border-t px-5 py-3">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <FolderKanban className="h-3.5 w-3.5" />
             Page {result.pagination.page} of {result.pagination.totalPages}
           </div>
-
-          <div className="flex items-center gap-3">
+          <div className="flex gap-2">
             <Link
               href={buildProjectsHref(result.filters, Math.max(1, result.pagination.page - 1))}
               aria-disabled={!result.pagination.hasPreviousPage}
-              className={`inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-medium transition-colors ${
+              className={`inline-flex h-8 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors ${
                 result.pagination.hasPreviousPage
-                  ? "border border-white/10 text-[#D6D8DA] hover:bg-white/[0.03]"
-                  : "cursor-not-allowed border border-white/5 text-[#6D7175]"
+                  ? "text-foreground hover:bg-accent"
+                  : "pointer-events-none text-muted-foreground/50"
               }`}
             >
               Previous
@@ -322,10 +262,10 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
             <Link
               href={buildProjectsHref(result.filters, result.pagination.page + 1)}
               aria-disabled={!result.pagination.hasNextPage}
-              className={`inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-medium transition-colors ${
+              className={`inline-flex h-8 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors ${
                 result.pagination.hasNextPage
-                  ? "border border-white/10 text-[#D6D8DA] hover:bg-white/[0.03]"
-                  : "cursor-not-allowed border border-white/5 text-[#6D7175]"
+                  ? "text-foreground hover:bg-accent"
+                  : "pointer-events-none text-muted-foreground/50"
               }`}
             >
               Next

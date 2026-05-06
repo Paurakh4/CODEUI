@@ -54,7 +54,7 @@ export function BillingResyncButton({ userId, disabled = false }: BillingResyncB
         variant="outline"
         size="sm"
         disabled={disabled || isLoading}
-        className="border-white/10 bg-transparent text-[#D6D8DA] hover:bg-white/[0.03]"
+        className="text-muted-foreground"
         onClick={handleClick}
       >
         {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}

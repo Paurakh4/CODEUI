@@ -2,6 +2,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ArrowLeft, Bot, CreditCard, FolderKanban, ShieldCheck } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { StatCard } from "@/components/admin/stat-card"
 import { CustomerManagementForm } from "@/components/admin/customer-management-form"
 import { requireAdminPage } from "@/lib/admin/guards"
 import { hasAdminPermission, USER_ROLES } from "@/lib/admin/rbac"
@@ -16,10 +17,7 @@ function formatRoleLabel(role: string) {
 }
 
 function formatTierLabel(tier: string) {
-  if (tier === "proplus") {
-    return "Pro Plus"
-  }
-
+  if (tier === "proplus") return "Pro Plus"
   return tier.charAt(0).toUpperCase() + tier.slice(1)
 }
 
@@ -32,9 +30,7 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
   const { id } = await params
   const detail = await getAdminUserDetail(id)
 
-  if (!detail) {
-    notFound()
-  }
+  if (!detail) notFound()
 
   const canManageUsers = hasAdminPermission({
     role: session.user.role,
@@ -57,105 +53,71 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
       : USER_ROLES.filter((role) => role !== "owner")
 
   return (
-    <div className="space-y-8">
-      <section className="overflow-hidden rounded-[28px] border border-white/8 bg-[radial-gradient(circle_at_top_left,_rgba(10,166,255,0.14),_transparent_38%),linear-gradient(180deg,_rgba(15,17,19,0.98),_rgba(9,10,11,0.98))] p-6 sm:p-8">
-        <Link
-          href="/admin/customers"
-          className="inline-flex items-center gap-2 text-sm text-[#A6A6A6] transition-colors hover:text-white"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to customers
-        </Link>
+    <div className="flex flex-col gap-6">
+      <Link
+        href="/admin/customers"
+        className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to customers
+      </Link>
 
-        <div className="mt-6 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-[#A6A6A6]">
-              Customer Detail
-            </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-              {detail.customer.name}
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-[#C3C7CB] sm:text-base">
-              {detail.customer.email}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge className="border-[#0AA6FF]/30 bg-[#0AA6FF]/10 text-[#7FD0FF] hover:bg-[#0AA6FF]/10">
-              {formatRoleLabel(detail.customer.role)}
-            </Badge>
-            <Badge variant="outline" className="border-white/10 text-[#D6D8DA]">
-              {formatTierLabel(detail.customer.subscription.tier)}
-            </Badge>
-            <Badge
-              className={
-                detail.customer.accountStatus === "active"
-                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/10"
-                  : "border-amber-500/30 bg-amber-500/10 text-amber-200 hover:bg-amber-500/10"
-              }
-            >
-              {formatRoleLabel(detail.customer.accountStatus)}
-            </Badge>
-          </div>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">{detail.customer.name}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{detail.customer.email}</p>
         </div>
-      </section>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary">{formatRoleLabel(detail.customer.role)}</Badge>
+          <Badge variant="outline">{formatTierLabel(detail.customer.subscription.tier)}</Badge>
+          <Badge
+            className={
+              detail.customer.accountStatus === "active"
+                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                : "bg-red-500/10 text-red-600 dark:text-red-400"
+            }
+          >
+            {detail.customer.accountStatus}
+          </Badge>
+        </div>
+      </div>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <article className="rounded-[24px] border border-white/8 bg-[#0F1113] p-5">
-          <p className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Available Credits</p>
-          <p className="mt-3 text-3xl font-semibold text-white">
-            {formatNumber(detail.customer.credits.availableCredits)}
-          </p>
-          <p className="mt-2 text-sm text-[#A6A6A6]">
-            {formatNumber(detail.customer.credits.monthlyCredits)} monthly · {formatNumber(detail.customer.credits.topupCredits)} top-up
-          </p>
-        </article>
-        <article className="rounded-[24px] border border-white/8 bg-[#0F1113] p-5">
-          <p className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Projects</p>
-          <p className="mt-3 text-3xl font-semibold text-white">
-            {formatNumber(detail.stats.projectCount)}
-          </p>
-          <p className="mt-2 text-sm text-[#A6A6A6]">
-            {formatNumber(detail.stats.publicProjectCount)} public projects
-          </p>
-        </article>
-        <article className="rounded-[24px] border border-white/8 bg-[#0F1113] p-5">
-          <p className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Prompts</p>
-          <p className="mt-3 text-3xl font-semibold text-white">
-            {formatNumber(detail.stats.totalPrompts)}
-          </p>
-          <p className="mt-2 text-sm text-[#A6A6A6]">
-            {formatNumber(detail.stats.prompts7d)} in the last 7 days
-          </p>
-        </article>
-        <article className="rounded-[24px] border border-white/8 bg-[#0F1113] p-5">
-          <p className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Credit Reset</p>
-          <p className="mt-3 text-xl font-semibold text-white">
-            {new Date(detail.customer.creditsResetDate).toLocaleDateString()}
-          </p>
-          <p className="mt-2 text-sm text-[#A6A6A6]">
-            Last active {detail.stats.lastActiveAt ? new Date(detail.stats.lastActiveAt).toLocaleDateString() : "never"}
-          </p>
-        </article>
-      </section>
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <StatCard
+          title="Available Credits"
+          value={formatNumber(detail.customer.credits.availableCredits)}
+          description={`${formatNumber(detail.customer.credits.monthlyCredits)} monthly · ${formatNumber(detail.customer.credits.topupCredits)} top-up`}
+          icon={CreditCard}
+        />
+        <StatCard
+          title="Projects"
+          value={formatNumber(detail.stats.projectCount)}
+          description={`${formatNumber(detail.stats.publicProjectCount)} public`}
+          icon={FolderKanban}
+        />
+        <StatCard
+          title="Prompts"
+          value={formatNumber(detail.stats.totalPrompts)}
+          description={`${formatNumber(detail.stats.prompts7d)} in 7 days`}
+          icon={Bot}
+        />
+        <StatCard
+          title="Credit Reset"
+          value={new Date(detail.customer.creditsResetDate).toLocaleDateString()}
+          description={`Last active ${detail.stats.lastActiveAt ? new Date(detail.stats.lastActiveAt).toLocaleDateString() : "never"}`}
+        />
+      </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <section className="rounded-[28px] border border-white/8 bg-[#0F1113] p-6">
+      <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+        <section className="rounded-lg border p-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/[0.04] text-[#7FD0FF]">
-              <ShieldCheck className="h-5 w-5" />
-            </div>
+            <ShieldCheck className="h-5 w-5 text-muted-foreground" />
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-[#A6A6A6]">
-                Management
-              </p>
-              <h2 className="mt-1 text-xl font-semibold tracking-tight text-white">
-                Role, status, tier, and credits
-              </h2>
+              <p className="text-xs text-muted-foreground">Management</p>
+              <h2 className="text-sm font-medium">Role, status, tier, and credits</h2>
             </div>
           </div>
-
-          <div className="mt-6">
+          <div className="mt-5">
             <CustomerManagementForm
               userId={detail.customer.id}
               initialRole={detail.customer.role}
@@ -171,40 +133,38 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
           </div>
         </section>
 
-        <section className="rounded-[28px] border border-white/8 bg-[#0F1113] p-6">
+        <section className="rounded-lg border p-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/[0.04] text-[#7FD0FF]">
-              <CreditCard className="h-5 w-5" />
-            </div>
+            <CreditCard className="h-5 w-5 text-muted-foreground" />
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-[#A6A6A6]">
-                Account Snapshot
-              </p>
-              <h2 className="mt-1 text-xl font-semibold tracking-tight text-white">
-                Subscription and preferences
-              </h2>
+              <p className="text-xs text-muted-foreground">Account Snapshot</p>
+              <h2 className="text-sm font-medium">Subscription and preferences</h2>
             </div>
           </div>
-
-          <div className="mt-6 space-y-4 text-sm text-[#D6D8DA]">
-            <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Subscription</p>
-              <p className="mt-2 font-medium text-white">{detail.customer.subscription.tierName}</p>
-              <p className="mt-1 text-[#A6A6A6]">
+          <div className="mt-5 space-y-3">
+            <div className="rounded-lg border bg-muted/50 p-4">
+              <p className="text-xs text-muted-foreground">Subscription</p>
+              <p className="mt-1 font-medium">{detail.customer.subscription.tierName}</p>
+              <p className="mt-0.5 text-sm text-muted-foreground">
                 {formatNumber(detail.customer.subscription.monthlyAllowance)} monthly allowance
               </p>
             </div>
-            <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Default Model</p>
-              <p className="mt-2 font-medium text-white">{detail.customer.preferences.defaultModel || "Not set"}</p>
-            </div>
-            <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Privacy</p>
-              <p className="mt-2 font-medium text-white">
-                {detail.customer.preferences.privateProjectsByDefault ? "Private projects by default" : "Public projects allowed by default"}
+            <div className="rounded-lg border bg-muted/50 p-4">
+              <p className="text-xs text-muted-foreground">Default Model</p>
+              <p className="mt-1 font-medium">
+                {detail.customer.preferences.defaultModel || "Not set"}
               </p>
-              <p className="mt-1 text-[#A6A6A6]">
-                Marketing emails {detail.customer.preferences.marketingEmails ? "on" : "off"} · Product updates {detail.customer.preferences.productUpdates ? "on" : "off"}
+            </div>
+            <div className="rounded-lg border bg-muted/50 p-4">
+              <p className="text-xs text-muted-foreground">Privacy</p>
+              <p className="mt-1 font-medium">
+                {detail.customer.preferences.privateProjectsByDefault
+                  ? "Private projects by default"
+                  : "Public projects allowed by default"}
+              </p>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                Marketing {detail.customer.preferences.marketingEmails ? "on" : "off"} · Updates{" "}
+                {detail.customer.preferences.productUpdates ? "on" : "off"}
               </p>
             </div>
           </div>
@@ -212,94 +172,85 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-        <section className="rounded-[28px] border border-white/8 bg-[#0F1113] p-6">
+        <section className="rounded-lg border p-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/[0.04] text-[#7FD0FF]">
-              <FolderKanban className="h-5 w-5" />
-            </div>
+            <FolderKanban className="h-5 w-5 text-muted-foreground" />
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-[#A6A6A6]">Projects</p>
-              <h2 className="mt-1 text-xl font-semibold tracking-tight text-white">Recent workspaces</h2>
+              <p className="text-xs text-muted-foreground">Projects</p>
+              <h2 className="text-sm font-medium">Recent workspaces</h2>
             </div>
           </div>
-
-          <div className="mt-6 space-y-3">
+          <div className="mt-5 space-y-2">
             {detail.recentProjects.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-white/10 px-4 py-10 text-sm text-[#A6A6A6]">
+              <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
                 No projects yet.
               </div>
             ) : (
               detail.recentProjects.map((project) => (
-                <article
+                <div
                   key={project.id}
-                  className="rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-4"
+                  className="rounded-lg border bg-muted/50 px-4 py-3"
                 >
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0">
-                      <p className="truncate font-medium text-white">
+                      <p className="truncate text-sm font-medium">
                         {project.emoji || "🎨"} {project.name}
                       </p>
-                      <p className="mt-1 text-sm text-[#A6A6A6]">
+                      <p className="text-xs text-muted-foreground">
                         Updated {new Date(project.updatedAt).toLocaleString()}
                       </p>
                     </div>
-                    <Badge variant="outline" className="border-white/10 text-[#D6D8DA]">
+                    <Badge variant="outline" className="text-[10px]">
                       {project.isPrivate ? "Private" : "Public"}
                     </Badge>
                   </div>
-                </article>
+                </div>
               ))
             )}
           </div>
         </section>
 
-        <section className="rounded-[28px] border border-white/8 bg-[#0F1113] p-6">
+        <section className="rounded-lg border p-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/[0.04] text-[#7FD0FF]">
-              <Bot className="h-5 w-5" />
-            </div>
+            <Bot className="h-5 w-5 text-muted-foreground" />
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-[#A6A6A6]">Usage</p>
-              <h2 className="mt-1 text-xl font-semibold tracking-tight text-white">Recent prompts and model mix</h2>
+              <p className="text-xs text-muted-foreground">Usage</p>
+              <h2 className="text-sm font-medium">Recent prompts and model mix</h2>
             </div>
           </div>
-
-          <div className="mt-6 space-y-4">
-            <div className="flex flex-wrap gap-2">
-              {detail.topModels.length === 0 ? (
-                <Badge variant="outline" className="border-white/10 text-[#D6D8DA]">No usage yet</Badge>
-              ) : (
-                detail.topModels.map((model) => (
-                  <Badge key={model.modelId} className="border-[#0AA6FF]/30 bg-[#0AA6FF]/10 text-[#7FD0FF] hover:bg-[#0AA6FF]/10">
+          <div className="mt-5 space-y-4">
+            {detail.topModels.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {detail.topModels.map((model) => (
+                  <Badge key={model.modelId} variant="secondary" className="text-[10px]">
                     {model.modelId} · {formatNumber(model.count)}
                   </Badge>
-                ))
-              )}
-            </div>
-
-            <div className="space-y-3">
+                ))}
+              </div>
+            ) : null}
+            <div className="space-y-2">
               {detail.recentUsage.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/10 px-4 py-10 text-sm text-[#A6A6A6]">
+                <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
                   No prompt history yet.
                 </div>
               ) : (
                 detail.recentUsage.map((entry) => (
-                  <article
+                  <div
                     key={entry.id}
-                    className="rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-4"
+                    className="rounded-lg border bg-muted/50 px-4 py-3"
                   >
                     <div className="flex items-center justify-between gap-4">
                       <div className="min-w-0">
-                        <p className="truncate font-medium text-white">{entry.aiModel}</p>
-                        <p className="mt-1 text-sm text-[#A6A6A6]">
-                          {formatRoleLabel(entry.promptType)} · {entry.creditsCost} credit
+                        <p className="text-sm font-medium">{entry.aiModel}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {entry.promptType} · {entry.creditsCost} credit
                         </p>
                       </div>
-                      <p className="text-sm text-[#A6A6A6]">
+                      <p className="text-xs text-muted-foreground">
                         {new Date(entry.timestamp).toLocaleString()}
                       </p>
                     </div>
-                  </article>
+                  </div>
                 ))
               )}
             </div>

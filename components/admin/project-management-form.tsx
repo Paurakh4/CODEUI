@@ -174,81 +174,81 @@ export function ProjectManagementForm({
   return (
     <form onSubmit={handleSave} className="space-y-5">
       {readOnlyReason ? (
-        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90">
+        <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90">
           {readOnlyReason}
         </div>
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-[1fr_120px]">
-        <label className="space-y-2 text-sm text-[#D6D8DA]">
-          <span className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Project Name</span>
+        <label className="space-y-2 text-sm text-muted-foreground">
+          <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Project Name</span>
           <Input
             value={name}
             onChange={(event) => setName(event.target.value)}
             disabled={readOnly || isSaving || isDeleting}
-            className="h-10 rounded-xl border-white/10 bg-[#0B0C0D] text-white"
+            className="h-10 rounded-xl border-border bg-background text-foreground"
             maxLength={120}
           />
         </label>
 
-        <label className="space-y-2 text-sm text-[#D6D8DA]">
-          <span className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Emoji</span>
+        <label className="space-y-2 text-sm text-muted-foreground">
+          <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Emoji</span>
           <Input
             value={emoji}
             onChange={(event) => setEmoji(event.target.value)}
             disabled={readOnly || isSaving || isDeleting}
-            className="h-10 rounded-xl border-white/10 bg-[#0B0C0D] text-white"
+            className="h-10 rounded-xl border-border bg-background text-foreground"
             maxLength={16}
           />
         </label>
       </div>
 
-      <label className="space-y-2 text-sm text-[#D6D8DA]">
-        <span className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Visibility</span>
+      <label className="space-y-2 text-sm text-muted-foreground">
+        <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Visibility</span>
         <select
           value={visibility}
           onChange={(event) => setVisibility(event.target.value as "public" | "private")}
           disabled={readOnly || isSaving || isDeleting}
-          className="h-10 w-full rounded-xl border border-white/10 bg-[#0B0C0D] px-3 text-sm text-white outline-none transition-colors focus:border-[#0AA6FF] disabled:cursor-not-allowed disabled:opacity-60"
+          className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
         >
           <option value="private">Private</option>
           <option value="public">Public</option>
         </select>
       </label>
 
-      <label className="space-y-2 text-sm text-[#D6D8DA]">
-        <span className="text-xs uppercase tracking-[0.18em] text-[#A6A6A6]">Audit Reason</span>
+      <label className="space-y-2 text-sm text-muted-foreground">
+        <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Audit Reason</span>
         <Input
           value={reason}
           onChange={(event) => setReason(event.target.value)}
           disabled={readOnly || isSaving || isDeleting}
-          className="h-10 rounded-xl border-white/10 bg-[#0B0C0D] text-white"
+          className="h-10 rounded-xl border-border bg-background text-foreground"
           placeholder="Why are you changing this project?"
         />
       </label>
 
-      <div className="flex flex-col gap-4 rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+      <div className="flex flex-col gap-4 rounded-lg border border-border bg-muted/50 p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-medium text-white">Project controls</p>
-            <p className="mt-1 text-sm text-[#A6A6A6]">
+            <p className="text-sm font-medium text-foreground">Project controls</p>
+            <p className="mt-1 text-sm text-muted-foreground">
               Metadata changes are applied immediately and written to the admin audit log.
             </p>
           </div>
           <Button
             type="submit"
             disabled={readOnly || isSaving || isDeleting || !hasChanges}
-            className="rounded-xl bg-[#0AA6FF] text-white hover:bg-[#0AA6FF]/90"
+            className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             Save Project
           </Button>
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-white/8 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-medium text-white">Danger zone</p>
-            <p className="mt-1 text-sm text-[#A6A6A6]">
+            <p className="text-sm font-medium text-foreground">Danger zone</p>
+            <p className="mt-1 text-sm text-muted-foreground">
               Deleting a project removes stored checkpoints and uploaded media for that workspace.
             </p>
           </div>

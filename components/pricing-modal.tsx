@@ -8,15 +8,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { 
-  Check, 
-  Zap, 
+import {
+  Check,
+  Zap,
   Crown,
-  Sparkles,
   ArrowRight,
+  Lock,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { motion } from "framer-motion"
 import {
   PAID_SUBSCRIPTION_TIERS,
   TOPUP_PACKAGES,
@@ -59,21 +60,18 @@ const PLAN_STYLES: Partial<Record<PaidSubscriptionTier, {
   icon: typeof Zap
   color: string
   bg: string
-  border: string
   badge?: string
 }>> = {
   pro: {
     icon: Zap,
-    color: "text-amber-500",
-    bg: "bg-amber-500/10",
-    border: "border-amber-500/20",
+    color: "text-amber-400",
+    bg: "bg-amber-400/10",
     badge: "Most Popular",
   },
   proplus: {
     icon: Crown,
     color: "text-sky-400",
     bg: "bg-sky-400/10",
-    border: "border-sky-400/20",
   },
 }
 
@@ -83,6 +81,21 @@ function formatCurrency(amount: number, currency: string) {
     currency: currency.toUpperCase(),
     maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
   }).format(amount)
+}
+
+const easeSmooth = [0.23, 1, 0.32, 1] as const
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 24 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.5,
+      delay: i * 0.08,
+      ease: easeSmooth,
+    },
+  }),
 }
 
 export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingModalProps) {
@@ -272,7 +285,6 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
       icon: style?.icon,
       color: style?.color,
       bg: style?.bg,
-      border: style?.border,
       badge: style?.badge,
     }
   })
@@ -281,28 +293,34 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
     ? topupPackages
     : TOPUP_PACKAGES.map((pkg) => ({ ...pkg, available: false }))
 
+  const topupDescriptions: Record<string, string> = {
+    topup_25: "Perfect for a quick boost of extra generations.",
+    topup_50: "Great for occasional extra runs between cycles.",
+    topup_100: "Best value — the most credits per dollar.",
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
       if (!open) {
         onClose()
       }
     }}>
-      <DialogContent className="w-[95vw] sm:max-w-5xl md:w-[80vw] border-white/10 bg-[#050506] p-0 text-white sm:rounded-3xl">
-        <div className="px-6 py-6 sm:px-8 sm:py-8 overflow-y-auto max-h-[85vh] scrollbar-thin scrollbar-thumb-white/10">
+      <DialogContent className="w-[95vw] sm:max-w-5xl md:w-[80vw] border-white/[0.06] bg-[#060608] p-0 text-white sm:rounded-3xl">
+        <div className="px-6 py-6 sm:px-10 sm:py-10 overflow-y-auto max-h-[85vh] scrollbar-thin scrollbar-thumb-white/10">
           <DialogHeader className="items-start text-left">
-            <DialogTitle className="text-3xl font-semibold tracking-tight text-white">
+            <DialogTitle className="text-4xl font-semibold tracking-tight text-white">
               Choose your plan
             </DialogTitle>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400">
               Upgrade when you need more monthly credits, private projects, and priority access. Live pricing is pulled directly from Stripe.
             </p>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex p-1 bg-white/5 rounded-lg border border-white/10">
+            <div className="mt-6 flex flex-wrap items-center gap-4">
+              <div className="flex gap-1 p-1 bg-white/[0.06] rounded-xl">
                 <button
                   onClick={() => setBillingCycle("monthly")}
                   className={cn(
-                    "px-4 py-1.5 rounded-md text-xs font-medium transition-all",
+                    "whitespace-nowrap px-5 py-2 rounded-lg text-sm font-medium transition-all",
                     billingCycle === "monthly"
                       ? "bg-white text-black shadow-sm"
                       : "text-zinc-400 hover:text-white"
@@ -314,40 +332,43 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
                   onClick={() => setBillingCycle("yearly")}
                   disabled={!hasYearlyPlans}
                   className={cn(
-                    "px-4 py-1.5 rounded-md text-xs font-medium transition-all disabled:cursor-not-allowed disabled:opacity-50",
+                    "whitespace-nowrap px-5 py-2 rounded-lg text-sm font-medium transition-all",
+                    "disabled:cursor-not-allowed disabled:opacity-50",
                     billingCycle === "yearly"
                       ? "bg-white text-black shadow-sm"
                       : "text-zinc-400 hover:text-white"
                   )}
                 >
                   Yearly
+                  {hasYearlyPlans && (
+                    <span className="ml-1.5 text-[10px] font-semibold text-emerald-400">Save ~17%</span>
+                  )}
                 </button>
               </div>
-              <div className="text-[11px] text-zinc-500">
-                {isPricingLoading ? "Syncing with Stripe..." : "Stripe-only billing"}
-              </div>
-            </div>
 
-            <div className="mt-4 flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] text-emerald-300">
-              <Sparkles className="h-3.5 w-3.5" />
-              Live plan pricing is loaded directly from Stripe.
+              <div className="flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-4 py-1.5">
+                <Lock className="h-3 w-3 text-zinc-500" />
+                <span className="text-[11px] text-zinc-500">
+                  {isPricingLoading ? "Syncing with Stripe..." : "Secured by Stripe"}
+                </span>
+              </div>
             </div>
 
             {billingCycle === "yearly" && (
-              <div className="mt-3 text-[11px] text-zinc-500">
-                Annual plans renew yearly while monthly credits still reset every billing cycle.
+              <div className="mt-3 text-xs text-zinc-500">
+                Annual plans renew yearly. Monthly credits still reset every billing cycle.
               </div>
             )}
 
             {pricingIssues.length > 0 && (
-              <div className="mt-4 max-w-xl rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-[11px] text-amber-200">
+              <div className="mt-4 max-w-xl rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
                 Some Stripe plans are currently unavailable. Only plans with configured live Stripe prices can be purchased.
               </div>
             )}
           </DialogHeader>
 
-          <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
-            {plans.map((plan) => {
+          <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-3">
+            {plans.map((plan, index) => {
               const Icon = plan.icon
               const price = plan.id === "free" ? "$0" : formatCurrency(plan.amount, plan.currency)
               const sublabel = plan.id === "free"
@@ -359,53 +380,74 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
                     : `Billed annually${plan.yearlySavings > 0 ? ` · Save ${formatCurrency(plan.yearlySavings, plan.currency)}` : ""}`
 
               return (
-                <div
+                <motion.div
                   key={plan.id}
+                  custom={index}
+                  initial="hidden"
+                  animate="visible"
+                  variants={cardVariants}
+                  whileHover={{ y: -3, transition: { duration: 0.2, ease: "easeOut" } }}
                   className={cn(
-                    "relative flex flex-col rounded-2xl border p-6 transition-all duration-300",
-                    plan.badge
-                      ? "z-10 scale-[1.02] border-white/20 bg-zinc-900 shadow-2xl"
-                      : plan.border
-                        ? `bg-black ${plan.border} hover:border-white/30`
-                        : "border-white/5 bg-black hover:border-white/10"
+                    "relative flex flex-col rounded-2xl p-6",
+                    plan.badge && [
+                      "bg-zinc-900",
+                      "shadow-[0_0_0_1px_rgba(251,191,36,0.2),0_8px_32px_-12px_rgba(0,0,0,0.6),0_0_40px_-12px_rgba(251,191,36,0.12)]",
+                      "scale-[1.03] z-10",
+                    ],
+                    !plan.badge && plan.id === "proplus" && [
+                      "border border-white/[0.08] bg-zinc-900/50",
+                      "shadow-[0_4px_20px_-8px_rgba(0,0,0,0.4)]",
+                    ],
+                    plan.id === "free" && [
+                      "border border-white/[0.06] bg-white/[0.02]",
+                    ],
                   )}
                 >
                   {plan.badge && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-amber-500 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-black">
-                      {plan.badge}
-                    </div>
+                    <>
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-24 h-6 bg-amber-500/20 blur-xl rounded-full" />
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-4 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-black shadow-[0_0_12px_-4px_rgba(251,191,36,0.3)]">
+                        {plan.badge}
+                      </div>
+                    </>
                   )}
 
-                  <div className="mb-6">
-                    <div className="mb-2 flex items-center gap-2">
+                  <div className={cn("mb-6", plan.badge && "mt-4")}>
+                    <div className="mb-3 flex items-center gap-3">
                       {Icon && plan.bg && plan.color && (
-                        <div className={cn("rounded-lg p-1.5", plan.bg)}>
-                          <Icon className={cn("h-4 w-4", plan.color)} />
+                        <div className={cn("rounded-xl p-2", plan.bg)}>
+                          <Icon className={cn("h-5 w-5", plan.color)} />
                         </div>
                       )}
-                      <h3 className="text-lg font-bold">{plan.name}</h3>
+                      <h3 className="text-lg font-semibold text-white">{plan.name}</h3>
                     </div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-bold">{price}</span>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-4xl font-bold tracking-tight text-white">{price}</span>
                       {plan.id !== "free" && (
                         <span className="text-sm text-zinc-500">
-                          {billingCycle === "monthly" ? "/month" : "/year"}
+                          /{billingCycle === "monthly" ? "month" : "year"}
                         </span>
                       )}
                     </div>
-                    <p className="mt-2 text-xs leading-relaxed text-zinc-500">
+                    <p className="mt-3 text-sm leading-relaxed text-zinc-400">
                       {plan.description}
                     </p>
-                    <p className="mt-2 text-[11px] text-zinc-600">{sublabel}</p>
+                    <p className="mt-2 text-xs text-zinc-500">{sublabel}</p>
                   </div>
 
-                  <div className="mb-8 flex-1 space-y-3">
+                  <div className="mb-8 flex-1 space-y-3.5">
                     {plan.features.map((feature) => (
-                      <div key={feature} className="flex items-start gap-2">
-                        <div className="mt-1 rounded-full bg-white/10 p-0.5">
-                          <Check className="h-2.5 w-2.5 text-white" />
+                      <div key={feature} className="flex items-start gap-3">
+                        <div className={cn(
+                          "mt-0.5 rounded-full p-0.5 flex-shrink-0",
+                          plan.badge ? "bg-amber-500/20" : "bg-white/10"
+                        )}>
+                          <Check className={cn(
+                            "h-3 w-3",
+                            plan.badge ? "text-amber-400" : "text-white"
+                          )} />
                         </div>
-                        <span className="text-xs leading-tight text-zinc-400">{feature}</span>
+                        <span className="text-sm leading-tight text-zinc-300">{feature}</span>
                       </div>
                     ))}
                   </div>
@@ -413,9 +455,9 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
                   <Button
                     variant={plan.badge ? "default" : "outline"}
                     className={cn(
-                      "w-full rounded-xl py-5 text-xs font-bold transition-all",
+                      "w-full rounded-xl py-5 text-sm font-semibold",
                       plan.badge
-                        ? "border-none bg-white text-black hover:bg-zinc-200"
+                        ? "border-none bg-white text-black hover:bg-zinc-200 shadow-[0_4px_20px_-8px_rgba(255,255,255,0.15)]"
                         : "border-white/20 bg-transparent text-white hover:border-white/30 hover:bg-white/5"
                     )}
                     disabled={plan.id === "free" || plan.isCurrentTier || isLoading !== null || !plan.isConfiguredForCycle}
@@ -435,49 +477,51 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
                             ? "Included"
                             : `Upgrade to ${plan.name}`}
                     {!plan.isCurrentTier && plan.id !== "free" && isLoading !== plan.id && plan.isConfiguredForCycle && (
-                      <ArrowRight className="ml-2 h-3 w-3" />
+                      <ArrowRight className="ml-2 h-4 w-4" />
                     )}
                   </Button>
-                </div>
+                </motion.div>
               )
             })}
           </div>
 
-          <div className="mt-8 rounded-3xl border border-white/10 bg-zinc-950/80 p-5 sm:p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="mt-10 rounded-3xl border border-white/[0.06] bg-white/[0.02] p-6 sm:p-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-white">Need extra credits?</h3>
-                <p className="mt-1 max-w-2xl text-sm leading-relaxed text-zinc-400">
+                <h3 className="text-xl font-semibold tracking-tight text-white">Need extra credits?</h3>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400">
                   Buy a one-time credit pack when you need extra generations. Top-up credits do not expire with your monthly billing cycle.
                 </p>
               </div>
-              <div className="text-[11px] text-zinc-500">
-                {isTopupLoading ? "Loading top-up packages..." : "One-time purchases via Stripe"}
+              <div className="flex items-center gap-2 text-xs text-zinc-500">
+                <Lock className="h-3 w-3" />
+                {isTopupLoading ? "Loading..." : "One-time purchases via Stripe"}
               </div>
             </div>
 
-            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
               {visibleTopupPackages.map((pkg) => (
                 <div
                   key={pkg.id}
-                  className="rounded-2xl border border-white/10 bg-black/60 p-5"
+                  className="group rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 transition-colors hover:border-white/[0.12] hover:bg-white/[0.04]"
                 >
-                  <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-zinc-500">
+                  <div className="text-[10px] font-medium uppercase tracking-[0.2em] text-zinc-500">
                     Credit Pack
                   </div>
-                  <div className="mt-3 text-2xl font-semibold text-white">
-                    {pkg.credits} credits
+                  <div className="mt-4 text-3xl font-bold tracking-tight text-white">
+                    {pkg.credits}
+                    <span className="ml-1 text-lg font-normal text-zinc-500">credits</span>
                   </div>
-                  <p className="mt-1 text-sm text-zinc-400">
-                    {formatCurrency(pkg.price, "usd")} one-time purchase
+                  <p className="mt-2 text-sm text-zinc-400">
+                    {formatCurrency(pkg.price, "usd")} one-time
                   </p>
-                  <p className="mt-3 text-xs leading-relaxed text-zinc-500">
-                    Best for occasional extra runs without changing your subscription.
+                  <p className="mt-4 text-xs leading-relaxed text-zinc-500">
+                    {topupDescriptions[pkg.id] ?? "Extra credits without changing your plan."}
                   </p>
 
                   <Button
                     variant="outline"
-                    className="mt-5 w-full rounded-xl border-white/20 bg-transparent text-white hover:border-white/30 hover:bg-white/5"
+                    className="mt-6 w-full rounded-xl border-white/20 bg-transparent text-white hover:border-white/30 hover:bg-white/5"
                     disabled={isLoading !== null || !pkg.available}
                     onClick={() => {
                       if (pkg.available) {
@@ -490,7 +534,7 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
                       : pkg.available
                         ? "Buy top-up"
                         : "Unavailable"}
-                    {isLoading !== pkg.id && pkg.available && <ArrowRight className="ml-2 h-3 w-3" />}
+                    {isLoading !== pkg.id && pkg.available && <ArrowRight className="ml-2 h-4 w-4" />}
                   </Button>
                 </div>
               ))}

@@ -1,64 +1,30 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { 
-  Search, 
-  Plus, 
-  ArrowUp, 
-  MoreHorizontal,
-  Heart,
-  Globe,
-  Lock,
-  ChevronRight,
-  ChevronDown,
-  Code,
-  LayoutTemplate,
-  ArrowLeft,
-  Sparkles,
-  Bot,
-  Zap,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Loader2,
-  FolderOpen,
-  Crown,
-  Info,
-  ExternalLink,
-  Trash2
-} from "lucide-react"
-import { useState, useEffect, useCallback, useRef, useMemo } from "react"
-import { UserMenu } from "@/components/user-menu"
+import { Sparkles, Bot, Zap } from "lucide-react"
+import { useState, useEffect, useCallback } from "react"
 import { FeedbackModal } from "@/components/feedback-modal"
 import { PricingModal } from "@/components/pricing-modal"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { useSession } from "next-auth/react"
 import { useLiveCredits } from "@/hooks/use-live-credits"
 import { useAuthDialog } from "@/components/auth-dialog-provider"
-import Link from "next/link"
 import { useEditor } from "@/stores/editor-store"
 import type { SubscriptionTier } from "@/lib/pricing"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 
-// Credit tier configurations (matching lib/pricing.ts)
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
+import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar"
+import { DashboardTopNav } from "@/components/dashboard/dashboard-top-nav"
+import { DashboardPromptArea } from "@/components/dashboard/dashboard-prompt-area"
+import { DashboardProjectsGrid } from "@/components/dashboard/dashboard-projects-grid"
+
 const TIER_CREDITS: Record<SubscriptionTier, number> = {
   free: 20,
   pro: 120,
   proplus: 350,
 }
 
-// Project type from API
 interface Project {
   id: string
   name: string
@@ -74,19 +40,16 @@ interface Project {
 
 interface DashboardMainProps {
   onStart: (prompt?: string, model?: string) => void
-  billingSyncState?: 'idle' | 'processing' | 'confirmed' | 'failed'
+  billingSyncState?: "idle" | "processing" | "confirmed" | "failed"
   billingSyncMessage?: string | null
   isPricingOpen?: boolean
   onPricingOpenChange?: (open: boolean) => void
   onRetryBillingSync?: () => void | Promise<void>
 }
 
-const PROJECT_CARD_DESKTOP_PREVIEW_WIDTH = 1440
-const PROJECT_CARD_DESKTOP_PREVIEW_HEIGHT = 900
-
 export function DashboardMain({
   onStart,
-  billingSyncState = 'idle',
+  billingSyncState = "idle",
   billingSyncMessage = null,
   isPricingOpen: controlledPricingOpen,
   onPricingOpenChange,
@@ -99,15 +62,8 @@ export function DashboardMain({
   const selectedModelId = state.selectedModel
   const availableModels = state.availableModels
   const isLoadingModels = state.isLoadingModels
-  const [view, setView] = useState<'dashboard' | 'projects'>('dashboard')
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
-  
-  // Close sidebar on mobile by default after mount
-  useEffect(() => {
-    if (window.innerWidth < 768) {
-      setIsSidebarOpen(false)
-    }
-  }, [])
+  const [view, setView] = useState<"dashboard" | "projects">("dashboard")
+
   const [promptValue, setPromptValue] = useState("")
   const [isEnhancing, setIsEnhancing] = useState(false)
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
@@ -117,40 +73,35 @@ export function DashboardMain({
     refreshIntervalMs: 30_000,
   })
   const isPricingOpen = controlledPricingOpen ?? internalPricingOpen
-  const setPricingOpen = useCallback((open: boolean) => {
-    if (onPricingOpenChange) {
-      onPricingOpenChange(open)
-      return
-    }
+  const setPricingOpen = useCallback(
+    (open: boolean) => {
+      if (onPricingOpenChange) {
+        onPricingOpenChange(open)
+        return
+      }
+      setInternalPricingOpen(open)
+    },
+    [onPricingOpenChange],
+  )
 
-    setInternalPricingOpen(open)
-  }, [onPricingOpenChange])
-  
-  // Projects state
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoadingProjects, setIsLoadingProjects] = useState(true)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [isSearchFocused, setIsSearchFocused] = useState(false)
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
   const [updatingFavoriteIds, setUpdatingFavoriteIds] = useState<string[]>([])
   const [updatingVisibilityIds, setUpdatingVisibilityIds] = useState<string[]>([])
-  
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Fetch user's projects from API
   useEffect(() => {
     if (!session?.user) return
-
     setIsLoadingProjects(true)
-    fetch('/api/projects')
-      .then(res => res.json())
-      .then(data => {
+    fetch("/api/projects")
+      .then((res) => res.json())
+      .then((data) => {
         if (data.projects && Array.isArray(data.projects)) {
           setProjects(data.projects)
         }
       })
-      .catch(err => {
-        console.error('Failed to fetch projects:', err)
+      .catch((err) => {
+        console.error("Failed to fetch projects:", err)
       })
       .finally(() => {
         setIsLoadingProjects(false)
@@ -158,34 +109,10 @@ export function DashboardMain({
   }, [session?.user?.id])
 
   useEffect(() => {
-    if (billingSyncState === 'confirmed') {
+    if (billingSyncState === "confirmed") {
       void refreshCredits()
     }
   }, [billingSyncState, refreshCredits])
-
-  const adjustHeight = useCallback((reset?: boolean) => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-
-    if (reset) {
-      textarea.style.height = '60px'
-      return
-    }
-
-    textarea.style.height = '60px'
-    const newHeight = Math.max(60, Math.min(textarea.scrollHeight, 200))
-    textarea.style.height = `${newHeight}px`
-  }, [])
-
-  const focusPromptInput = useCallback(() => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-
-    textarea.focus()
-    const caretPosition = textarea.value.length
-    textarea.setSelectionRange(caretPosition, caretPosition)
-    adjustHeight()
-  }, [adjustHeight])
 
   const handleSend = () => {
     if (!promptValue.trim()) return
@@ -195,14 +122,11 @@ export function DashboardMain({
   const handleEnhancePrompt = useCallback(async () => {
     const trimmedPrompt = promptValue.trim()
     if (!trimmedPrompt || isEnhancing) return
-
     if (!session?.user) {
       showSignIn()
       return
     }
-
     setIsEnhancing(true)
-
     try {
       const response = await fetch("/api/ai/enhance", {
         method: "POST",
@@ -213,36 +137,30 @@ export function DashboardMain({
           strength: "standard",
         }),
       })
-
       if (response.status === 401) {
         showSignIn()
         return
       }
-
       const data = await response.json().catch(() => null)
-
       if (!response.ok) {
         throw new Error(data?.error || "Failed to enhance prompt")
       }
-
-      const enhancedPrompt = typeof data?.enhancedPrompt === "string" && data.enhancedPrompt.trim()
-        ? data.enhancedPrompt.trim()
-        : trimmedPrompt
-
+      const enhancedPrompt =
+        typeof data?.enhancedPrompt === "string" && data.enhancedPrompt.trim()
+          ? data.enhancedPrompt.trim()
+          : trimmedPrompt
       setPromptValue(enhancedPrompt)
-      requestAnimationFrame(() => {
-        adjustHeight()
-      })
     } catch (error) {
       toast({
         title: "Prompt Enhance unavailable",
-        description: error instanceof Error ? error.message : "Failed to enhance prompt.",
+        description:
+          error instanceof Error ? error.message : "Failed to enhance prompt.",
         variant: "destructive",
       })
     } finally {
       setIsEnhancing(false)
     }
-  }, [adjustHeight, isEnhancing, promptValue, selectedModelId, session?.user, showSignIn, toast])
+  }, [isEnhancing, promptValue, selectedModelId, session?.user, showSignIn, toast])
 
   const startLandingPage = useCallback(() => {
     onStart(
@@ -252,553 +170,249 @@ export function DashboardMain({
   }, [onStart, selectedModelId])
 
   const getModelIcon = (modelId: string) => {
-    if (modelId.includes('gemini') || modelId.includes('google')) return <Sparkles className="w-3.5 h-3.5" />
-    if (modelId.includes('r1')) return <Bot className="w-3.5 h-3.5" />
-    if (modelId.includes('deepseek-chat') || modelId.includes('v3')) return <Zap className="w-3.5 h-3.5" />
+    if (modelId.includes("gemini") || modelId.includes("google"))
+      return <Sparkles className="w-3.5 h-3.5" />
+    if (modelId.includes("r1")) return <Bot className="w-3.5 h-3.5" />
+    if (modelId.includes("deepseek-chat") || modelId.includes("v3"))
+      return <Zap className="w-3.5 h-3.5" />
     return <Bot className="w-3.5 h-3.5" />
   }
 
-  const selectedModelName = availableModels.find(m => m.id === selectedModelId)?.name || "Model"
+  const selectedModelName =
+    availableModels.find((m) => m.id === selectedModelId)?.name || "Model"
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
-  }
-
-  // Get user credits from session (new credit system)
-  const sessionUser = session?.user as { 
+  const sessionUser = session?.user as {
     monthlyCredits?: number
     topupCredits?: number
     totalCredits?: number
     credits?: number
     subscription?: SubscriptionTier
   }
-  const userTier = realTimeCredits?.tier ?? sessionUser?.subscription ?? "free"
-  const userMonthlyCredits = realTimeCredits?.monthlyCredits ?? sessionUser?.monthlyCredits ?? 0
-  const userTopupCredits = realTimeCredits?.topupCredits ?? sessionUser?.topupCredits ?? 0
-  const userTotalCredits = realTimeCredits?.totalCredits ?? sessionUser?.totalCredits ?? (userMonthlyCredits + userTopupCredits)
+  const userTier =
+    realTimeCredits?.tier ?? sessionUser?.subscription ?? "free"
+  const userMonthlyCredits =
+    realTimeCredits?.monthlyCredits ?? sessionUser?.monthlyCredits ?? 0
+  const userTopupCredits =
+    realTimeCredits?.topupCredits ?? sessionUser?.topupCredits ?? 0
+  const userTotalCredits =
+    realTimeCredits?.totalCredits ??
+    sessionUser?.totalCredits ??
+    userMonthlyCredits + userTopupCredits
   const maxCredits = TIER_CREDITS[userTier] || 20
-
-  // Calculate usage percentage based on remaining monthly credits
-  const usagePercentage = Math.max(0, Math.min(100, (userMonthlyCredits / maxCredits) * 100))
-
-  // Get tier display info
-  const getTierBadge = () => {
-    switch (userTier) {
-      case "proplus":
-        return { label: "Pro+", color: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/20" }
-      case "pro":
-        return { label: "Pro", color: "text-[#faff69]", bg: "bg-[#faff69]/10", border: "border-amber-500/20" }
-      default:
-        return { label: "Free", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20" }
-    }
-  }
-  const tierBadge = getTierBadge()
-
-  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
-
-  const visibleProjects = useMemo(() => {
-    if (!normalizedSearchQuery) return projects
-    return projects.filter((project) => project.name.toLowerCase().includes(normalizedSearchQuery))
-  }, [projects, normalizedSearchQuery])
-
-  const filteredProjects = useMemo(() => {
-    if (!normalizedSearchQuery) return []
-    return visibleProjects.slice(0, 8)
-  }, [visibleProjects, normalizedSearchQuery])
-
-  const recentProjects = useMemo(
-    () => [...visibleProjects].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, 8),
-    [visibleProjects]
+  const usagePercentage = Math.max(
+    0,
+    Math.min(100, (userMonthlyCredits / maxCredits) * 100),
   )
-  const favoriteProjects = useMemo(
-    () => [...visibleProjects]
-      .filter((project) => project.isFavorite)
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-      .slice(0, 8),
-    [visibleProjects]
-  )
-  const savedProjects = useMemo(
-    () => [...visibleProjects].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 6),
-    [visibleProjects]
-  )
-  const dashboardProjects = useMemo(() => visibleProjects.slice(0, 4), [visibleProjects])
 
   const formatRelativeDate = useCallback((value: string) => {
     const date = new Date(value)
     const now = new Date()
     const diffMs = now.getTime() - date.getTime()
     const diffMinutes = Math.floor(diffMs / (1000 * 60))
-
     if (diffMinutes < 1) return "just now"
     if (diffMinutes < 60) return `${diffMinutes}m`
-
     const diffHours = Math.floor(diffMinutes / 60)
     if (diffHours < 24) return `${diffHours}h`
-
     const diffDays = Math.floor(diffHours / 24)
     if (diffDays < 7) return `${diffDays}d`
-
-    return date.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+    return date.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+    })
   }, [])
 
-  const handleDeleteProject = useCallback(async (projectId: string) => {
-    const confirmed = window.confirm("Delete this project? This action cannot be undone.")
-    if (!confirmed) return
-
-    setDeletingProjectId(projectId)
-    try {
-      const res = await fetch(`/api/projects/${projectId}`, { method: "DELETE" })
-      if (!res.ok) {
-        throw new Error("Failed to delete project")
-      }
-      setProjects((prev) => prev.filter((project) => project.id !== projectId))
-    } catch (error) {
-      console.error("Failed to delete project:", error)
-    } finally {
-      setDeletingProjectId(null)
-    }
-  }, [])
-
-  const handleToggleFavorite = useCallback(async (projectId: string) => {
-    const targetProject = projects.find((project) => project.id === projectId)
-    if (!targetProject) return
-
-    const nextFavoriteState = !targetProject.isFavorite
-    setUpdatingFavoriteIds((current) => [...current, projectId])
-    setProjects((current) =>
-      current.map((project) =>
-        project.id === projectId ? { ...project, isFavorite: nextFavoriteState } : project
+  const handleDeleteProject = useCallback(
+    async (projectId: string) => {
+      const confirmed = window.confirm(
+        "Delete this project? This action cannot be undone.",
       )
-    )
-
-    try {
-      const response = await fetch(`/api/projects/${projectId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ isFavorite: nextFavoriteState }),
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to update favorite")
+      if (!confirmed) return
+      setDeletingProjectId(projectId)
+      try {
+        const res = await fetch(`/api/projects/${projectId}`, {
+          method: "DELETE",
+        })
+        if (!res.ok) throw new Error("Failed to delete project")
+        setProjects((prev) => prev.filter((p) => p.id !== projectId))
+      } catch (error) {
+        console.error("Failed to delete project:", error)
+      } finally {
+        setDeletingProjectId(null)
       }
+    },
+    [],
+  )
 
-      const data = await response.json()
-      const updatedProject = data.project as Project | undefined
-
-      if (updatedProject) {
-        setProjects((current) =>
-          current.map((project) => (project.id === projectId ? updatedProject : project))
-        )
-      }
-    } catch (error) {
-      console.error("Failed to update favorite:", error)
-      setProjects((current) =>
-        current.map((project) =>
-          project.id === projectId ? { ...project, isFavorite: targetProject.isFavorite } : project
-        )
+  const handleToggleFavorite = useCallback(
+    async (projectId: string) => {
+      const targetProject = projects.find((p) => p.id === projectId)
+      if (!targetProject) return
+      const next = !targetProject.isFavorite
+      setUpdatingFavoriteIds((cur) => [...cur, projectId])
+      setProjects((cur) =>
+        cur.map((p) =>
+          p.id === projectId ? { ...p, isFavorite: next } : p,
+        ),
       )
-      toast({
-        title: "Favorite update failed",
-        description: "The project favorite state could not be saved.",
-        variant: "destructive",
-      })
-    } finally {
-      setUpdatingFavoriteIds((current) => current.filter((id) => id !== projectId))
-    }
-  }, [projects, toast])
-
-  const handleToggleVisibility = useCallback(async (projectId: string) => {
-    const targetProject = projects.find((project) => project.id === projectId)
-    if (!targetProject) return
-
-    const nextPrivateState = !targetProject.isPrivate
-
-    setUpdatingVisibilityIds((current) =>
-      current.includes(projectId) ? current : [...current, projectId]
-    )
-    setProjects((current) =>
-      current.map((project) =>
-        project.id === projectId ? { ...project, isPrivate: nextPrivateState } : project
-      )
-    )
-
-    try {
-      const response = await fetch(`/api/projects/${projectId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ isPrivate: nextPrivateState }),
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to update project visibility")
-      }
-
-      const data = await response.json()
-      const updatedProject = data.project as Project | undefined
-
-      if (updatedProject) {
-        setProjects((current) =>
-          current.map((project) => (project.id === projectId ? updatedProject : project))
+      try {
+        const response = await fetch(`/api/projects/${projectId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isFavorite: next }),
+        })
+        if (!response.ok) throw new Error("Failed to update favorite")
+        const data = await response.json()
+        const updatedProject = data.project as Project | undefined
+        if (updatedProject) {
+          setProjects((cur) =>
+            cur.map((p) => (p.id === projectId ? updatedProject : p)),
+          )
+        }
+      } catch (error) {
+        console.error("Failed to update favorite:", error)
+        setProjects((cur) =>
+          cur.map((p) =>
+            p.id === projectId
+              ? { ...p, isFavorite: targetProject.isFavorite }
+              : p,
+          ),
         )
+        toast({
+          title: "Favorite update failed",
+          description: "The project favorite state could not be saved.",
+          variant: "destructive",
+        })
+      } finally {
+        setUpdatingFavoriteIds((cur) => cur.filter((id) => id !== projectId))
       }
+    },
+    [projects, toast],
+  )
 
-      toast({
-        title: nextPrivateState ? "Project is now private" : "Project is now public",
-        description: nextPrivateState
-          ? "The project was removed from public discover."
-          : "Anyone can now open the project from the discover gallery in read-only mode.",
-      })
-    } catch (error) {
-      console.error("Failed to update project visibility:", error)
-      setProjects((current) =>
-        current.map((project) =>
-          project.id === projectId ? { ...project, isPrivate: targetProject.isPrivate } : project
-        )
+  const handleToggleVisibility = useCallback(
+    async (projectId: string) => {
+      const targetProject = projects.find((p) => p.id === projectId)
+      if (!targetProject) return
+      const next = !targetProject.isPrivate
+      setUpdatingVisibilityIds((cur) =>
+        cur.includes(projectId) ? cur : [...cur, projectId],
       )
-      toast({
-        title: "Visibility update failed",
-        description: "The project visibility could not be saved.",
-        variant: "destructive",
-      })
-    } finally {
-      setUpdatingVisibilityIds((current) => current.filter((id) => id !== projectId))
-    }
-  }, [projects, toast])
+      setProjects((cur) =>
+        cur.map((p) =>
+          p.id === projectId ? { ...p, isPrivate: next } : p,
+        ),
+      )
+      try {
+        const response = await fetch(`/api/projects/${projectId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isPrivate: next }),
+        })
+        if (!response.ok) throw new Error("Failed to update project visibility")
+        const data = await response.json()
+        const updatedProject = data.project as Project | undefined
+        if (updatedProject) {
+          setProjects((cur) =>
+            cur.map((p) => (p.id === projectId ? updatedProject : p)),
+          )
+        }
+        toast({
+          title: next ? "Project is now private" : "Project is now public",
+          description: next
+            ? "The project was removed from public discover."
+            : "Anyone can now open the project from the discover gallery in read-only mode.",
+        })
+      } catch (error) {
+        console.error("Failed to update project visibility:", error)
+        setProjects((cur) =>
+          cur.map((p) =>
+            p.id === projectId
+              ? { ...p, isPrivate: targetProject.isPrivate }
+              : p,
+          ),
+        )
+        toast({
+          title: "Visibility update failed",
+          description: "The project visibility could not be saved.",
+          variant: "destructive",
+        })
+      } finally {
+        setUpdatingVisibilityIds((cur) => cur.filter((id) => id !== projectId))
+      }
+    },
+    [projects, toast],
+  )
 
   const handleOpenPublicProject = useCallback((projectId: string) => {
     window.open(`/discover/${projectId}`, "_blank", "noopener,noreferrer")
   }, [])
 
+  useEffect(() => {
+    const html = document.documentElement
+    html.style.overflowX = "hidden"
+    html.style.overflowY = "hidden"
+    return () => {
+      html.style.overflowX = ""
+      html.style.overflowY = ""
+    }
+  }, [])
+
   return (
-    <div className="flex h-screen bg-black text-white font-sans selection:bg-white/20">
-      {/* Sidebar Overlay for Mobile */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-30 md:hidden"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-      
-      {/* Sidebar */}
-      <aside 
-        className={`
-          fixed md:relative z-40 h-full flex-shrink-0 flex flex-col border-r border-[#414141]/80 bg-black transition-all duration-300 ease-in-out overflow-hidden
-          ${isSidebarOpen ? 'w-[280px]' : 'w-0 border-r-0'}
-        `}
-      >
-        {/* Sidebar Header */}
-        <div className="p-4 flex items-center justify-between whitespace-nowrap">
-          <div className="flex items-center gap-2 px-2 py-1.5 hover:bg-[#141414] rounded-[4px] cursor-pointer transition-colors overflow-hidden">
-            <div className="w-5 h-5 bg-white text-black rounded flex-shrink-0 flex items-center justify-center text-xs font-bold">
-              C
-            </div>
-            <span className="text-sm font-bold truncate">Personal</span>
-            <span className={`text-[10px] ${tierBadge.bg} ${tierBadge.color} border ${tierBadge.border} px-1.5 py-0.5 rounded font-bold ml-1`}>
-              {tierBadge.label}
-            </span>
-          </div>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => setIsSidebarOpen(false)}
-            aria-label="Collapse sidebar"
-            className="h-8 w-8 text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#141414] focus-visible:ring-1 focus-visible:ring-[#faff69]"
-          >
-            <PanelLeftClose className="w-4 h-4" />
-          </Button>
-        </div>
+    <SidebarProvider defaultOpen={true} className="h-svh max-h-[100dvh] overflow-hidden">
+        {/* Grain overlay */}
+        <div className="grain-overlay" />
 
-        {/* Go to Editor Button */}
-        <div className="px-4 mb-4">
-          <Button 
-            onClick={() => onStart()}
-            variant="outline" 
-            className="w-full justify-start gap-2 bg-transparent border-[#414141]/80 text-white hover:bg-[#141414] hover:text-[#faff69] h-9"
-          >
-            <Code className="w-4 h-4" />
-            <span className="text-sm">Create Project</span>
-          </Button>
-        </div>
+        <DashboardSidebar
+        projects={projects}
+        isLoadingProjects={isLoadingProjects}
+        onStart={onStart}
+        onOpenPricing={() => setPricingOpen(true)}
+        onViewChange={setView}
+        userTier={userTier}
+        userTotalCredits={userTotalCredits}
+        userMonthlyCredits={userMonthlyCredits}
+        usagePercentage={usagePercentage}
+        formatRelativeDate={formatRelativeDate}
+      />
 
-        {/* Navigation Items */}
-        <ScrollArea className="flex-1 px-2 min-h-0">
-          <div className="space-y-2 px-2 pt-1">
-            <label htmlFor="project-search" className="text-[11px] font-bold text-[#a0a0a0]">
-              Search projects
-            </label>
-            <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#a0a0a0]" />
-              <input
-                id="project-search"
-                type="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => setIsSearchFocused(true)}
-                onBlur={() => {
-                  setTimeout(() => setIsSearchFocused(false), 120)
-                }}
-                placeholder="Search by project name"
-                className="w-full max-w-full box-border h-9 bg-[#141414] border border-[#414141]/80 rounded-[4px] pl-9 pr-3 text-sm text-white placeholder:text-[#a0a0a0] outline-none focus-visible:ring-1 focus-visible:ring-[#faff69] focus-visible:ring-offset-0"
-                aria-label="Search projects"
-              />
-              {isSearchFocused && searchQuery.trim().length > 0 && (
-                <div className="absolute z-40 mt-2 left-0 right-0 rounded-[4px] border border-[#414141]/80 bg-black shadow-[0_1px_3px_rgba(0,0,0,0.1)]-[0_10px_15px_-3px_rgba(0,0,0,0.1)] overflow-hidden">
-                  <div className="max-h-64 overflow-auto py-1">
-                    {filteredProjects.length > 0 ? (
-                      filteredProjects.map((project) => (
-                        <Link
-                          key={project.id}
-                          href={`/project/${project.id}`}
-                          onClick={() => {
-                            setIsSearchFocused(false)
-                            setSearchQuery("")
-                          }}
-                          className="block px-3 py-2 text-sm text-white hover:bg-[#141414] hover:text-[#faff69] transition-colors"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="truncate">{project.name}</span>
-                            <span className="text-[10px] text-[#a0a0a0] whitespace-nowrap">
-                              {formatRelativeDate(project.updatedAt)}
-                            </span>
-                          </div>
-                        </Link>
-                      ))
-                    ) : (
-                      <div className="px-3 py-3 text-xs text-[#a0a0a0] text-center">
-                        No matching projects found.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-6 space-y-4">
-            <div className="px-2">
-              <div className="flex items-center justify-between text-[#a0a0a0] mb-1">
-                <span className="text-xs font-bold">Favorites</span>
-                <span className="text-[10px] text-[#a0a0a0]">{favoriteProjects.length}</span>
-              </div>
-              <div className="mt-2 space-y-0.5">
-                {isLoadingProjects ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="w-4 h-4 animate-spin text-[#a0a0a0]" />
-                  </div>
-                ) : favoriteProjects.length > 0 ? (
-                  favoriteProjects.map((project) => (
-                    <Link
-                      key={`favorite-${project.id}`}
-                      href={`/project/${project.id}`}
-                      className="flex items-center justify-between gap-2 rounded-[4px] px-2 py-1.5 text-sm text-[#a0a0a0] transition-colors hover:bg-[#141414] hover:text-[#faff69]"
-                    >
-                      <span className="truncate">{project.name}</span>
-                      <Heart className="h-3 w-3 fill-current text-[#faff69]" />
-                    </Link>
-                  ))
-                ) : (
-                  <div className="px-2 py-3 text-xs text-[#a0a0a0] text-left">
-                    {normalizedSearchQuery ? "No favorite projects match your search." : "Favorite projects to pin them here."}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="px-2">
-              <div className="flex items-center justify-between text-[#a0a0a0] hover:text-[#faff69] cursor-pointer group mb-2">
-                <span className="text-xs font-bold">Recent Chats</span>
-                <ChevronDown className="w-3 h-3" />
-              </div>
-              <div className="space-y-0.5">
-                {isLoadingProjects ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="w-4 h-4 animate-spin text-[#a0a0a0]" />
-                  </div>
-                ) : recentProjects.length > 0 ? (
-                  recentProjects.map((project) => (
-                    <Link 
-                      key={project.id} 
-                      href={`/project/${project.id}`}
-                      className="block px-2 py-1.5 text-sm text-[#a0a0a0] hover:bg-[#141414] hover:text-[#faff69] rounded-[4px] cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate">{project.name}</span>
-                        <span className="text-[10px] text-[#a0a0a0]">{formatRelativeDate(project.updatedAt)}</span>
-                      </div>
-                    </Link>
-                  ))
-                ) : (
-                  <div className="px-2 py-3 text-xs text-[#a0a0a0] text-center">
-                    {normalizedSearchQuery ? "No recent chats match your search." : "No activity yet."}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="px-2">
-              <div className="flex items-center justify-between text-[#a0a0a0] hover:text-[#faff69] cursor-pointer group mb-2">
-                <span className="text-xs font-bold">Saved Projects</span>
-                <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <div className="space-y-0.5">
-                {isLoadingProjects ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="w-4 h-4 animate-spin text-[#a0a0a0]" />
-                  </div>
-                ) : savedProjects.length > 0 ? (
-                  savedProjects.map((project) => (
-                    <Link
-                      key={`sidebar-${project.id}`}
-                      href={`/project/${project.id}`}
-                      className="block px-2 py-1.5 text-sm text-[#a0a0a0] hover:bg-[#141414] hover:text-[#faff69] rounded-[4px] cursor-pointer truncate transition-colors"
-                    >
-                      {project.name}
-                    </Link>
-                  ))
-                ) : (
-                  <div className="px-2 py-3 text-xs text-[#a0a0a0] text-center">
-                    {normalizedSearchQuery ? "No saved projects match your search." : "No saved projects."}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </ScrollArea>
-        
-        {/* Sidebar Footer */}
-        <div className="p-4 border-t border-[#414141]/80 space-y-4">
-            <div className="bg-[#141414] rounded-[8px] p-3 border border-[#414141]/80">
-                <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-[#a0a0a0]">Credits</span>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            aria-label="How credits work"
-                            className="text-[#a0a0a0] hover:text-[#faff69] transition-colors"
-                          >
-                            <Info className="w-3 h-3" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-[220px] bg-[#141414] text-white border border-[#414141]/80">
-                          Credits are consumed when you run AI generation. Monthly credits reset every billing cycle.
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <span className="text-xs font-bold text-white">{userTotalCredits}</span>
-                </div>
-                <div className="h-1.5 w-full bg-[#141414] rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full rounded-full transition-all ${
-                        usagePercentage > 20 ? 'bg-[#faff69]' : 'bg-red-500'
-                      }`}
-                      style={{ width: `${usagePercentage}%` }}
-                    />
-                </div>
-                <div className="flex items-center justify-between mt-2">
-                  <p className="text-[10px] text-[#a0a0a0]">
-                    {userMonthlyCredits} monthly credits
-                  </p>
-                </div>
-                 <Button 
-                   variant="link" 
-                   onClick={() => setPricingOpen(true)}
-                   className="h-auto p-0 text-[10px] text-[#faff69] hover:text-[#faff69] font-bold mt-1"
-                 >
-                     View plans →
-                 </Button>
-             </div>
-         </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col relative min-w-0 overflow-y-auto">
-        {!isSidebarOpen && (
-          <div className="absolute top-4 left-4 z-30">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => setIsSidebarOpen(true)}
-              aria-label="Expand sidebar"
-              className="h-9 w-9 bg-black border border-[#414141]/80 text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#141414] focus-visible:ring-1 focus-visible:ring-[#faff69]"
-            >
-              <PanelLeftOpen className="w-5 h-5" />
-            </Button>
-          </div>
-        )}
+      <SidebarInset className="relative flex flex-col overflow-y-auto overflow-x-hidden min-h-0 min-w-0 bg-background">
         {/* Top Navigation */}
-        <header className="absolute top-0 right-0 p-4 z-20 flex items-center gap-2 sm:gap-3">
-            <Button 
-              asChild
-              variant="ghost" 
-              size="sm" 
-              className="hidden sm:flex text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#141414] h-8 text-xs"
-            >
-              <Link href="/discover">Discover</Link>
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setPricingOpen(true)}
-              className="hidden sm:flex text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#141414] h-8 text-xs"
-            >
-              Upgrade
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setIsFeedbackOpen(true)}
-              className="hidden sm:flex text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#141414] h-8 text-xs"
-            >
-              Feedback
-            </Button>
-            <div 
-              onClick={() => setPricingOpen(true)}
-              className="flex items-center gap-2 bg-[#141414] hover:bg-[#141414] rounded-full px-3 py-1.5 sm:py-1 border border-[#414141]/80 transition-colors cursor-pointer group"
-            >
-                {userTier === 'proplus' ? (
-                  <Crown className="w-3.5 h-3.5 text-purple-500 group-hover:scale-110 transition-transform" />
-                ) : (
-                  <Zap className={`w-3.5 h-3.5 ${userTier === 'pro' ? 'text-[#faff69] fill-amber-500/20' : 'text-emerald-500 fill-emerald-500/20'} group-hover:scale-110 transition-transform`} />
-                )}
-                <div className="flex items-center gap-1">
-                    <span className="text-xs font-bold text-white">{userTotalCredits}</span>
-                    <span className="hidden sm:inline text-[10px] text-[#a0a0a0] font-bold uppercase tracking-tight">Credits</span>
-                </div>
-            </div>
-            <UserMenu />
-        </header>
+        <DashboardTopNav
+          userTier={userTier}
+          userTotalCredits={userTotalCredits}
+          onOpenPricing={() => setPricingOpen(true)}
+          onOpenFeedback={() => setIsFeedbackOpen(true)}
+        />
 
-        {billingSyncState !== 'idle' && billingSyncMessage && (
-          <div className="absolute top-16 left-1/2 z-20 w-[min(720px,calc(100%-2rem))] -translate-x-1/2 px-4">
-            <div className={cn(
-              "flex items-center justify-between gap-3 rounded-[8px] border px-4 py-3 shadow-[0_1px_3px_rgba(0,0,0,0.1)]-[0_10px_15px_-3px_rgba(0,0,0,0.1)] backdrop-blur",
-              billingSyncState === 'processing' && "border-sky-500/20 bg-sky-500/10 text-sky-100",
-              billingSyncState === 'confirmed' && "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
-              billingSyncState === 'failed' && "border-rose-500/20 bg-rose-500/10 text-rose-100",
-            )}>
+        {/* Billing Sync Banner */}
+        {billingSyncState !== "idle" && billingSyncMessage && (
+          <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 pt-4 z-10">
+            <div
+              className={cn(
+                "flex items-center justify-between gap-3 rounded-xl border px-4 py-3 shadow-lg backdrop-blur-md",
+                  billingSyncState === "processing" &&
+                    "border-white/10 bg-white/5 text-[#E7E7E9]",
+                  billingSyncState === "confirmed" &&
+                    "border-white/10 bg-white/5 text-[#E7E7E9]",
+                billingSyncState === "failed" &&
+                   "border-white/10 bg-white/5 text-[#E7E7E9]",
+              )}
+            >
               <div className="min-w-0">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.2em] opacity-80">
-                  {billingSyncState === 'processing' && 'Upgrade processing'}
-                  {billingSyncState === 'confirmed' && 'Upgrade confirmed'}
-                  {billingSyncState === 'failed' && 'Upgrade needs attention'}
+                  {billingSyncState === "processing" && "Upgrade processing"}
+                  {billingSyncState === "confirmed" && "Upgrade confirmed"}
+                  {billingSyncState === "failed" && "Upgrade needs attention"}
                 </div>
                 <div className="mt-1 text-sm leading-5 text-current/90">
                   {billingSyncMessage}
                 </div>
               </div>
-              {billingSyncState === 'failed' && onRetryBillingSync && (
+              {billingSyncState === "failed" && onRetryBillingSync && (
                 <Button
                   variant="outline"
                   onClick={() => void onRetryBillingSync()}
-                  className="shrink-0 border-white/20 bg-black/20 text-white hover:bg-black/30"
+                  className="shrink-0 border-white/20 bg-black/20 text-white hover:bg-black/30 rounded-lg"
                 >
                   Retry check
                 </Button>
@@ -807,499 +421,52 @@ export function DashboardMain({
           </div>
         )}
 
-        {view === 'dashboard' ? (
-          <>
-            {/* Center Content */}
-            <div className="flex-1 flex flex-col items-center justify-center w-full max-w-4xl mx-auto px-4 sm:px-6 z-10 pt-20 sm:pt-24 mt-10 md:mt-0">
-                {/* Background Logo Effect */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-5 overflow-hidden">
-                     <div className="text-[200px] sm:text-[300px] md:text-[400px] font-bold tracking-tighter select-none">CodeUI</div>
-                </div>
+        {/* Main Content Area */}
+        <div className="relative z-10 flex-1 flex flex-col">
+          {view === "dashboard" ? (
+            <DashboardPromptArea
+              promptValue={promptValue}
+              onPromptValueChange={setPromptValue}
+              onSend={handleSend}
+              onEnhance={handleEnhancePrompt}
+              isEnhancing={isEnhancing}
+              selectedModelId={selectedModelId}
+              selectedModelName={selectedModelName}
+              availableModels={availableModels}
+              isLoadingModels={isLoadingModels}
+              getModelIcon={getModelIcon}
+              onModelChange={setModel}
+              onStartLandingPage={startLandingPage}
+              onStartBlankProject={() => onStart(undefined, selectedModelId)}
+            />
+          ) : (
+            <DashboardProjectsGrid
+              projects={projects}
+              isLoading={isLoadingProjects}
+              searchQuery=""
+              view="projects"
+              onViewChange={setView}
+              onDelete={handleDeleteProject}
+              onToggleFavorite={handleToggleFavorite}
+              onToggleVisibility={handleToggleVisibility}
+              onOpenPublic={handleOpenPublicProject}
+              isDeleting={deletingProjectId}
+              updatingFavoriteIds={updatingFavoriteIds}
+              updatingVisibilityIds={updatingVisibilityIds}
+            />
+          )}
+        </div>
+      </SidebarInset>
 
-                <div className="w-full max-w-3xl space-y-6 sm:space-y-8 relative">
-                    <h1 className="text-3xl sm:text-4xl font-semibold text-center tracking-tight px-2">What do you want to create?</h1>
-                    
-                    {/* Input Area */}
-                    <div className="relative group px-1 sm:px-0">
-                        <div className="absolute -inset-0.5 bg-gradient-to-r from-white/20 to-white/10 rounded-[8px] blur opacity-30 group-hover:opacity-50 transition duration-500"></div>
-                        <div className="relative bg-black border border-[#414141]/80 rounded-[8px] overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.1)]-2xl">
-                            <textarea 
-                                ref={textareaRef}
-                                value={promptValue}
-                                onChange={(e) => {
-                                    setPromptValue(e.target.value)
-                                    adjustHeight()
-                                }}
-                                onKeyDown={handleKeyDown}
-                                className="w-full bg-transparent text-lg px-4 py-4 min-h-[60px] max-h-[200px] outline-none resize-none placeholder:text-[#a0a0a0]"
-                                placeholder="Ask CodeUI to build..."
-                                rows={1}
-                            />
-                            {promptValue.trim() ? (
-                              <div className="absolute right-3 top-3">
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon-sm"
-                                      onClick={handleEnhancePrompt}
-                                      disabled={isEnhancing}
-                                      aria-label="Enhance prompt"
-                                      className="rounded-[4px] bg-[#141414] text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#1a1a1a]"
-                                    >
-                                      {isEnhancing ? (
-                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                      ) : (
-                                        <Sparkles className="w-3.5 h-3.5" />
-                                      )}
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="left" sideOffset={8}>
-                                    Improve this prompt without changing its meaning
-                                  </TooltipContent>
-                                </Tooltip>
-                              </div>
-                            ) : null}
-                            <div className="flex items-center justify-between px-3 py-2 border-t border-[#414141]/80 bg-white/[0.02]">
-                                <div className="flex items-center gap-2">
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#141414] rounded-[4px]">
-                                          <Plus className="w-5 h-5" />
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="start" className="w-56 bg-black border-[#414141]/80 text-white">
-                                        <DropdownMenuItem onSelect={focusPromptInput} className="cursor-pointer gap-2 focus:bg-[#141414] focus:text-white">
-                                          <Plus className="w-4 h-4" />
-                                          <span>Continue writing prompt</span>
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={startLandingPage} className="cursor-pointer gap-2 focus:bg-[#141414] focus:text-white">
-                                          <LayoutTemplate className="w-4 h-4" />
-                                          <span>Use landing page starter</span>
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={() => onStart(undefined, selectedModelId)} className="cursor-pointer gap-2 focus:bg-[#141414] focus:text-white">
-                                          <Code className="w-4 h-4" />
-                                          <span>Create blank project</span>
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                    <div className="h-4 w-px bg-white/10 mx-1"></div>
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button 
-                                                variant="ghost" 
-                                                size="sm" 
-                                                className="h-8 text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#141414] rounded-[4px] gap-2 text-xs font-normal px-2 outline-none focus-visible:ring-0"
-                                                disabled={isLoadingModels}
-                                            >
-                                                {isLoadingModels ? (
-                                                  <>
-                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                    <span>Loading...</span>
-                                                  </>
-                                                ) : (
-                                                  <>
-                                                    <div className="text-[#a0a0a0]">
-                                                        {getModelIcon(selectedModelId)}
-                                                    </div>
-                                                    {selectedModelName}
-                                                    <ChevronDown className="w-3 h-3 opacity-50" />
-                                                  </>
-                                                )}
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="start" className="w-56 bg-black border-[#414141]/80 text-white">
-                                            {availableModels.map((model) => (
-                                                <DropdownMenuItem 
-                                                    key={model.id}
-                                                    onClick={() => setModel(model.id)}
-                                                    className="gap-2 focus:bg-[#141414] focus:text-white cursor-pointer py-2"
-                                                >
-                                                    <div className="text-[#a0a0a0] group-focus:text-white">
-                                                        {getModelIcon(model.id)}
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-xs font-bold">{model.name}</span>
-                                                    </div>
-                                                </DropdownMenuItem>
-                                            ))}
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </div>
-                                <Button 
-                                    onClick={handleSend}
-                                    size="icon" 
-                                  aria-label="Send prompt"
-                                  className="h-8 w-8 bg-[#141414] text-white hover:bg-zinc-700 rounded-[4px] transition-colors"
-                                >
-                                    <ArrowUp className="w-4 h-4" />
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Quick Actions */}
-                    <div className="flex flex-wrap items-center justify-center gap-3">
-                        <ActionButton 
-                          icon={<LayoutTemplate className="w-4 h-4" />} 
-                          label="Landing Page" 
-                          onClick={startLandingPage}
-                        />
-                    </div>
-                </div>
-            </div>
-
-            {/* Bottom Projects Section */}
-            <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 pb-8 pt-10 sm:pt-12 z-10">
-                <div className="flex items-center justify-between mb-4 sm:mb-6">
-                    <div>
-                        <h2 className="text-base sm:text-lg font-semibold mb-0.5 sm:mb-1">My Projects</h2>
-                        <p className="text-xs sm:text-sm text-[#a0a0a0]">Explore what you have built with CodeUI.</p>
-                    </div>
-                    {visibleProjects.length > 0 && (
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => setView('projects')}
-                        className="text-xs sm:text-sm text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#141414] group"
-                      >
-                          Browse All <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-0.5 transition-transform" />
-                      </Button>
-                    )}
-                </div>
-
-                {isLoadingProjects ? (
-                  <div className="flex items-center justify-center py-16">
-                    <Loader2 className="w-8 h-8 animate-spin text-[#a0a0a0]" />
-                  </div>
-                ) : visibleProjects.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                      {dashboardProjects.map((project) => (
-                          <ProjectCard 
-                            key={project.id} 
-                            project={project} 
-                            onDelete={handleDeleteProject}
-                            onToggleFavorite={handleToggleFavorite}
-                            onToggleVisibility={handleToggleVisibility}
-                            onOpenPublic={handleOpenPublicProject}
-                            isDeleting={deletingProjectId === project.id}
-                            isFavoriteUpdating={updatingFavoriteIds.includes(project.id)}
-                            isVisibilityUpdating={updatingVisibilityIds.includes(project.id)}
-                          />
-                      ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <FolderOpen className="w-12 h-12 text-[#a0a0a0] mb-4" />
-                    <h3 className="text-lg font-bold text-white mb-2">
-                      {normalizedSearchQuery ? "No matching projects" : "No projects yet"}
-                    </h3>
-                    <p className="text-sm text-[#a0a0a0] mb-4">
-                      {normalizedSearchQuery ? "Try a different search term." : "Start by creating your first project above!"}
-                    </p>
-                  </div>
-                )}
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex flex-col w-full max-w-[1400px] mx-auto px-4 sm:px-6 pt-20 sm:pt-24 pb-8 min-h-0 overflow-y-auto">
-            <div className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-8 mt-4 md:mt-0">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => setView('dashboard')}
-                className="h-8 w-8 sm:h-9 sm:w-9 text-[#a0a0a0] hover:text-[#faff69] hover:bg-[#141414] border border-[#414141]/80 shrink-0"
-              >
-                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-              </Button>
-              <div>
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight">My Projects</h1>
-                <p className="text-xs sm:text-sm text-[#a0a0a0]">A collection of everything you've created.</p>
-              </div>
-            </div>
-
-            <div className="-mx-1 px-1 sm:-mx-2 sm:px-2">
-              {isLoadingProjects ? (
-                <div className="flex items-center justify-center py-16">
-                  <Loader2 className="w-8 h-8 animate-spin text-[#a0a0a0]" />
-                </div>
-              ) : visibleProjects.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 pb-8">
-                  {visibleProjects.map((project) => (
-                    <ProjectCard 
-                      key={project.id} 
-                      project={project} 
-                      onDelete={handleDeleteProject}
-                      onToggleFavorite={handleToggleFavorite}
-                      onToggleVisibility={handleToggleVisibility}
-                      onOpenPublic={handleOpenPublicProject}
-                      isDeleting={deletingProjectId === project.id}
-                      isFavoriteUpdating={updatingFavoriteIds.includes(project.id)}
-                      isVisibilityUpdating={updatingVisibilityIds.includes(project.id)}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <FolderOpen className="w-12 h-12 text-[#a0a0a0] mb-4" />
-                  <h3 className="text-lg font-bold text-white mb-2">
-                    {normalizedSearchQuery ? "No matching projects" : "No projects yet"}
-                  </h3>
-                  <p className="text-sm text-[#a0a0a0]">
-                    {normalizedSearchQuery ? "Try a different search term." : "Start by creating your first project!"}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </main>
-
-      <FeedbackModal 
-        isOpen={isFeedbackOpen} 
-        onClose={() => setIsFeedbackOpen(false)} 
+      <FeedbackModal
+        isOpen={isFeedbackOpen}
+        onClose={() => setIsFeedbackOpen(false)}
       />
       <PricingModal
         isOpen={isPricingOpen}
         onClose={() => setPricingOpen(false)}
         currentTier={userTier}
       />
-    </div>
+    </SidebarProvider>
   )
-}
-
-function ProjectCard({ project, onDelete, isDeleting = false, onToggleFavorite, onToggleVisibility, onOpenPublic, isFavoriteUpdating = false, isVisibilityUpdating = false }: { 
-  project: Project
-  onDelete?: (projectId: string) => void
-  isDeleting?: boolean
-  onToggleFavorite?: (projectId: string) => void
-  onToggleVisibility?: (projectId: string) => void
-  onOpenPublic?: (projectId: string) => void
-  isFavoriteUpdating?: boolean
-  isVisibilityUpdating?: boolean
-}) {
-  // Format numbers for display
-  const formatNumber = (num: number) => {
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`
-    return num.toString()
-  }
-
-  // Generate a gradient based on project id for visual variety
-  const gradients = [
-    "bg-gradient-to-br from-zinc-700 to-zinc-900",
-    "bg-gradient-to-br from-zinc-600 to-zinc-800",
-    "bg-gradient-to-br from-zinc-800 to-black",
-    "bg-gradient-to-br from-zinc-700 to-zinc-950",
-    "bg-gradient-to-br from-zinc-900 to-zinc-700",
-    "bg-gradient-to-br from-zinc-800 to-zinc-600",
-  ]
-  const gradientIndex = project.id.charCodeAt(project.id.length - 1) % gradients.length
-  const bgGradient = gradients[gradientIndex]
-  const hasPreviewHtml = Boolean(project.htmlContent && project.htmlContent.trim().length > 0)
-
-  return (
-    <Link href={`/project/${project.id}`} className="block">
-      <div className="group relative bg-[#0a0a0a] border border-[#414141]/80 rounded-[8px] overflow-hidden hover:border-white/20 transition-all cursor-pointer">
-        {/* Preview Image */}
-        <div className={`aspect-video w-full relative transition-all duration-300 ${hasPreviewHtml ? "bg-black" : `${bgGradient} grayscale group-hover:grayscale-0`}`}>
-          {hasPreviewHtml ? (
-            <ProjectCardPreview
-              htmlContent={project.htmlContent!}
-              projectName={project.name}
-            />
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-4xl opacity-50 group-hover:opacity-80 transition-opacity">
-                {project.emoji || "🎨"}
-              </span>
-            </div>
-          )}
-          <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors" />
-          {/* Overlay Controls */}
-          <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button
-              size="icon"
-              variant="secondary"
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                onToggleFavorite?.(project.id)
-              }}
-              aria-label={project.isFavorite ? `Remove ${project.name} from favorites` : `Add ${project.name} to favorites`}
-              disabled={isFavoriteUpdating}
-              className={cn(
-                "h-8 w-8 rounded-full border border-[#414141]/80 bg-black/50 text-white hover:bg-black",
-                project.isFavorite && "text-[#faff69]"
-              )}
-            >
-              {isFavoriteUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Heart className={cn("w-4 h-4", project.isFavorite && "fill-current")} />}
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="secondary"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                  }}
-                  aria-label={`Actions for ${project.name}`}
-                  className="h-8 w-8 rounded-full bg-black/50 hover:bg-black text-white border border-[#414141]/80"
-                >
-                  <MoreHorizontal className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-black border-[#414141]/80 text-white">
-                {!project.isPrivate && (
-                  <DropdownMenuItem
-                    onSelect={(e) => {
-                      e.preventDefault()
-                      onOpenPublic?.(project.id)
-                    }}
-                    className="gap-2 cursor-pointer focus:bg-[#141414] focus:text-white"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    Open public page
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault()
-                    if (!isVisibilityUpdating) onToggleVisibility?.(project.id)
-                  }}
-                  className="gap-2 cursor-pointer focus:bg-[#141414] focus:text-white"
-                  disabled={isVisibilityUpdating}
-                >
-                  {isVisibilityUpdating ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : project.isPrivate ? (
-                    <Globe className="w-4 h-4" />
-                  ) : (
-                    <Lock className="w-4 h-4" />
-                  )}
-                  {isVisibilityUpdating
-                    ? "Saving visibility..."
-                    : project.isPrivate
-                      ? "Make public"
-                      : "Make private"}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault()
-                    if (!isDeleting) onDelete?.(project.id)
-                  }}
-                  className="gap-2 cursor-pointer text-red-400 focus:text-red-300 focus:bg-red-500/10"
-                  disabled={isDeleting}
-                >
-                  <Trash2 className="w-4 h-4" />
-                  {isDeleting ? "Deleting..." : "Delete project"}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <div className="absolute top-2 left-2">
-            <span
-              className={cn(
-                "text-[10px] px-1.5 py-0.5 rounded border",
-                project.isPrivate
-                  ? "bg-[#141414]/80 text-[#a0a0a0] border-[#414141]/80"
-                  : "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
-              )}
-            >
-              {project.isPrivate ? "Private" : "Public"}
-            </span>
-          </div>
-        </div>
-        
-        {/* Info */}
-        <div className="p-3">
-          <h3 className="font-bold text-sm text-white truncate mb-2">{project.name}</h3>
-          <div className="flex items-center justify-between text-xs text-[#a0a0a0]">
-            <div className="flex items-center gap-2">
-              <span className="text-[#a0a0a0]">{formatNumber(project.views)} views</span>
-              <span>•</span>
-              <div className="flex items-center gap-0.5">
-                <Heart className="w-3 h-3" />
-                <span>{formatNumber(project.likes)}</span>
-              </div>
-            </div>
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-              Free
-            </span>
-          </div>
-        </div>
-      </div>
-    </Link>
-  )
-}
-
-function ProjectCardPreview({ htmlContent, projectName }: { htmlContent: string; projectName: string }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [previewScale, setPreviewScale] = useState(0.1)
-
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-
-    const updateScale = () => {
-      const { width, height } = container.getBoundingClientRect()
-      if (width <= 0 || height <= 0) return
-
-      const nextScale = Math.min(
-        width / PROJECT_CARD_DESKTOP_PREVIEW_WIDTH,
-        height / PROJECT_CARD_DESKTOP_PREVIEW_HEIGHT,
-      )
-
-      setPreviewScale((currentScale) =>
-        Math.abs(currentScale - nextScale) < 0.001 ? currentScale : nextScale,
-      )
-    }
-
-    updateScale()
-
-    const observer = new ResizeObserver(() => {
-      updateScale()
-    })
-
-    observer.observe(container)
-
-    return () => {
-      observer.disconnect()
-    }
-  }, [])
-
-  return (
-    <div ref={containerRef} className="absolute inset-0 overflow-hidden bg-black">
-      <div
-        className="absolute left-1/2 top-0 origin-top"
-        style={{
-          width: PROJECT_CARD_DESKTOP_PREVIEW_WIDTH,
-          height: PROJECT_CARD_DESKTOP_PREVIEW_HEIGHT,
-          transform: `translateX(-50%) scale(${previewScale})`,
-        }}
-      >
-        <iframe
-          title={`${projectName} preview`}
-          srcDoc={htmlContent}
-          sandbox="allow-scripts"
-          loading="lazy"
-          tabIndex={-1}
-          className="block h-full w-full border-0 bg-white pointer-events-none"
-        />
-      </div>
-    </div>
-  )
-}
-
-function ActionButton({ icon, label, onClick }: { icon: React.ReactNode, label: string, onClick?: () => void }) {
-    return (
-  <button
-    onClick={onClick}
-    className="flex items-center gap-2 px-4 py-2 rounded-full border border-[#414141]/80 bg-[#141414] hover:bg-[#141414] text-sm text-white transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#faff69]"
-  >
-            {icon}
-            <span>{label}</span>
-        </button>
-    )
 }

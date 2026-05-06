@@ -315,6 +315,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast()
   const { data: session, status } = useSession()
   const { setTheme: applyTheme } = useTheme()
+  const applyThemeRef = useRef(applyTheme)
+  applyThemeRef.current = applyTheme
 
   const applyPersistedSettings = useCallback((settings: ReturnType<typeof createDefaultUserPreferences>) => {
     dispatch({ type: "SET_MODEL", payload: settings.defaultModel })
@@ -322,6 +324,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "SET_PRIMARY_COLOR", payload: settings.primaryColor })
     dispatch({ type: "SET_SECONDARY_COLOR", payload: settings.secondaryColor })
     dispatch({ type: "SET_THEME", payload: settings.theme })
+    applyThemeRef.current(settings.theme)
     setHasHydratedSelectedModel(true)
     setHasHydratedGenerationSettings(true)
   }, [])
@@ -355,13 +358,12 @@ export function EditorProvider({ children }: { children: ReactNode }) {
               ? parsed.secondaryColor
               : defaults.secondaryColor,
         })
-        dispatch({
-          type: "SET_THEME",
-          payload:
-            parsed.theme === "light" || parsed.theme === "dark"
-              ? parsed.theme
-              : defaults.theme,
-        })
+        const theme =
+          parsed.theme === "light" || parsed.theme === "dark"
+            ? parsed.theme
+            : defaults.theme
+        dispatch({ type: "SET_THEME", payload: theme })
+        applyThemeRef.current(theme)
       } catch (error) {
         console.error("Failed to restore generation settings", error)
         applyPersistedSettings(defaults)
@@ -371,6 +373,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       dispatch({ type: "SET_PRIMARY_COLOR", payload: defaults.primaryColor })
       dispatch({ type: "SET_SECONDARY_COLOR", payload: defaults.secondaryColor })
       dispatch({ type: "SET_THEME", payload: defaults.theme })
+      applyThemeRef.current(defaults.theme)
     }
 
     setHasHydratedSelectedModel(true)
@@ -565,10 +568,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     state.theme,
   ])
 
-  useEffect(() => {
-    applyTheme(state.theme)
-  }, [applyTheme, state.theme])
-  
   const setHtmlContent = useCallback((content: string) => {
     dispatch({ type: "SET_HTML_CONTENT", payload: content })
   }, [])
@@ -632,6 +631,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
   const setTheme = useCallback((theme: "light" | "dark") => {
     dispatch({ type: "SET_THEME", payload: theme })
+    applyThemeRef.current(theme)
   }, [])
   
   const value: EditorContextValue = {
