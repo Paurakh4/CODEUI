@@ -8,6 +8,8 @@ import { useSession } from "next-auth/react"
 import { deriveProjectNameFromPrompt } from "@/lib/utils/project-name"
 import { storePendingProjectStart } from "@/lib/utils/project-bootstrap"
 import { pollCheckoutSync, type CheckoutSyncResponse } from "@/lib/payments/checkout-sync"
+import { ProjectTransitionOverlay } from "@/components/project-transition-overlay"
+import { AnimatePresence } from "framer-motion"
 
 type BillingSyncState = "idle" | "processing" | "confirmed" | "failed"
 
@@ -18,6 +20,7 @@ function DashboardContent() {
   const [billingSyncState, setBillingSyncState] = useState<BillingSyncState>("idle")
   const [billingSyncMessage, setBillingSyncMessage] = useState<string | null>(null)
   const [isPricingOpen, setIsPricingOpen] = useState(false)
+  const [openingProject, setOpeningProject] = useState<{ prompt?: string; model?: string } | null>(null)
 
   const clearPaymentParams = useEffectEvent(() => {
     const nextParams = new URLSearchParams(searchParams.toString())
@@ -172,9 +175,15 @@ function DashboardContent() {
   }, [clearPaymentParams, fetchCheckoutStatus, searchParams, session?.user?.id, status, updateSession])
 
   const handleStart = async (prompt?: string, model?: string) => {
+    if (openingProject) {
+      return
+    }
+
     const id = crypto.randomUUID()
     const projectName = prompt ? deriveProjectNameFromPrompt(prompt) : undefined
     const requestBody: { id: string; prompt?: string; name?: string } = { id }
+    setOpeningProject({ prompt, model })
+
     if (prompt) {
       requestBody.prompt = prompt
       requestBody.name = projectName
@@ -197,6 +206,7 @@ function DashboardContent() {
               description: message,
             })
             setIsPricingOpen(true)
+            setOpeningProject(null)
             return
           }
 
@@ -205,6 +215,7 @@ function DashboardContent() {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to create project"
         toast.error(message)
+        setOpeningProject(null)
         return
       }
     }
@@ -221,43 +232,58 @@ function DashboardContent() {
     }
 
     const nextQuery = nextParams.toString()
-    router.push(nextQuery ? `/project/${id}?${nextQuery}` : `/project/${id}`)
+    const nextRoute = nextQuery ? `/project/${id}?${nextQuery}` : `/project/${id}`
+
+    router.prefetch(`/project/${id}`)
+    router.push(nextRoute)
   }
 
   return (
-    <DashboardMain
-      onStart={handleStart}
-      billingSyncState={billingSyncState}
-      billingSyncMessage={billingSyncMessage}
-      isPricingOpen={isPricingOpen}
-      onPricingOpenChange={setIsPricingOpen}
-      onRetryBillingSync={async () => {
-        const checkoutSessionId = searchParams.get("session_id")
+    <>
+      <DashboardMain
+        onStart={handleStart}
+        isStartingProject={Boolean(openingProject)}
+        billingSyncState={billingSyncState}
+        billingSyncMessage={billingSyncMessage}
+        isPricingOpen={isPricingOpen}
+        onPricingOpenChange={setIsPricingOpen}
+        onRetryBillingSync={async () => {
+          const checkoutSessionId = searchParams.get("session_id")
 
-        if (!checkoutSessionId) {
-          setBillingSyncState("failed")
-          setBillingSyncMessage("The Stripe checkout session is no longer available.")
-          return
-        }
+          if (!checkoutSessionId) {
+            setBillingSyncState("failed")
+            setBillingSyncMessage("The Stripe checkout session is no longer available.")
+            return
+          }
 
-        setBillingSyncState("processing")
-        const result = await fetchCheckoutStatus(checkoutSessionId)
-        setBillingSyncMessage(result.message)
+          setBillingSyncState("processing")
+          const result = await fetchCheckoutStatus(checkoutSessionId)
+          setBillingSyncMessage(result.message)
 
-        if (result.status === "confirmed") {
-          setBillingSyncState("confirmed")
-          await updateSession()
-          toast.success(result.message)
-          clearPaymentParams()
-          return
-        }
+          if (result.status === "confirmed") {
+            setBillingSyncState("confirmed")
+            await updateSession()
+            toast.success(result.message)
+            clearPaymentParams()
+            return
+          }
 
-        if (result.status === "failed") {
-          setBillingSyncState("failed")
-          toast.error(result.message)
-        }
-      }}
-    />
+          if (result.status === "failed") {
+            setBillingSyncState("failed")
+            toast.error(result.message)
+          }
+        }}
+      />
+      <AnimatePresence>
+        {openingProject ? (
+          <ProjectTransitionOverlay
+            phase="launching"
+            prompt={openingProject.prompt}
+            modelName={openingProject.model}
+          />
+        ) : null}
+      </AnimatePresence>
+    </>
   )
 }
 

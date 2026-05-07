@@ -129,7 +129,7 @@ export function AI_Prompt({
     const [value, setValue] = useState("");
     const [isEnhancing, setIsEnhancing] = useState(false);
     const { textareaRef, adjustHeight } = useAutoResizeTextarea({
-        minHeight: 48,
+        minHeight: 52,
         maxHeight: 200,
     });
     
@@ -248,12 +248,12 @@ export function AI_Prompt({
 
     return (
         <div className="w-full">
-            <div className="bg-black/5 dark:bg-white/5 rounded-xl p-1">
+            <div className="bg-black/5 dark:bg-white/5 rounded-lg p-0.5">
                 <div className="relative">
                     <div className="relative flex flex-col">
                         <div
                             className="overflow-y-auto"
-                            style={{ maxHeight: "250px" }}
+                            style={{ maxHeight: "200px" }}
                         >
                             <Textarea
                                 id="ai-input-15"
@@ -262,8 +262,8 @@ export function AI_Prompt({
                                     ? "What can I do for you? Type a UI prompt to unlock Prompt Enhance."
                                     : "What can I do for you?"}
                                 className={cn(
-                                    "w-full rounded-lg rounded-b-none px-3 py-2 pr-12 bg-black/5 dark:bg-white/5 border-none dark:text-white placeholder:text-black/70 dark:placeholder:text-white/70 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 text-sm",
-                                    "min-h-[48px]"
+                                    "w-full rounded-md rounded-b-none px-2.5 py-1.5 pr-10 bg-black/5 dark:bg-white/5 border-none dark:text-white placeholder:text-black/70 dark:placeholder:text-white/70 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 text-xs",
+                                    "min-h-[52px]"
                                 )}
                                 ref={textareaRef}
                                 onKeyDown={handleKeyDown}
@@ -274,7 +274,7 @@ export function AI_Prompt({
                             />
 
                             {onEnhance && value.trim() ? (
-                                <div className="absolute right-2 top-2">
+                                <div className="absolute right-1.5 top-1.5">
                                     <Tooltip>
                                         <TooltipTrigger asChild>
                                             <Button
@@ -287,9 +287,9 @@ export function AI_Prompt({
                                                 className="rounded-md bg-black/5 text-black/50 hover:bg-black/10 hover:text-black dark:bg-white/5 dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white"
                                             >
                                                 {isEnhancing ? (
-                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                    <Loader2 className="h-3 w-3 animate-spin" />
                                                 ) : (
-                                                    <Sparkles className="h-3.5 w-3.5" />
+                                                    <Sparkles className="h-3 w-3" />
                                                 )}
                                             </Button>
                                         </TooltipTrigger>
@@ -301,14 +301,14 @@ export function AI_Prompt({
                             ) : null}
                         </div>
 
-                        <div className="h-12 bg-black/5 dark:bg-white/5 rounded-b-lg flex items-center">
-                            <div className="absolute left-2 right-2 bottom-2 flex items-center justify-between w-[calc(100%-16px)]">
-                                <div className="flex items-center gap-1.5">
+                        <div className="h-9 bg-black/5 dark:bg-white/5 rounded-b-lg flex items-center">
+                            <div className="absolute left-1.5 right-1.5 bottom-1.5 flex items-center justify-between">
+                                <div className="flex items-center gap-1">
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
                                             <Button
                                                 variant="ghost"
-                                                className="flex items-center gap-1 h-7 pl-1 pr-1.5 text-xs rounded-md dark:text-white hover:bg-black/10 dark:hover:bg-white/10 focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-blue-500"
+                                                className="flex items-center gap-1 h-6 pl-1 pr-1.5 text-[11px] rounded-md dark:text-white hover:bg-black/10 dark:hover:bg-white/10 focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-blue-500"
                                                 disabled={isLoadingModels || isGenerating || isEnhancing}
                                             >
                                                 <AnimatePresence mode="wait">
@@ -333,14 +333,14 @@ export function AI_Prompt({
                                                     >
                                                         {isLoadingModels ? (
                                                             <>
-                                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                <Loader2 className="w-3 h-3 animate-spin" />
                                                                 <span>Loading...</span>
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <Bot className="w-4 h-4 opacity-70" />
+                                                                <Bot className="w-3.5 h-3.5 opacity-70" />
                                                                 {selectedModel?.name || "Select Model"}
-                                                                <ChevronDown className="w-3 h-3 opacity-50" />
+                                                                <ChevronDown className="w-2.5 h-2.5 opacity-50" />
                                                             </>
                                                         )}
                                                     </motion.div>
@@ -373,10 +373,10 @@ export function AI_Prompt({
                                             ))}
                                         </DropdownMenuContent>
                                     </DropdownMenu>
-                                    <div className="h-3.5 w-px bg-black/10 dark:bg-white/10" />
+                                    <div className="h-3 w-px bg-black/10 dark:bg-white/10" />
                                     <label
                                         className={cn(
-                                            "rounded-md p-1.5 bg-black/5 dark:bg-white/5",
+                                            "rounded-md p-1 bg-black/5 dark:bg-white/5",
                                             "hover:bg-black/10 dark:hover:bg-white/10 focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-blue-500",
                                             "text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white",
                                             (isFileUploadDisabled || isGenerating || isEnhancing) && "opacity-50 cursor-not-allowed pointer-events-none",
@@ -391,13 +391,13 @@ export function AI_Prompt({
                                             accept={fileUploadAccept}
                                             disabled={isFileUploadDisabled || isGenerating || isEnhancing}
                                         />
-                                        <Paperclip className="w-3.5 h-3.5 transition-colors" />
+                                        <Paperclip className="w-3 h-3 transition-colors" />
                                     </label>
                                 </div>
                                 <button
                                     type="button"
                                     className={cn(
-                                        "rounded-md p-1.5 bg-black/5 dark:bg-white/5",
+                                        "rounded-md p-1 bg-black/5 dark:bg-white/5",
                                         "focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-blue-500",
                                         isGenerating
                                             ? "bg-rose-500/10 text-rose-500 hover:bg-rose-500/15 dark:text-rose-300"
@@ -415,11 +415,11 @@ export function AI_Prompt({
                                     }}
                                 >
                                     {isGenerating ? (
-                                        <X className="w-3.5 h-3.5 transition-opacity duration-200" />
+                                        <X className="w-3 h-3 transition-opacity duration-200" />
                                     ) : (
                                         <ArrowRight
                                             className={cn(
-                                                "w-3.5 h-3.5 dark:text-white transition-opacity duration-200",
+                                                "w-3 h-3 dark:text-white transition-opacity duration-200",
                                                 value.trim()
                                                     ? "opacity-100"
                                                     : "opacity-30"

@@ -3,7 +3,7 @@
 import { useRef, useEffect, useState, useCallback } from "react"
 import { getElementPropertyFields, type ElementPropertyMap } from "@/lib/design-element-properties"
 import { cn } from "@/lib/utils"
-import { Grip, Loader2, LocateFixed, RefreshCw } from "lucide-react"
+import { Grip, Loader2, LocateFixed, RefreshCw, X } from "lucide-react"
 import { DeviceMode } from "@/stores/editor-store"
 
 const CINEMATHEQUE_TEMPLATE_LOADING_MARKER = "CINEMATHEQUE_TEMPLATE_LOADING"
@@ -234,6 +234,7 @@ export function PreviewFrame({
   const [frameSize, setFrameSize] = useState<FrameSize>(deviceDimensions[deviceMode])
   const [canvasScale, setCanvasScale] = useState(1)
   const [activeInteraction, setActiveInteraction] = useState<CanvasInteraction["type"] | null>(null)
+  const [showInfoPill, setShowInfoPill] = useState(true)
   const canvasOffsetRef = useRef(canvasOffset)
   const framePositionRef = useRef(framePosition)
   const canvasScaleRef = useRef(canvasScale)
@@ -1043,7 +1044,7 @@ export function PreviewFrame({
       
       <div
         ref={canvasViewportRef}
-        className="relative flex-1 overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(63,63,70,0.28),_transparent_42%),linear-gradient(to_bottom,_#111827,_#09090b)]"
+        className="relative flex-1 overflow-hidden bg-black"
       >
         <div
           className={cn(
@@ -1063,21 +1064,15 @@ export function PreviewFrame({
             )}
             style={{
               backgroundImage: [
-                "linear-gradient(to right, rgba(255,255,255,0.055) 1px, transparent 1px)",
-                "linear-gradient(to bottom, rgba(255,255,255,0.055) 1px, transparent 1px)",
-                "linear-gradient(to right, rgba(255,255,255,0.085) 1px, transparent 1px)",
-                "linear-gradient(to bottom, rgba(255,255,255,0.085) 1px, transparent 1px)",
+                "radial-gradient(circle, rgba(255,255,255,0.15) 1px, transparent 1px)",
+                "radial-gradient(circle, rgba(255,255,255,0.25) 1.5px, transparent 1.5px)",
               ].join(", "),
               backgroundSize: [
                 `${minorGridUnit}px ${minorGridUnit}px`,
-                `${minorGridUnit}px ${minorGridUnit}px`,
-                `${majorGridUnit}px ${majorGridUnit}px`,
                 `${majorGridUnit}px ${majorGridUnit}px`,
               ].join(", "),
               backgroundPosition: [
                 `${minorGridOffset.x}px ${minorGridOffset.y}px`,
-                `${minorGridOffset.x}px ${minorGridOffset.y}px`,
-                `${majorGridOffset.x}px ${majorGridOffset.y}px`,
                 `${majorGridOffset.x}px ${majorGridOffset.y}px`,
               ].join(", "),
             }}
@@ -1150,14 +1145,26 @@ export function PreviewFrame({
       </div>
       
       {/* Floating Device info pill */}
-      <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 items-center justify-center gap-3 rounded-full border border-zinc-800/80 bg-zinc-900/90 px-4 py-2 text-[11px] text-zinc-400 shadow-2xl backdrop-blur-md z-30 pointer-events-none">
-        <span className="font-medium text-zinc-300">{deviceMode.charAt(0).toUpperCase() + deviceMode.slice(1)} • {frameSize.width}×{frameSize.height} • {Math.round(canvasScale * 100)}%</span>
-        <span className="hidden md:inline text-zinc-500">
-          {isDesignMode
-            ? "Scroll on canvas background to pan • pinch or Ctrl/Cmd + wheel to zoom • drag handle or corners to adjust"
-            : "Preview mode • scroll on canvas background to pan • pinch or Ctrl/Cmd + wheel to zoom"}
-        </span>
-      </div>
+      {showInfoPill ? (
+        <div className="absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border border-zinc-800/60 bg-zinc-900/80 px-2.5 py-1 text-[10px] text-zinc-500 shadow-2xl backdrop-blur-md">
+          <span className="whitespace-nowrap font-medium text-zinc-300">
+            {deviceMode.charAt(0).toUpperCase() + deviceMode.slice(1)} • {frameSize.width}×{frameSize.height} • {Math.round(canvasScale * 100)}%
+          </span>
+          <span className="hidden md:inline text-zinc-600">
+            {isDesignMode
+              ? "scroll to pan • pinch/wheel to zoom • drag corners to resize"
+              : "preview mode • scroll to pan • pinch/wheel to zoom"}
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowInfoPill(false)}
+            className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full text-zinc-600 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+            aria-label="Dismiss info bar"
+          >
+            <X className="h-2.5 w-2.5" />
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }

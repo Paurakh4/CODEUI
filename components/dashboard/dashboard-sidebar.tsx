@@ -137,14 +137,14 @@ export function DashboardSidebar({
       collapsible="offcanvas"
       className="dashboard-sidebar"
     >
-      <SidebarHeader className="p-2">
-        <div className="flex items-center gap-1.5 px-1">
-          <div className="w-5 h-5 bg-white text-black rounded flex items-center justify-center text-[10px] font-bold shrink-0">
+      <SidebarHeader className="p-1.5">
+        <div className="flex items-center gap-1 px-1">
+          <div className="w-4 h-4 bg-white text-black rounded flex items-center justify-center text-[8px] font-bold shrink-0">
             C
           </div>
-          <span className="text-sm font-semibold text-[#E7E7E9] truncate">Personal</span>
+          <span className="text-xs font-semibold text-[#E7E7E9] truncate">Personal</span>
           <span className={cn(
-            "text-[10px] font-semibold px-1.5 py-0.5 rounded border",
+            "text-[9px] font-semibold px-1 py-0.5 rounded border",
             tierBadge.bg,
             tierBadge.color,
             tierBadge.border,
@@ -162,10 +162,10 @@ export function DashboardSidebar({
               <SidebarGroupContent>
                 <Button
                   onClick={() => onStart()}
-                  className="w-full justify-start gap-2 bg-[#121212] text-white hover:bg-[#1B1B1F] h-8 rounded-lg text-xs"
+                  className="w-full justify-start gap-1.5 bg-[#121212] text-white hover:bg-[#1B1B1F] h-7 rounded-lg text-[11px]"
                 >
-                  <Code className="w-4 h-4" />
-                  <span className="text-sm font-medium">Create Project</span>
+                  <Code className="w-3 h-3" />
+                  <span className="text-xs font-medium">Create Project</span>
                 </Button>
               </SidebarGroupContent>
             </SidebarGroup>
@@ -175,9 +175,9 @@ export function DashboardSidebar({
               <SidebarGroupContent>
                 <button
                   onClick={() => onViewChange("projects")}
-                  className="w-full flex items-center justify-start gap-2 px-3 h-8 text-xs text-[#9B9B9F] hover:text-[#E7E7E9] hover:bg-[#1B1B1F] rounded-lg transition-colors"
+                  className="w-full flex items-center justify-start gap-1.5 px-2 h-7 text-[11px] text-[#9B9B9F] hover:text-[#E7E7E9] hover:bg-[#1B1B1F] rounded-lg transition-colors"
                 >
-                  <FolderOpen className="w-4 h-4" />
+                  <FolderOpen className="w-3 h-3" />
                   <span>Projects</span>
                 </button>
               </SidebarGroupContent>
@@ -185,12 +185,12 @@ export function DashboardSidebar({
 
             {/* Search */}
             <SidebarGroup>
-              <SidebarGroupLabel className="text-[#9B9B9F] text-[11px] font-semibold">
+              <SidebarGroupLabel className="text-[#9B9B9F] text-[10px] font-semibold">
                 Search
               </SidebarGroupLabel>
               <SidebarGroupContent>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#9B9B9F] pointer-events-none" />
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[#9B9B9F] pointer-events-none" />
                   <input
                     type="search"
                     value={searchQuery}
@@ -198,12 +198,12 @@ export function DashboardSidebar({
                     onFocus={() => setIsSearchFocused(true)}
                     onBlur={() => setTimeout(() => setIsSearchFocused(false), 120)}
                     placeholder="Search projects..."
-                    className="w-full h-8 bg-[#0E0E10] border border-white/[0.04] rounded-lg pl-8 pr-3 text-xs text-[#E7E7E9] placeholder:text-[#9B9B9F] outline-none focus-visible:ring-1 focus-visible:ring-white transition-colors"
+                    className="w-full h-7 bg-[#0E0E10] border border-white/[0.04] rounded-lg pl-7 pr-2.5 text-[11px] text-[#E7E7E9] placeholder:text-[#9B9B9F] outline-none focus-visible:ring-1 focus-visible:ring-white transition-colors"
                     aria-label="Search projects"
                   />
                   {isSearchFocused && normalizedQuery && (
-                    <div className="absolute z-40 mt-2 left-0 right-0 rounded-lg border border-white/[0.04] bg-[#050505]/95 backdrop-blur-xl shadow-xl overflow-hidden">
-                      <div className="max-h-64 overflow-y-auto py-1">
+                    <div className="absolute z-40 mt-1 left-0 right-0 rounded-lg border border-white/[0.04] bg-[#050505]/95 backdrop-blur-xl shadow-xl overflow-hidden">
+                      <div className="max-h-56 overflow-y-auto py-0.5">
                         {filteredProjects.length > 0 ? (
                           filteredProjects.map((project) => (
                             <Link
@@ -213,16 +213,16 @@ export function DashboardSidebar({
                                 setIsSearchFocused(false)
                                 setSearchQuery("")
                               }}
-                              className="flex items-center justify-between gap-2 px-3 py-2 text-sm text-[#E7E7E9] hover:bg-[#1B1B1F] transition-colors"
+                              className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs text-[#E7E7E9] hover:bg-[#1B1B1F] transition-colors"
                             >
                               <span className="truncate">{project.name}</span>
-                              <span className="text-[10px] text-[#9B9B9F] whitespace-nowrap">
+                              <span className="text-[9px] text-[#9B9B9F] whitespace-nowrap">
                                 {formatRelativeDate(project.updatedAt)}
                               </span>
                             </Link>
                           ))
                         ) : (
-                          <div className="px-3 py-3 text-xs text-[#9B9B9F] text-center">
+                          <div className="px-3 py-2 text-[11px] text-[#9B9B9F] text-center">
                             No matching projects found.
                           </div>
                         )}
@@ -237,34 +237,34 @@ export function DashboardSidebar({
 
         {/* Favorites */}
         <SidebarGroup>
-          <SidebarGroupLabel className="text-[#9B9B9F] text-[11px] font-semibold">
+          <SidebarGroupLabel className="text-[#9B9B9F] text-[10px] font-semibold">
             Favorites
           </SidebarGroupLabel>
           <SidebarGroupContent>
             {isLoadingProjects ? (
-              <div className="flex items-center justify-center py-3">
-                <Loader2 className="w-4 h-4 animate-spin text-[#9B9B9F]" />
+              <div className="flex items-center justify-center py-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#9B9B9F]" />
               </div>
             ) : favoriteProjects.length > 0 ? (
               <SidebarMenu>
                 {favoriteProjects.map((project) => (
                   <SidebarMenuItem key={`fav-${project.id}`}>
-                    <SidebarMenuButton asChild tooltip={project.name}>
+                    <SidebarMenuButton asChild tooltip={project.name} size="sm">
                       <Link href={`/project/${project.id}`}>
-                        <Heart className="w-3.5 h-3.5 text-[#E7E7E9] fill-current shrink-0" />
+                        <Heart className="w-3 h-3 text-[#E7E7E9] fill-current shrink-0" />
                         <span className="truncate">{project.name}</span>
                       </Link>
                     </SidebarMenuButton>
-                    <SidebarMenuBadge className="text-[10px] text-[#9B9B9F]">
+                    <SidebarMenuBadge className="text-[9px] text-[#9B9B9F]">
                       {formatRelativeDate(project.updatedAt)}
                     </SidebarMenuBadge>
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
             ) : (
-              <div className="px-2 py-3 text-xs text-[#9B9B9F]">
-                <span className="flex items-center gap-2">
-                  <Star className="w-3 h-3" />
+              <div className="px-2 py-2 text-[11px] text-[#9B9B9F]">
+                <span className="flex items-center gap-1.5">
+                  <Star className="w-2.5 h-2.5" />
                   Favorite projects to pin them here.
                 </span>
               </div>
@@ -274,34 +274,34 @@ export function DashboardSidebar({
 
         {/* Recent Chats */}
         <SidebarGroup>
-          <SidebarGroupLabel className="text-[#9B9B9F] text-[11px] font-semibold">
+          <SidebarGroupLabel className="text-[#9B9B9F] text-[10px] font-semibold">
             Recent
           </SidebarGroupLabel>
           <SidebarGroupContent>
             {isLoadingProjects ? (
-              <div className="flex items-center justify-center py-3">
-                <Loader2 className="w-4 h-4 animate-spin text-[#9B9B9F]" />
+              <div className="flex items-center justify-center py-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#9B9B9F]" />
               </div>
             ) : recentProjects.length > 0 ? (
               <SidebarMenu>
                 {recentProjects.map((project) => (
                   <SidebarMenuItem key={`recent-${project.id}`}>
-                    <SidebarMenuButton asChild tooltip={project.name}>
+                    <SidebarMenuButton asChild tooltip={project.name} size="sm">
                       <Link href={`/project/${project.id}`}>
-                        <Clock className="w-3.5 h-3.5 text-[#9B9B9F] shrink-0" />
+                        <Clock className="w-3 h-3 text-[#9B9B9F] shrink-0" />
                         <span className="truncate">{project.name}</span>
                       </Link>
                     </SidebarMenuButton>
-                    <SidebarMenuBadge className="text-[10px] text-[#9B9B9F]">
+                    <SidebarMenuBadge className="text-[9px] text-[#9B9B9F]">
                       {formatRelativeDate(project.updatedAt)}
                     </SidebarMenuBadge>
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
             ) : (
-              <div className="px-2 py-3 text-xs text-[#9B9B9F]">
-                <span className="flex items-center gap-2">
-                  <Clock className="w-3 h-3" />
+              <div className="px-2 py-2 text-[11px] text-[#9B9B9F]">
+                <span className="flex items-center gap-1.5">
+                  <Clock className="w-2.5 h-2.5" />
                   No activity yet.
                 </span>
               </div>
@@ -311,21 +311,21 @@ export function DashboardSidebar({
 
         {/* Saved Projects */}
         <SidebarGroup>
-          <SidebarGroupLabel className="text-[#9B9B9F] text-[11px] font-semibold">
+          <SidebarGroupLabel className="text-[#9B9B9F] text-[10px] font-semibold">
             Saved
           </SidebarGroupLabel>
           <SidebarGroupContent>
             {isLoadingProjects ? (
-              <div className="flex items-center justify-center py-3">
-                <Loader2 className="w-4 h-4 animate-spin text-[#9B9B9F]" />
+              <div className="flex items-center justify-center py-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#9B9B9F]" />
               </div>
             ) : savedProjects.length > 0 ? (
               <SidebarMenu>
                 {savedProjects.map((project) => (
                   <SidebarMenuItem key={`saved-${project.id}`}>
-                    <SidebarMenuButton asChild tooltip={project.name}>
+                    <SidebarMenuButton asChild tooltip={project.name} size="sm">
                       <Link href={`/project/${project.id}`}>
-                        <Save className="w-3.5 h-3.5 text-[#9B9B9F] shrink-0" />
+                        <Save className="w-3 h-3 text-[#9B9B9F] shrink-0" />
                         <span className="truncate">{project.name}</span>
                       </Link>
                     </SidebarMenuButton>
@@ -333,9 +333,9 @@ export function DashboardSidebar({
                 ))}
               </SidebarMenu>
             ) : (
-              <div className="px-2 py-3 text-xs text-[#9B9B9F]">
-                <span className="flex items-center gap-2">
-                  <FolderOpen className="w-3 h-3" />
+              <div className="px-2 py-2 text-[11px] text-[#9B9B9F]">
+                <span className="flex items-center gap-1.5">
+                  <FolderOpen className="w-2.5 h-2.5" />
                   No saved projects.
                 </span>
               </div>
@@ -346,38 +346,38 @@ export function DashboardSidebar({
 
       {/* Footer: Credits Widget */}
       {!isCollapsed && (
-        <SidebarFooter className="p-2">
-          <div className="rounded-lg bg-[#0E0E10] border border-white/[0.04] p-2.5 space-y-2">
+        <SidebarFooter className="p-1.5">
+          <div className="rounded-lg bg-[#0E0E10] border border-white/[0.04] p-2 space-y-1.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1">
-                <span className="text-[11px] font-normal text-[#9B9B9F]">Credits</span>
+                <span className="text-[10px] font-normal text-[#9B9B9F]">Credits</span>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
                       aria-label="How credits work"
                       className="text-[#9B9B9F] hover:text-[#E7E7E9] transition-colors"
                     >
-                      <Info className="w-3 h-3" />
+                      <Info className="w-2.5 h-2.5" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-[220px] bg-[#0E0E10] text-[#E7E7E9] border-white/[0.04]">
+                  <TooltipContent side="top" className="max-w-[200px] bg-[#0E0E10] text-[#E7E7E9] border-white/[0.04] text-[11px]">
                     Credits are consumed when you run AI generation. Monthly credits reset every billing cycle.
                   </TooltipContent>
                 </Tooltip>
               </div>
-              <span className="text-xs font-semibold text-[#E7E7E9]">{userTotalCredits}</span>
+              <span className="text-[11px] font-semibold text-[#E7E7E9]">{userTotalCredits}</span>
             </div>
-            <div className="h-1 w-full bg-[#050505] rounded-full overflow-hidden">
+            <div className="h-0.5 w-full bg-[#050505] rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full transition-all duration-500 bg-[#E7E7E9]"
                 style={{ width: `${usagePct}%` }}
               />
             </div>
             <div className="flex items-center justify-between">
-              <p className="text-[10px] text-[#9B9B9F]">{userMonthlyCredits} monthly credits</p>
+              <p className="text-[9px] text-[#9B9B9F]">{userMonthlyCredits} monthly credits</p>
               <button
                 onClick={onOpenPricing}
-                className="text-[10px] font-normal text-[#9B9B9F] hover:text-[#E7E7E9] transition-colors"
+                className="text-[9px] font-normal text-[#9B9B9F] hover:text-[#E7E7E9] transition-colors"
               >
                 View plans &rarr;
               </button>

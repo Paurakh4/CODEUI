@@ -66,7 +66,7 @@ export function DashboardProjectCard({
 
   return (
     <Link href={`/project/${project.id}`} className="block group">
-      <div className="card-float relative glass-card rounded-xl overflow-hidden">
+      <div className="card-float relative glass-card rounded-lg overflow-hidden">
         {/* Preview area */}
         <div className={cn(
           "aspect-video w-full relative overflow-hidden",
@@ -85,7 +85,7 @@ export function DashboardProjectCard({
           {/* Overlay actions */}
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors" />
 
-          <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute top-1.5 right-1.5 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
             <Button
               size="icon"
               variant="secondary"
@@ -97,14 +97,14 @@ export function DashboardProjectCard({
               aria-label={project.isFavorite ? `Remove ${project.name} from favorites` : `Add ${project.name} to favorites`}
               disabled={isFavoriteUpdating}
               className={cn(
-                  "h-8 w-8 rounded-full bg-[#0E0E10]/70 backdrop-blur-sm border border-white/[0.04] text-white hover:bg-[#0E0E10]/90",
+                  "h-7 w-7 rounded-full bg-[#0E0E10]/70 backdrop-blur-sm border border-white/[0.04] text-white hover:bg-[#0E0E10]/90",
                 project.isFavorite && "text-[#E7E7E9]"
               )}
             >
               {isFavoriteUpdating ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
               ) : (
-                <Heart className={cn("w-4 h-4", project.isFavorite && "fill-current")} />
+                <Heart className={cn("w-3.5 h-3.5", project.isFavorite && "fill-current")} />
               )}
             </Button>
             <DropdownMenu>
@@ -117,9 +117,9 @@ export function DashboardProjectCard({
                     e.stopPropagation()
                   }}
                   aria-label={`Actions for ${project.name}`}
-                  className="h-8 w-8 rounded-full bg-[#0E0E10]/70 backdrop-blur-sm border border-white/[0.04] text-white hover:bg-[#0E0E10]/90"
+                  className="h-7 w-7 rounded-full bg-[#0E0E10]/70 backdrop-blur-sm border border-white/[0.04] text-white hover:bg-[#0E0E10]/90"
                 >
-                  <MoreHorizontal className="w-4 h-4" />
+                  <MoreHorizontal className="w-3.5 h-3.5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="bg-[#0E0E10] border-white/[0.04] text-[#E7E7E9]">
@@ -171,10 +171,10 @@ export function DashboardProjectCard({
             </DropdownMenu>
           </div>
 
-          <div className="absolute top-2 left-2">
+          <div className="absolute top-1.5 left-1.5">
             <span
               className={cn(
-                "text-[10px] px-1.5 py-0.5 rounded border backdrop-blur-sm",
+                "text-[9px] px-1 py-0.5 rounded border backdrop-blur-sm",
                 project.isPrivate
                   ? "bg-[#0E0E10]/50 text-[#9B9B9F] border-white/[0.04]"
                   : "bg-white/5 text-[#E7E7E9] border-white/10"
@@ -186,20 +186,20 @@ export function DashboardProjectCard({
         </div>
 
         {/* Info section */}
-        <div className="p-2.5">
-          <h3 className="font-medium text-sm text-[#E7E7E9] truncate mb-1.5">
+        <div className="p-2">
+          <h3 className="font-medium text-xs sm:text-sm text-[#E7E7E9] truncate mb-1">
             {project.name}
           </h3>
-          <div className="flex items-center justify-between text-xs text-[#9B9B9F]">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between text-[11px] text-[#9B9B9F]">
+            <div className="flex items-center gap-1.5">
               <span>{formatNumber(project.views)} views</span>
               <span>\u2022</span>
               <div className="flex items-center gap-0.5">
-                <Heart className="w-3 h-3" />
+                <Heart className="w-2.5 h-2.5" />
                 <span>{formatNumber(project.likes)}</span>
               </div>
             </div>
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-white/5 text-[#9B9B9F] border border-white/10">
+            <span className="px-1 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider bg-white/5 text-[#9B9B9F] border border-white/10">
               Free
             </span>
           </div>

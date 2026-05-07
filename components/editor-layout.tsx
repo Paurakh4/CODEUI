@@ -9,6 +9,7 @@ import { VersionHistory, type Version as HistoryVersion } from "@/components/ver
 import { AI_Prompt } from "@/components/ui/animated-ai-input"
 import { PreviewFrame, extractSelectedElementInfo, type SelectedElementInfo } from "@/components/preview-frame"
 import { CodeEditor } from "@/components/code-editor"
+import { LiveCodePreview } from "@/components/live-code-preview"
 import { StylePanel, type SelectedElement, type StyleProperty, type StyleChange } from "@/components/style-panel"
 import { TextShimmer } from "@/components/ui/text-shimmer";
 import { ChevronDown, ChevronLeft, PanelLeftClose, X, ChevronUp, RotateCcw } from "lucide-react"
@@ -565,10 +566,6 @@ function getStreamingCodePreview(value: string): string {
     .trimEnd()
 }
 
-function getStreamingPreviewEditorHeight(value: string): number {
-  const lineCount = Math.max(4, value.split("\n").length)
-  return Math.min(360, Math.max(128, lineCount * 18 + 40))
-}
 
 interface EditorLayoutNewProps {
   initialPrompt?: string
@@ -2934,9 +2931,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   }
 
   const liveGenerationCode = getStreamingCodePreview(draftAiOutput)
-  const liveGenerationEditorValue = liveGenerationCode || "<!-- Generating interface... -->"
-  const liveGenerationEditorHeight = getStreamingPreviewEditorHeight(liveGenerationEditorValue)
-  const liveGenerationPanelHeight = liveGenerationEditorHeight + 42
+  const liveGenerationEditorValue = liveGenerationCode
 
   return (
     <div className="flex h-dvh overflow-hidden bg-zinc-950 text-zinc-100">
@@ -2956,12 +2951,12 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="flex h-full w-full flex-col bg-[#0a0a0a] sm:border border-zinc-800/80 sm:rounded-[24px] overflow-hidden sm:shadow-2xl">
+        <div className="flex h-full w-full flex-col bg-[#0a0a0a] sm:border border-zinc-800/80 sm:rounded-[20px] overflow-hidden sm:shadow-2xl">
           {/* Sidebar Header */}
-        <div className="h-10 px-4 flex items-center justify-between mt-1 sm:mt-0">
-          <div className="flex items-center gap-3">
+        <div className="h-8 px-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
             <button
-              className="group p-1 rounded-md flex items-center justify-center relative"
+              className="group p-0.5 rounded-md flex items-center justify-center relative"
               onClick={() => {
                 if (onBack) {
                   onBack()
@@ -2973,61 +2968,61 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
               <img
                 src="/Codeui.svg"
                 alt="CodeUI"
-                className="h-7 w-auto group-hover:opacity-0 transition-opacity"
+                className="h-5 w-auto group-hover:opacity-0 transition-opacity"
               />
-              <ChevronLeft className="absolute w-5 h-5 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <ChevronLeft className="absolute w-4 h-4 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity" />
             </button>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               <input
                 type="text"
                 value={projectName}
                 onChange={(e) => setProjectName(e.target.value)}
-                className="bg-transparent text-sm font-medium text-zinc-200 focus:outline-none focus:ring-1 focus:ring-zinc-700 rounded px-1 -ml-1"
+                className="bg-transparent text-xs font-medium text-zinc-200 focus:outline-none focus:ring-1 focus:ring-zinc-700 rounded px-1 -ml-1"
               />
               {hasUnsavedChanges && (
-                <span className="w-2 h-2 bg-orange-500 rounded-full" title="Unsaved changes" />
+                <span className="w-1.5 h-1.5 bg-orange-500 rounded-full" title="Unsaved changes" />
               )}
             </div>
           </div>
           
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5">
             <button
               onClick={() => setSidebarOpen(false)}
-              className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors"
+              className="p-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors"
               title="Collapse sidebar"
               aria-label="Collapse sidebar"
             >
-              <PanelLeftClose className="w-4 h-4" />
+              <PanelLeftClose className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={handleResetChat}
-              className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors"
+              className="p-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors"
               title="Reset Chat"
             >
-              <RotateCcw className="w-4 h-4" />
+              <RotateCcw className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
 
         {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 min-h-0 min-w-0">
+        <div className="flex-1 overflow-y-auto px-3 py-3 min-h-0 min-w-0">
           {messages.length === 0 && !pendingDesignDiscovery ? (
-            <div className="flex flex-col items-center justify-center h-full text-center px-4">
-              <div className="mb-2 flex items-center justify-center">
-                <SolarCodeSquareLinear className="w-8 h-8 text-purple-400" />
+            <div className="flex flex-col items-center justify-center h-full text-center px-3">
+              <div className="mb-1.5 flex items-center justify-center">
+                <SolarCodeSquareLinear className="w-6 h-6 text-purple-400" />
               </div>
-              <h3 className="text-lg font-semibold text-zinc-200 mb-2">
+              <h3 className="text-sm font-semibold text-zinc-200 mb-1">
                 Start Building
               </h3>
-              <p className="text-sm text-zinc-500 mb-6 max-w-[280px]">
+              <p className="text-[11px] text-zinc-500 mb-3 max-w-[240px]">
                 Describe the website you want to create. Be as detailed as you like!
               </p>
-              <div className="space-y-2 w-full">
+              <div className="space-y-1.5 w-full">
                 {EXAMPLE_PROMPTS.slice(0, 3).map((prompt, i) => (
                   <button
                     key={i}
                     onClick={() => handleSend(prompt)}
-                    className="w-full text-left text-xs text-zinc-400 hover:text-zinc-200 bg-zinc-900 hover:bg-zinc-800 rounded-lg px-3 py-2 transition-colors"
+                    className="w-full text-left text-[11px] text-zinc-400 hover:text-zinc-200 bg-zinc-900 hover:bg-zinc-800 rounded-md px-2.5 py-1.5 transition-colors"
                   >
                     {prompt.slice(0, 60)}...
                   </button>
@@ -3035,7 +3030,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {messages.map((message, index) => {
                 const isActiveAssistantGeneration =
                   isGenerating &&
@@ -3045,7 +3040,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                   !message.content
 
                 return (
-                <div key={message.id} className="space-y-2">
+                <div key={message.id} className="space-y-1.5">
                   <div
                     className={cn(
                       "flex",
@@ -3054,7 +3049,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                   >
                     <div
                       className={cn(
-                        "rounded-xl px-4 py-2.5 max-w-[90%]",
+                        "rounded-lg px-3 py-1.5 max-w-[90%]",
                         message.role === "user"
                           ? "bg-[#27272A] text-zinc-100"
                           : "bg-transparent text-zinc-100"
@@ -3062,16 +3057,16 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                     >
                       {message.role === "assistant" && message.isThinking && !message.content ? (
                         <div className="space-y-3">
-                          <div className="flex items-center gap-2">
-                            <TextShimmer className="font-mono text-sm" duration={1}>
+                          <div className="flex items-center gap-1.5">
+                            <TextShimmer className="font-mono text-xs" duration={1}>
                               {message.progressLabel || "Generating code..."}
                             </TextShimmer>
                             <button
                               onClick={cancelAI}
                               aria-label="Cancel generation"
-                              className="p-1 rounded-md hover:bg-zinc-800 text-zinc-400"
+                              className="p-0.5 rounded-md hover:bg-zinc-800 text-zinc-400"
                             >
-                              <X className="w-3.5 h-3.5" />
+                              <X className="w-3 h-3" />
                             </button>
                           </div>
 
@@ -3079,76 +3074,40 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                             {isActiveAssistantGeneration ? (
                               <motion.div
                                 key="live-generation-preview"
-                                initial={{ height: 0, opacity: 0, y: -8 }}
-                                animate={{ height: liveGenerationPanelHeight, opacity: 1, y: 0 }}
-                                exit={{ height: 0, opacity: 0, y: -8 }}
+                                initial={{ opacity: 0, y: -8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -8 }}
                                 transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
                                 className="overflow-hidden"
                               >
-                                <div className="overflow-hidden rounded-2xl border border-zinc-800/80 bg-[#050505] shadow-[0_18px_50px_rgba(0,0,0,0.35)]">
-                                  <div className="flex items-center justify-between border-b border-zinc-800/80 bg-zinc-950/90 px-3 py-2">
-                                    <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-zinc-400">
-                                      <span className="h-2 w-2 rounded-full bg-emerald-400/80 shadow-[0_0_12px_rgba(74,222,128,0.55)]" />
-                                      Live code preview
-                                    </div>
-                                    <span className="text-[11px] text-zinc-500">
-                                      {liveGenerationEditorValue.split("\n").length} lines
-                                    </span>
-                                  </div>
-
-                                  <motion.div
-                                    animate={{ height: liveGenerationEditorHeight }}
-                                    transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-                                    className="bg-[#050505]"
-                                  >
-                                    <CodeEditor
-                                      value={liveGenerationEditorValue}
-                                      language="html"
-                                      readOnly
-                                      className="h-full"
-                                      modelPath={`/project/${projectId || "new"}/stream-preview.html`}
-                                      editorOptions={{
-                                        minimap: { enabled: false },
-                                        fontSize: 12,
-                                        lineHeight: 18,
-                                        lineNumbersMinChars: 3,
-                                        glyphMargin: false,
-                                        folding: false,
-                                        domReadOnly: true,
-                                        renderLineHighlight: "none",
-                                        overviewRulerLanes: 0,
-                                        padding: { top: 12, bottom: 12 },
-                                      }}
-                                    />
-                                  </motion.div>
-                                </div>
+                                <LiveCodePreview code={liveGenerationEditorValue} />
                               </motion.div>
                             ) : null}
                           </AnimatePresence>
                         </div>
                       ) : (
-                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        <p className="text-xs whitespace-pre-wrap">{message.content}</p>
                       )} 
                     </div>
                   </div>
                   
                   {/* Thinking panel for assistant */}
                   {message.role === "assistant" && message.thinkingContent && (
-                    <div className="ml-2">
+                    <div className="ml-1">
                       <button
                         onClick={() => setThinkingExpanded(!thinkingExpanded)}
-                        className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-400 transition-colors"
+                        className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-400 transition-colors"
                       >
                         {thinkingExpanded ? (
-                          <ChevronUp className="w-3 h-3" />
+                          <ChevronUp className="w-2.5 h-2.5" />
                         ) : (
-                          <ChevronDown className="w-3 h-3" />
+                          <ChevronDown className="w-2.5 h-2.5" />
                         )}
                         Thinking
                       </button>
                       {thinkingExpanded && (
-                        <div className="mt-2 p-3 bg-zinc-900 rounded-lg border border-zinc-800">
-                          <p className="text-xs text-zinc-500 whitespace-pre-wrap">
+                        <div className="mt-1.5 p-2 bg-zinc-900 rounded-lg border border-zinc-800">
+                          <p className="text-[11px] text-zinc-500 whitespace-pre-wrap">
                             {message.thinkingContent}
                           </p>
                         </div>
@@ -3183,10 +3142,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           )}
         </div>
 
-
-
         {/* Chat Input */}
-        <div className="p-4 border-t border-zinc-800">
+        <div className="p-3 border-t border-zinc-800">
           <AI_Prompt 
             onSend={handleSend}
             onEnhance={handleEnhancePrompt}

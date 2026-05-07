@@ -40,6 +40,7 @@ interface Project {
 
 interface DashboardMainProps {
   onStart: (prompt?: string, model?: string) => void
+  isStartingProject?: boolean
   billingSyncState?: "idle" | "processing" | "confirmed" | "failed"
   billingSyncMessage?: string | null
   isPricingOpen?: boolean
@@ -49,6 +50,7 @@ interface DashboardMainProps {
 
 export function DashboardMain({
   onStart,
+  isStartingProject = false,
   billingSyncState = "idle",
   billingSyncMessage = null,
   isPricingOpen: controlledPricingOpen,
@@ -115,7 +117,7 @@ export function DashboardMain({
   }, [billingSyncState, refreshCredits])
 
   const handleSend = () => {
-    if (!promptValue.trim()) return
+    if (!promptValue.trim() || isStartingProject) return
     onStart(promptValue.trim(), selectedModelId)
   }
 
@@ -386,10 +388,10 @@ export function DashboardMain({
 
         {/* Billing Sync Banner */}
         {billingSyncState !== "idle" && billingSyncMessage && (
-          <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 pt-4 z-10">
+          <div className="w-full max-w-3xl mx-auto px-3 sm:px-4 pt-2 z-10">
             <div
               className={cn(
-                "flex items-center justify-between gap-3 rounded-xl border px-4 py-3 shadow-lg backdrop-blur-md",
+                "flex items-center justify-between gap-2 rounded-lg border px-3 py-2 shadow-md backdrop-blur-md",
                   billingSyncState === "processing" &&
                     "border-white/10 bg-white/5 text-[#E7E7E9]",
                   billingSyncState === "confirmed" &&
@@ -399,12 +401,12 @@ export function DashboardMain({
               )}
             >
               <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] opacity-80">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.2em] opacity-80">
                   {billingSyncState === "processing" && "Upgrade processing"}
                   {billingSyncState === "confirmed" && "Upgrade confirmed"}
                   {billingSyncState === "failed" && "Upgrade needs attention"}
                 </div>
-                <div className="mt-1 text-sm leading-5 text-current/90">
+                <div className="mt-0.5 text-xs leading-4 text-current/90">
                   {billingSyncMessage}
                 </div>
               </div>
@@ -412,7 +414,7 @@ export function DashboardMain({
                 <Button
                   variant="outline"
                   onClick={() => void onRetryBillingSync()}
-                  className="shrink-0 border-white/20 bg-black/20 text-white hover:bg-black/30 rounded-lg"
+                  className="shrink-0 border-white/20 bg-black/20 text-white hover:bg-black/30 rounded-lg h-7 text-[11px]"
                 >
                   Retry check
                 </Button>
@@ -430,6 +432,7 @@ export function DashboardMain({
               onSend={handleSend}
               onEnhance={handleEnhancePrompt}
               isEnhancing={isEnhancing}
+              isStartingProject={isStartingProject}
               selectedModelId={selectedModelId}
               selectedModelName={selectedModelName}
               availableModels={availableModels}
@@ -437,7 +440,11 @@ export function DashboardMain({
               getModelIcon={getModelIcon}
               onModelChange={setModel}
               onStartLandingPage={startLandingPage}
-              onStartBlankProject={() => onStart(undefined, selectedModelId)}
+              onStartBlankProject={() => {
+                if (!isStartingProject) {
+                  onStart(undefined, selectedModelId)
+                }
+              }}
             />
           ) : (
             <DashboardProjectsGrid
