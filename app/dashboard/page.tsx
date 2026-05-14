@@ -8,8 +8,6 @@ import { useSession } from "next-auth/react"
 import { deriveProjectNameFromPrompt } from "@/lib/utils/project-name"
 import { storePendingProjectStart } from "@/lib/utils/project-bootstrap"
 import { pollCheckoutSync, type CheckoutSyncResponse } from "@/lib/payments/checkout-sync"
-import { ProjectTransitionOverlay } from "@/components/project-transition-overlay"
-import { AnimatePresence } from "framer-motion"
 
 type BillingSyncState = "idle" | "processing" | "confirmed" | "failed"
 
@@ -274,15 +272,6 @@ function DashboardContent() {
           }
         }}
       />
-      <AnimatePresence>
-        {openingProject ? (
-          <ProjectTransitionOverlay
-            phase="launching"
-            prompt={openingProject.prompt}
-            modelName={openingProject.model}
-          />
-        ) : null}
-      </AnimatePresence>
     </>
   )
 }

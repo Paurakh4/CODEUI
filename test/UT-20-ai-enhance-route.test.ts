@@ -83,6 +83,44 @@ describe("UT-20 AI enhance route", () => {
     })
   })
 
+  it("treats short app prompts like calculators as UI requests", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      createOpenRouterResponse(
+        "Create a polished calculator app with clearer keypad hierarchy, stronger display emphasis, and refined interaction feedback while keeping the same simple scope.",
+      ),
+    ) as typeof global.fetch
+
+    const { POST } = await import("@/app/api/ai/enhance/route")
+    const response = await POST(createRequest({ prompt: "Create a calculator" }))
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data).toMatchObject({
+      enhancedPrompt: expect.stringContaining("calculator app"),
+    })
+    expect(data.skipped).not.toBe(true)
+    expect(global.fetch).toHaveBeenCalledOnce()
+  })
+
+  it("enhances generic build prompts like birthday surprise cards", async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      createOpenRouterResponse(
+        "Build a playful interactive birthday surprise card with a celebratory reveal, stronger message hierarchy, and memorable delight moments while preserving the same lightweight scope.",
+      ),
+    ) as typeof global.fetch
+
+    const { POST } = await import("@/app/api/ai/enhance/route")
+    const response = await POST(createRequest({ prompt: "Build a cool birthday wish surprise card" }))
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data).toMatchObject({
+      enhancedPrompt: expect.stringContaining("birthday surprise card"),
+    })
+    expect(data.skipped).not.toBe(true)
+    expect(global.fetch).toHaveBeenCalledOnce()
+  })
+
   it("skips non-ui requests and returns a warning", async () => {
     global.fetch = vi.fn() as typeof global.fetch
 

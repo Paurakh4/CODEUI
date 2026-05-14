@@ -38,6 +38,16 @@ describe("prompt enhancement", () => {
     expect(isLikelyUiPrompt("Add a testimonials section below the pricing cards and tighten the spacing")).toBe(true)
   })
 
+  it("treats short generated app prompts as enhanceable UI requests", () => {
+    expect(isLikelyUiPrompt("Create a calculator")).toBe(true)
+    expect(detectPromptEnhancementWarning("Create a calculator")).toBeUndefined()
+  })
+
+  it("treats generic build prompts like birthday surprise cards as enhanceable", () => {
+    expect(isLikelyUiPrompt("Build a cool birthday wish surprise card")).toBe(true)
+    expect(detectPromptEnhancementWarning("Build a cool birthday wish surprise card")).toBeUndefined()
+  })
+
   it("flags very long prompts for summarize-and-structure handling", () => {
     const longPrompt = `${"Build a web app dashboard for finance teams with dense tables and filters. ".repeat(30)}`
 

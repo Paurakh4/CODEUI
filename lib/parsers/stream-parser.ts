@@ -34,6 +34,21 @@ export interface AIResponseValidationResult {
 
 const logger = createRepromptLogger('stream-parser');
 
+const FRAMEWORK_HTML_MARKERS: Array<{ pattern: RegExp; reason: string }> = [
+  { pattern: /\bclassName\s*=/, reason: 'AI response used React className syntax instead of plain HTML.' },
+  { pattern: /\bhtmlFor\s*=/, reason: 'AI response used React htmlFor syntax instead of plain HTML.' },
+  {
+    pattern: /\bon[A-Z][A-Za-z0-9]*\s*=/,
+    reason: 'AI response used framework-style camelCase event handlers instead of browser-ready JavaScript.',
+  },
+  { pattern: /\b@click\s*=/, reason: 'AI response used Vue directive syntax instead of plain HTML.' },
+  { pattern: /\bv-(?:if|for|model|bind|on|show|slot|html|text)\b/, reason: 'AI response used Vue directive syntax instead of plain HTML.' },
+  { pattern: /\buse(?:State|Effect|Memo|Callback|Ref|Reducer|Context)\s*\(/, reason: 'AI response used React hook syntax instead of inline JavaScript.' },
+  { pattern: /\bimport\s+React\b/, reason: 'AI response imported React instead of returning a standalone HTML document.' },
+  { pattern: /\bexport\s+default\b/, reason: 'AI response exported a component instead of returning a standalone HTML document.' },
+  { pattern: /\bReactDOM\.(?:render|createRoot)\b/, reason: 'AI response depended on a React runtime instead of plain HTML.' },
+];
+
 export function detectIncompletePatchBlocks(content: string): number {
   const searchMatches = content.match(new RegExp(escapeRegExp(SEARCH_START), 'g'))?.length ?? 0;
   const replaceMatches = content.match(new RegExp(escapeRegExp(REPLACE_END), 'g'))?.length ?? 0;
@@ -64,6 +79,11 @@ export function validateAIResponse(content: string): AIResponseValidationResult 
 
   if (looksLikeNarration && !hasPatchMarkers && !hasHtmlDocument && !hasHtmlCodeFence) {
     return { valid: false, reason: 'AI response contained narration without actionable HTML or patches' };
+  }
+
+  const frameworkMarker = FRAMEWORK_HTML_MARKERS.find(({ pattern }) => pattern.test(trimmed));
+  if (frameworkMarker && (hasHtmlDocument || hasHtmlCodeFence)) {
+    return { valid: false, reason: frameworkMarker.reason };
   }
 
   return { valid: true };

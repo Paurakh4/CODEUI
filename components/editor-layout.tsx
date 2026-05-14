@@ -9,7 +9,6 @@ import { VersionHistory, type Version as HistoryVersion } from "@/components/ver
 import { AI_Prompt } from "@/components/ui/animated-ai-input"
 import { PreviewFrame, extractSelectedElementInfo, type SelectedElementInfo } from "@/components/preview-frame"
 import { CodeEditor } from "@/components/code-editor"
-import { LiveCodePreview } from "@/components/live-code-preview"
 import { StylePanel, type SelectedElement, type StyleProperty, type StyleChange } from "@/components/style-panel"
 import { TextShimmer } from "@/components/ui/text-shimmer";
 import { ChevronDown, ChevronLeft, PanelLeftClose, X, ChevronUp, RotateCcw } from "lucide-react"
@@ -138,8 +137,6 @@ interface PendingDesignDiscovery {
 
 const MONGO_OBJECT_ID_REGEX = /^[a-f\d]{24}$/i
 const STREAM_PROTOCOL_MARKER_REGEX = /(?:^|\n)\s*(?:<<<<<<<|=======|>>>>>>>)/m
-const STREAM_CODE_FENCE_LINE_REGEX = /^```[a-z0-9_-]*\s*$/i
-const STREAM_PROTOCOL_LINE_REGEX = /^(<<<<<<<|=======|>>>>>>>)/
 
 const createEditorEntityId = (prefix: string): string => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -545,27 +542,6 @@ function getRenderableStreamingHtml(value: string): string | null {
   return candidate
 }
 
-function getStreamingCodePreview(value: string): string {
-  const normalizedValue = value.replace(/\r\n/g, "\n")
-  if (!normalizedValue.trim()) {
-    return ""
-  }
-
-  const extractedHtml = extractHtml(normalizedValue)
-  if (extractedHtml) {
-    return extractedHtml
-  }
-
-  return normalizedValue
-    .split("\n")
-    .filter((line) => {
-      const trimmedLine = line.trim()
-      return !STREAM_CODE_FENCE_LINE_REGEX.test(trimmedLine) && !STREAM_PROTOCOL_LINE_REGEX.test(trimmedLine)
-    })
-    .join("\n")
-    .trimEnd()
-}
-
 
 interface EditorLayoutNewProps {
   initialPrompt?: string
@@ -681,7 +657,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   const requestStableHtmlRef = useRef<string>(LOADING_HTML)
   const lastPatchFailureRef = useRef<PatchFailureContext | null>(null)
   const previewRef = useRef<HTMLIFrameElement>(null)
-  const activeAiRequestRef = useRef<{ isFollowUp: boolean; recoveryMode?: RecoveryMode }>({ isFollowUp: false })
+  const activeAiRequestRef = useRef<{
+    isFollowUp: boolean
+    recoveryMode?: RecoveryMode
+    assistantMessageId?: string
+  }>({ isFollowUp: false })
   const [previewUpdateSignal, setPreviewUpdateSignal] = useState<{ token: number; mode: "full" | "style" }>({
     token: 0,
     mode: "full",
@@ -1038,6 +1018,55 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     }
   }, [session, showSignIn, state.selectedModel, toast])
 
+  const requestGenerationAssistantMessage = useCallback(async ({
+    prompt,
+    html,
+    isFollowUp,
+    model,
+  }: {
+    prompt: string
+    html: string
+    isFollowUp: boolean
+    model?: string
+  }) => {
+    const trimmedPrompt = prompt.trim()
+    const trimmedHtml = html.trim()
+
+    if (!trimmedPrompt || !trimmedHtml || !session?.user?.id) {
+      return null
+    }
+
+    try {
+      const response = await fetch("/api/ai/generation-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: trimmedPrompt,
+          html: trimmedHtml,
+          isFollowUp,
+          model: model ?? state.selectedModel,
+        }),
+      })
+
+      if (response.status === 401) {
+        return null
+      }
+
+      const data = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to generate assistant message")
+      }
+
+      return typeof data?.assistantMessage === "string" && data.assistantMessage.trim()
+        ? data.assistantMessage.trim()
+        : null
+    } catch (error) {
+      console.error("Error generating assistant message:", error)
+      return null
+    }
+  }, [session?.user?.id, state.selectedModel])
+
   const handleComposerDraftChange = useCallback((draft: string) => {
     const trimmedDraft = draft.trim()
     if (
@@ -1339,26 +1368,37 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   }, [htmlContent, templateReloadKey])
 
   const finalizeAssistantMessage = useCallback(
-    (content: string) => {
+    (content: string, assistantMessageId?: string) => {
       const lastMessage = messagesRef.current[messagesRef.current.length - 1]
-      const assistantMessageToPersist = lastMessage && lastMessage.role === "assistant"
+      const targetMessageId = assistantMessageId
+        ?? (lastMessage && lastMessage.role === "assistant" ? lastMessage.id : undefined)
+      const targetMessage = targetMessageId
+        ? messagesRef.current.find((message) => message.id === targetMessageId && message.role === "assistant")
+        : null
+      const assistantMessageToPersist = targetMessage
         ? {
             role: "assistant" as const,
             content,
-            thinkingContent: lastMessage.thinkingContent,
+            thinkingContent: targetMessage.thinkingContent,
           }
         : null
 
       setMessages((prev) => {
-        const currentLastMessage = prev[prev.length - 1]
-        if (currentLastMessage && currentLastMessage.role === "assistant") {
-          return prev.map((m, i) =>
-            i === prev.length - 1
-              ? { ...m, isThinking: false, content, progressLabel: undefined }
-              : m
-          )
+        if (!targetMessageId) {
+          return prev
         }
-        return prev
+
+        let didUpdate = false
+        const nextMessages = prev.map((message) => {
+          if (message.id !== targetMessageId || message.role !== "assistant") {
+            return message
+          }
+
+          didUpdate = true
+          return { ...message, isThinking: false, content, progressLabel: undefined }
+        })
+
+        return didUpdate ? nextMessages : prev
       })
 
       if (assistantMessageToPersist) {
@@ -1388,7 +1428,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     })
   }, [])
 
-  const finalizeGenerationSuccess = useCallback((summary: string) => {
+  const finalizeGenerationSuccess = useCallback(() => {
     setDraftAiOutput("")
     setApplyingPatch(false)
     setViewMode("preview")
@@ -1398,7 +1438,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       [htmlContentRef.current, lastAppliedHtml.current],
       LOADING_HTML,
     )
-    finalizeAssistantMessage(summary)
 
     if (htmlContentRef.current) {
       createCheckpoint("AI-generated update", {
@@ -1407,7 +1446,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         trigger: "after-ai",
       })
     }
-  }, [createCheckpoint, finalizeAssistantMessage, setApplyingPatch])
+  }, [createCheckpoint, setApplyingPatch])
 
   const {
     sendMessage: sendAIMessage,
@@ -1723,17 +1762,47 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       scopeRecoveryAttemptsRef.current = 0
       setPendingRecovery(null)
       lastPatchFailureRef.current = null
+      const assistantMessageId = activeRequest.assistantMessageId
       const finalHtml = hasCompleteHtml ? extractedHtml : htmlContentRef.current
-      const summary = isFollowUp
+      const fallbackSummary = isFollowUp
         ? buildFollowUpSummary(lastUserPromptRef.current, finalHtml)
         : buildGenerationSummary({
             prompt: lastUserPromptRef.current,
             html: finalHtml,
           })
-      const finalSummary = hasPromptScopeIssues && hasCompleteHtml
-        ? `${summary}\nScope note: ${scopeFailureMessage} The latest complete UI was kept in the editor.`
-        : summary
-      finalizeGenerationSuccess(finalSummary)
+      const fallbackAssistantMessage = hasPromptScopeIssues && hasCompleteHtml
+        ? `${fallbackSummary}\nScope note: ${scopeFailureMessage} The latest complete UI was kept in the editor.`
+        : fallbackSummary
+
+      finalizeGenerationSuccess()
+
+      if (!assistantMessageId) {
+        finalizeAssistantMessage(fallbackAssistantMessage)
+        return
+      }
+
+      setMessages((prev) => prev.map((message) =>
+        message.id === assistantMessageId && message.role === "assistant"
+          ? { ...message, isThinking: true, progressLabel: "Writing response..." }
+          : message,
+      ))
+
+      void (async () => {
+        const assistantMessage = await requestGenerationAssistantMessage({
+          prompt: lastUserPromptRef.current,
+          html: finalHtml,
+          isFollowUp,
+          model: result.meta?.modelUsed ?? state.selectedModel,
+        })
+
+        const resolvedSummary = assistantMessage
+          ? hasPromptScopeIssues && hasCompleteHtml
+            ? `${assistantMessage}\n\nScope note: ${scopeFailureMessage} The latest complete UI was kept in the editor.`
+            : assistantMessage
+          : fallbackAssistantMessage
+
+        finalizeAssistantMessage(resolvedSummary, assistantMessageId)
+      })()
     },
     onError: (error) => {
       const activeRequest = activeAiRequestRef.current
@@ -1808,6 +1877,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     const recoveryRequest = pendingRecovery
     promptScopeRecoveryInFlightRef.current = Boolean(recoveryRequest.isPromptScopeRecovery)
     setPendingRecovery(null)
+    const activeAssistantMessage = messagesRef.current[messagesRef.current.length - 1]
 
     setApplyingPatch(true)
     setViewMode("code")
@@ -1815,6 +1885,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     activeAiRequestRef.current = {
       isFollowUp: true,
       recoveryMode: recoveryRequest.mode,
+      assistantMessageId: activeAssistantMessage?.role === "assistant" ? activeAssistantMessage.id : undefined,
     }
 
     void sendAIMessage({
@@ -1957,7 +2028,10 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       }
 
       try {
-        activeAiRequestRef.current = { isFollowUp }
+        activeAiRequestRef.current = {
+          isFollowUp,
+          assistantMessageId: assistantMessage.id,
+        }
         await sendAIMessage({
           prompt: trimmedMessage,
           currentHtml: isFollowUp ? htmlContentRef.current : undefined,
@@ -2930,9 +3004,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     }
   }
 
-  const liveGenerationCode = getStreamingCodePreview(draftAiOutput)
-  const liveGenerationEditorValue = liveGenerationCode
-
   return (
     <div className="flex h-dvh overflow-hidden bg-zinc-950 text-zinc-100">
       {/* Mobile overlay */}
@@ -3031,14 +3102,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
             </div>
           ) : (
             <div className="space-y-3">
-              {messages.map((message, index) => {
-                const isActiveAssistantGeneration =
-                  isGenerating &&
-                  index === messages.length - 1 &&
-                  message.role === "assistant" &&
-                  message.isThinking &&
-                  !message.content
-
+              {messages.map((message) => {
                 return (
                 <div key={message.id} className="space-y-1.5">
                   <div
@@ -3069,21 +3133,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                               <X className="w-3 h-3" />
                             </button>
                           </div>
-
-                          <AnimatePresence initial={false}>
-                            {isActiveAssistantGeneration ? (
-                              <motion.div
-                                key="live-generation-preview"
-                                initial={{ opacity: 0, y: -8 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -8 }}
-                                transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-                                className="overflow-hidden"
-                              >
-                                <LiveCodePreview code={liveGenerationEditorValue} />
-                              </motion.div>
-                            ) : null}
-                          </AnimatePresence>
                         </div>
                       ) : (
                         <p className="text-xs whitespace-pre-wrap">{message.content}</p>
@@ -3095,23 +3144,30 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                   {message.role === "assistant" && message.thinkingContent && (
                     <div className="ml-1">
                       <button
+                        type="button"
                         onClick={() => setThinkingExpanded(!thinkingExpanded)}
-                        className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-400 transition-colors"
-                      >
-                        {thinkingExpanded ? (
-                          <ChevronUp className="w-2.5 h-2.5" />
-                        ) : (
-                          <ChevronDown className="w-2.5 h-2.5" />
+                        aria-expanded={thinkingExpanded}
+                        className={cn(
+                          "w-full max-w-[90%] rounded-lg text-left transition-colors",
+                          thinkingExpanded
+                            ? "border border-zinc-800 bg-zinc-900 p-2 hover:border-zinc-700"
+                            : "text-zinc-500 hover:text-zinc-400"
                         )}
-                        Thinking
-                      </button>
-                      {thinkingExpanded && (
-                        <div className="mt-1.5 p-2 bg-zinc-900 rounded-lg border border-zinc-800">
+                      >
+                        <div className="flex items-center gap-1 text-[11px] text-zinc-500">
+                          {thinkingExpanded ? (
+                            <ChevronUp className="w-2.5 h-2.5" />
+                          ) : (
+                            <ChevronDown className="w-2.5 h-2.5" />
+                          )}
+                          Thinking
+                        </div>
+                        {thinkingExpanded ? (
                           <p className="text-[11px] text-zinc-500 whitespace-pre-wrap">
                             {message.thinkingContent}
                           </p>
-                        </div>
-                      )}
+                        ) : null}
+                      </button>
                     </div>
                   )}
                 </div>

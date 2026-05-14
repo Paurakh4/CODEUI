@@ -4,10 +4,6 @@ import { use, Suspense, useEffect, useRef, useState } from "react"
 import { EditorLayoutNew } from "@/components/editor-layout"
 import { useRouter, useSearchParams } from "next/navigation"
 import { consumePendingProjectStart } from "@/lib/utils/project-bootstrap"
-import { ProjectTransitionOverlay } from "@/components/project-transition-overlay"
-import { AnimatePresence } from "framer-motion"
-
-const ARRIVAL_OVERLAY_DURATION_MS = 6000
 
 interface InitialProjectRequest {
   prompt?: string
@@ -21,7 +17,6 @@ function ProjectContent({ id }: { id: string }) {
   const modelFromUrl = searchParams.get("model") || undefined
   const [initialRequest, setInitialRequest] = useState<InitialProjectRequest>({})
   const [isInitialRequestResolved, setIsInitialRequestResolved] = useState(false)
-  const [showArrivalTransition, setShowArrivalTransition] = useState(Boolean(promptFromUrl || modelFromUrl))
   const hasResolvedInitialRequestRef = useRef(false)
   const resolvedPrompt = promptFromUrl ?? initialRequest.prompt
   const resolvedModel = modelFromUrl ?? initialRequest.model
@@ -47,12 +42,11 @@ function ProjectContent({ id }: { id: string }) {
     const pendingRequest = consumePendingProjectStart(id)
     hasResolvedInitialRequestRef.current = true
     setInitialRequest(pendingRequest || {})
-    setShowArrivalTransition(Boolean(pendingRequest?.prompt || pendingRequest?.model))
     setIsInitialRequestResolved(true)
   }, [id, modelFromUrl, promptFromUrl, router])
 
   if (!isInitialRequestResolved && !promptFromUrl && !modelFromUrl) {
-    return <ProjectTransitionOverlay phase="loading" />
+    return <div className="dark h-dvh overflow-hidden bg-zinc-950" />
   }
 
   return (
@@ -63,17 +57,6 @@ function ProjectContent({ id }: { id: string }) {
         initialModel={resolvedModel} 
         onBack={() => router.push("/dashboard")}
       />
-      <AnimatePresence>
-        {showArrivalTransition ? (
-          <ProjectTransitionOverlay
-            phase="launching"
-            prompt={resolvedPrompt}
-            modelName={resolvedModel}
-            duration={ARRIVAL_OVERLAY_DURATION_MS}
-            onComplete={() => setShowArrivalTransition(false)}
-          />
-        ) : null}
-      </AnimatePresence>
     </div>
   )
 }
@@ -82,7 +65,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const { id } = use(params)
   
   return (
-    <Suspense fallback={<ProjectTransitionOverlay phase="loading" />}>
+    <Suspense fallback={<div className="dark h-dvh overflow-hidden bg-zinc-950" />}>
       <ProjectContent id={id} />
     </Suspense>
   )

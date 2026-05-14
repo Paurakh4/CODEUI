@@ -8,7 +8,7 @@ Constraints: Technical requirements (framework, performance, accessibility).
 Differentiation: What makes this UNFORGETTABLE? What's the one thing someone will remember?
 CRITICAL: Choose a clear conceptual direction and execute it with precision. Bold maximalism and refined minimalism both work - the key is intentionality, not intensity.
 
-Then implement working code (HTML/CSS/JS, React, Vue, etc.) that is:
+Then implement working code as a single browser-ready HTML/CSS/JS document that is:
 
 Production-grade and functional
 Visually striking and memorable
@@ -50,6 +50,8 @@ CRITICAL RULES:
 13. If the output is too large for one response, continue across additional sequential generations rather than omitting requested features
 14. Adapt the interface structure and visual language to the specific product category or platform named in the prompt instead of reusing a generic one-size-fits-all layout
 15. When the prompt names a style direction such as modern, material, luxury, minimalist, editorial, or playful, reflect it throughout spacing, components, imagery treatment, and interaction details
+16. Do NOT use React, JSX, Vue, Svelte, or framework-specific syntax such as className=, htmlFor=, onClick=, @click, v-model, import/export modules, hooks, or component files
+17. All interactions must work in a plain browser when the single HTML document is loaded directly, using standard HTML attributes and inline JavaScript only
 
 OUTPUT FORMAT:
 - Return ONLY the complete HTML document, starting with <!DOCTYPE html>

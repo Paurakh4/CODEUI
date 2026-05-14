@@ -30,6 +30,11 @@ const UI_PROMPT_PATTERNS = [
   /\bpricing\b/i,
   /\bform\b/i,
   /\bnavigation\b/i,
+  /\bgreeting card\b/i,
+  /\bbirthday card\b/i,
+  /\binvitation\b/i,
+  /\binvite\b/i,
+  /\bmicrosite\b/i,
 ]
 
 const NON_UI_PATTERNS = [
@@ -42,6 +47,58 @@ const NON_UI_PATTERNS = [
   /\bcalculate\b/i,
   /\btranslate\b/i,
   /\bsummarize article\b/i,
+]
+
+const CLEARLY_NON_UI_BUILD_PATTERNS = [
+  /\bapi\b/i,
+  /\bbackend\b/i,
+  /\bserver\b/i,
+  /\bdatabase\b/i,
+  /\bcli\b/i,
+  /\bcommand line\b/i,
+  /\bscript\b/i,
+  /\blibrary\b/i,
+  /\bsdk\b/i,
+  /\bparser\b/i,
+]
+
+const UI_CREATION_VERB_PATTERNS = [
+  /\bcreate\b/i,
+  /\bbuild\b/i,
+  /\bdesign\b/i,
+  /\bmake\b/i,
+  /\bgenerate\b/i,
+  /\bcraft\b/i,
+]
+
+const GENERIC_BUILD_INTENT_PATTERNS = [
+  /\bcreate\b/i,
+  /\bbuild\b/i,
+  /\bdesign\b/i,
+  /\bgenerate\b/i,
+  /\bcraft\b/i,
+]
+
+const UI_PRODUCT_NOUN_PATTERNS = [
+  /\bcalculator\b/i,
+  /\btodo\b/i,
+  /\bto-do\b/i,
+  /\bplanner\b/i,
+  /\btracker\b/i,
+  /\btimer\b/i,
+  /\bstopwatch\b/i,
+  /\bpomodoro\b/i,
+  /\bcalendar\b/i,
+  /\bchat\b/i,
+  /\bmessenger\b/i,
+  /\bportfolio\b/i,
+  /\blogin\b/i,
+  /\bsign(?:\s|-)?up\b/i,
+  /\bconverter\b/i,
+  /\bplayer\b/i,
+  /\bquiz\b/i,
+  /\bgame\b/i,
+  /\beditor\b/i,
 ]
 
 const UI_EDIT_ACTION_PATTERNS = [
@@ -141,8 +198,27 @@ export function isLikelyUiPrompt(prompt: string): boolean {
     return false
   }
 
-  if (NON_UI_PATTERNS.some((pattern) => pattern.test(normalizedPrompt))) {
+  if (
+    NON_UI_PATTERNS.some((pattern) => pattern.test(normalizedPrompt)) ||
+    CLEARLY_NON_UI_BUILD_PATTERNS.some((pattern) => pattern.test(normalizedPrompt))
+  ) {
     return false
+  }
+
+  const looksLikeShortUiGeneratorRequest =
+    UI_CREATION_VERB_PATTERNS.some((pattern) => pattern.test(normalizedPrompt)) &&
+    UI_PRODUCT_NOUN_PATTERNS.some((pattern) => pattern.test(normalizedPrompt))
+
+  if (looksLikeShortUiGeneratorRequest) {
+    return true
+  }
+
+  const looksLikeGeneralBuildPrompt =
+    GENERIC_BUILD_INTENT_PATTERNS.some((pattern) => pattern.test(normalizedPrompt)) &&
+    normalizedPrompt.split(/\s+/).length >= 3
+
+  if (looksLikeGeneralBuildPrompt) {
+    return true
   }
 
   const looksLikeUiEditRequest =

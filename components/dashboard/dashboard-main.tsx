@@ -147,10 +147,26 @@ export function DashboardMain({
       if (!response.ok) {
         throw new Error(data?.error || "Failed to enhance prompt")
       }
+
+      if (data?.warning) {
+        toast({
+          title: data?.skipped ? "Prompt Enhance skipped" : "Prompt Enhance",
+          description: data.warning,
+        })
+      }
+
       const enhancedPrompt =
         typeof data?.enhancedPrompt === "string" && data.enhancedPrompt.trim()
           ? data.enhancedPrompt.trim()
           : trimmedPrompt
+
+      if (enhancedPrompt === trimmedPrompt && !data?.warning) {
+        toast({
+          title: "Prompt already clear",
+          description: "Prompt Enhance did not need to rewrite the current request.",
+        })
+      }
+
       setPromptValue(enhancedPrompt)
     } catch (error) {
       toast({
