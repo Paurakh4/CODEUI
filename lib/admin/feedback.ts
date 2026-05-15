@@ -28,14 +28,14 @@ interface FeedbackRow {
   adminNote?: string
   responseMessage?: string
   responseEmailStatus?: FeedbackEmailDeliveryStatus
-  responseEmailSentAt?: Date
+  responseEmailSentAt?: Date | string | number
   responseEmailError?: string
   responseEmailRecipient?: string
   pathname?: string
-  createdAt: Date
-  updatedAt: Date
-  readAt?: Date
-  respondedAt?: Date
+  createdAt?: Date | string | number
+  updatedAt?: Date | string | number
+  readAt?: Date | string | number
+  respondedAt?: Date | string | number
 }
 
 interface UserRow {
@@ -84,6 +84,60 @@ function createFeedbackPreview(message: string) {
   return `${normalized.slice(0, 177)}...`
 }
 
+const UNIX_EPOCH_ISO = new Date(0).toISOString()
+
+function normalizeDateValue(value: Date | string | number | null | undefined) {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? undefined : value
+  }
+
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value)
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed
+  }
+
+  return undefined
+}
+
+function getObjectIdTimestamp(id: { toString(): string } | null | undefined) {
+  const rawId = id?.toString()
+
+  if (!rawId || rawId.length < 8) {
+    return undefined
+  }
+
+  const seconds = Number.parseInt(rawId.slice(0, 8), 16)
+
+  if (!Number.isFinite(seconds)) {
+    return undefined
+  }
+
+  const derived = new Date(seconds * 1000)
+  return Number.isNaN(derived.getTime()) ? undefined : derived
+}
+
+function toIsoTimestamp(value: Date | string | number | null | undefined) {
+  return normalizeDateValue(value)?.toISOString()
+}
+
+function getCreatedAtIso(row: Pick<FeedbackRow, "_id" | "createdAt" | "updatedAt">) {
+  return (
+    toIsoTimestamp(row.createdAt) ??
+    toIsoTimestamp(row.updatedAt) ??
+    toIsoTimestamp(getObjectIdTimestamp(row._id)) ??
+    UNIX_EPOCH_ISO
+  )
+}
+
+function getUpdatedAtIso(row: Pick<FeedbackRow, "_id" | "createdAt" | "updatedAt">) {
+  return (
+    toIsoTimestamp(row.updatedAt) ??
+    toIsoTimestamp(row.createdAt) ??
+    toIsoTimestamp(getObjectIdTimestamp(row._id)) ??
+    UNIX_EPOCH_ISO
+  )
+}
+
 function mapFeedbackItem(row: FeedbackRow, userMap: Map<string, UserRow>): AdminFeedbackListItem {
   const userId = row.userId.toString()
   const user = userMap.get(userId)
@@ -95,16 +149,16 @@ function mapFeedbackItem(row: FeedbackRow, userMap: Map<string, UserRow>): Admin
     message: row.message,
     preview: createFeedbackPreview(row.message),
     pathname: row.pathname,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-    readAt: row.readAt?.toISOString(),
-    respondedAt: row.respondedAt?.toISOString(),
+    createdAt: getCreatedAtIso(row),
+    updatedAt: getUpdatedAtIso(row),
+    readAt: toIsoTimestamp(row.readAt),
+    respondedAt: toIsoTimestamp(row.respondedAt),
     adminNote: normalizeFeedbackText(row.adminNote),
     responseMessage: normalizeFeedbackText(row.responseMessage),
     responseEmail: {
       status: normalizeResponseEmailStatus(row.responseEmailStatus),
       recipient: row.responseEmailRecipient,
-      sentAt: row.responseEmailSentAt?.toISOString(),
+      sentAt: toIsoTimestamp(row.responseEmailSentAt),
       errorMessage: row.responseEmailError,
     },
     user: {
@@ -380,16 +434,16 @@ export async function updateAdminFeedbackStatus(input: {
       adminNote: currentAdminNote,
       responseMessage: currentResponseMessage,
       responseEmailStatus: normalizeResponseEmailStatus(currentFeedback.responseEmailStatus),
-      readAt: currentFeedback.readAt?.toISOString(),
-      respondedAt: currentFeedback.respondedAt?.toISOString(),
+      readAt: toIsoTimestamp(currentFeedback.readAt),
+      respondedAt: toIsoTimestamp(currentFeedback.respondedAt),
     },
     after: {
       status: updatedFeedback.status,
       adminNote: normalizeFeedbackText(updatedFeedback.adminNote),
       responseMessage: normalizeFeedbackText(updatedFeedback.responseMessage),
       responseEmailStatus: normalizeResponseEmailStatus(updatedFeedback.responseEmailStatus),
-      readAt: updatedFeedback.readAt?.toISOString(),
-      respondedAt: updatedFeedback.respondedAt?.toISOString(),
+      readAt: toIsoTimestamp(updatedFeedback.readAt),
+      respondedAt: toIsoTimestamp(updatedFeedback.respondedAt),
     },
     metadata: {
       emailDelivery: resolvedEmailDelivery,

@@ -420,7 +420,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
         }
 
         const nextError = err instanceof Error ? err : new Error("Unknown error")
-        logger.error("AI request failed", {
+        logger.warn("AI request failed", {
           phase: "stream",
           requestId,
           error: nextError.message,

@@ -82,7 +82,10 @@ export async function POST(request: Request) {
     const body = (await request.json()) as GenerationSummaryRequestBody
     const prompt = typeof body.prompt === "string" ? body.prompt.trim() : ""
     const html = typeof body.html === "string" ? body.html.trim() : ""
-    const model = body.model || runtimeDefaultModelId
+    const requestedModel = typeof body.model === "string" ? body.model.trim() : ""
+    const model = requestedModel && await isRuntimeModelEnabled(requestedModel)
+      ? requestedModel
+      : runtimeDefaultModelId
     const isFollowUp = body.isFollowUp === true
 
     if (!prompt) {
@@ -96,13 +99,6 @@ export async function POST(request: Request) {
     if (prompt.length > MAX_PROMPT_LENGTH) {
       return NextResponse.json(
         { error: `Prompt is too long. Maximum supported length is ${MAX_PROMPT_LENGTH} characters.` },
-        { status: 400 },
-      )
-    }
-
-    if (!(await isRuntimeModelEnabled(model))) {
-      return NextResponse.json(
-        { error: `Model \"${model}\" is not enabled or does not exist` },
         { status: 400 },
       )
     }

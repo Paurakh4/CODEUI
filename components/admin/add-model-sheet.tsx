@@ -428,9 +428,11 @@ export function AddModelSheet({
                 </PopoverTrigger>
                 <PopoverContent
                   align="start"
-                  className="w-[40rem] max-w-[calc(100vw-2rem)] p-0"
+                  className="w-[40rem] max-w-[calc(100vw-2rem)] overflow-hidden overscroll-contain p-0"
+                  onWheel={(event) => event.stopPropagation()}
+                  onTouchMove={(event) => event.stopPropagation()}
                 >
-                  <Command>
+                  <Command className="flex max-h-[min(36rem,calc(100vh-6rem))] min-h-0 flex-col">
                     <CommandInput placeholder="Search by name, model ID, or provider" />
                     <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
                       {OPENROUTER_FILTERS.map((filterOption) => (
@@ -459,7 +461,11 @@ export function AddModelSheet({
                         Refresh
                       </Button>
                     </div>
-                    <CommandList className="max-h-[22rem]">
+                    <CommandList
+                      className="min-h-0 flex-1 max-h-none overscroll-contain"
+                      onWheel={(event) => event.stopPropagation()}
+                      onTouchMove={(event) => event.stopPropagation()}
+                    >
                       <CommandEmpty>
                         {isLoadingOpenRouterModels
                           ? "Loading models..."

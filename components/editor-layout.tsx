@@ -137,6 +137,7 @@ interface PendingDesignDiscovery {
 
 const MONGO_OBJECT_ID_REGEX = /^[a-f\d]{24}$/i
 const STREAM_PROTOCOL_MARKER_REGEX = /(?:^|\n)\s*(?:<<<<<<<|=======|>>>>>>>)/m
+const MAX_ASSISTANT_SUMMARY_HTML_LENGTH = 20_000
 
 const createEditorEntityId = (prefix: string): string => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -542,6 +543,20 @@ function getRenderableStreamingHtml(value: string): string | null {
   return candidate
 }
 
+function buildAssistantSummaryHtmlSnapshot(html: string): string {
+  const normalized = html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+
+  if (normalized.length <= MAX_ASSISTANT_SUMMARY_HTML_LENGTH) {
+    return normalized
+  }
+
+  return `${normalized.slice(0, MAX_ASSISTANT_SUMMARY_HTML_LENGTH)}...`
+}
+
 
 interface EditorLayoutNewProps {
   initialPrompt?: string
@@ -635,6 +650,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
   const activeProjectKeyRef = useRef<string | null>(null)
   const messagesRef = useRef<Message[]>([])
+  const activeThinkingScrollRef = useRef<HTMLDivElement | null>(null)
+  const thinkingScrollFrameRef = useRef<number | null>(null)
   const designDiscoveryRequestRef = useRef(0)
   
   // Sync initialModel with global store
@@ -647,6 +664,31 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   useEffect(() => {
     messagesRef.current = messages
   }, [messages])
+
+  useEffect(() => {
+    if (!thinkingExpanded || !activeThinkingScrollRef.current) {
+      return
+    }
+
+    if (thinkingScrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(thinkingScrollFrameRef.current)
+    }
+
+    thinkingScrollFrameRef.current = window.requestAnimationFrame(() => {
+      const scrollViewport = activeThinkingScrollRef.current
+      if (scrollViewport) {
+        scrollViewport.scrollTop = scrollViewport.scrollHeight
+      }
+      thinkingScrollFrameRef.current = null
+    })
+
+    return () => {
+      if (thinkingScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(thinkingScrollFrameRef.current)
+        thinkingScrollFrameRef.current = null
+      }
+    }
+  }, [messages, thinkingExpanded])
 
   // Style History for undo/redo
   const [styleHistoryState, styleHistoryActions] = useStyleHistory(30)
@@ -1030,7 +1072,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     model?: string
   }) => {
     const trimmedPrompt = prompt.trim()
-    const trimmedHtml = html.trim()
+    const trimmedHtml = buildAssistantSummaryHtmlSnapshot(html)
 
     if (!trimmedPrompt || !trimmedHtml || !session?.user?.id) {
       return null
@@ -1055,14 +1097,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       const data = await response.json().catch(() => null)
 
       if (!response.ok) {
-        throw new Error(data?.error || "Failed to generate assistant message")
+        return null
       }
 
       return typeof data?.assistantMessage === "string" && data.assistantMessage.trim()
         ? data.assistantMessage.trim()
         : null
-    } catch (error) {
-      console.error("Error generating assistant message:", error)
+    } catch {
       return null
     }
   }, [session?.user?.id, state.selectedModel])
@@ -1792,7 +1833,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           prompt: lastUserPromptRef.current,
           html: finalHtml,
           isFollowUp,
-          model: result.meta?.modelUsed ?? state.selectedModel,
+          model: state.selectedModel,
         })
 
         const resolvedSummary = assistantMessage
@@ -3103,6 +3144,9 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           ) : (
             <div className="space-y-3">
               {messages.map((message) => {
+                const thinkingPanelId = `thinking-panel-${message.id}`
+                const isStreamingThinking = message.role === "assistant" && message.isThinking
+
                 return (
                 <div key={message.id} className="space-y-1.5">
                   <div
@@ -3143,31 +3187,47 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                   {/* Thinking panel for assistant */}
                   {message.role === "assistant" && message.thinkingContent && (
                     <div className="ml-1">
-                      <button
-                        type="button"
-                        onClick={() => setThinkingExpanded(!thinkingExpanded)}
-                        aria-expanded={thinkingExpanded}
+                      <div
                         className={cn(
-                          "w-full max-w-[90%] rounded-lg text-left transition-colors",
+                          "max-w-[90%] rounded-lg text-left transition-colors",
                           thinkingExpanded
-                            ? "border border-zinc-800 bg-zinc-900 p-2 hover:border-zinc-700"
-                            : "text-zinc-500 hover:text-zinc-400"
+                            ? "flex h-[250px] w-full flex-col overflow-hidden border border-zinc-800 bg-zinc-900 shadow-[inset_0_18px_24px_-24px_rgba(0,0,0,0.9),inset_0_-18px_24px_-24px_rgba(0,0,0,0.9)]"
+                            : "w-fit"
                         )}
                       >
-                        <div className="flex items-center gap-1 text-[11px] text-zinc-500">
+                        <button
+                          type="button"
+                          onClick={() => setThinkingExpanded(!thinkingExpanded)}
+                          aria-expanded={thinkingExpanded}
+                          aria-controls={thinkingPanelId}
+                          className={cn(
+                            "flex items-center gap-1 text-[11px] transition-colors",
+                            thinkingExpanded
+                              ? "w-full border-b border-zinc-800/80 px-2.5 py-2 text-zinc-500 hover:bg-zinc-800/40 hover:text-zinc-300"
+                              : "text-zinc-500 hover:text-zinc-400"
+                          )}
+                        >
                           {thinkingExpanded ? (
                             <ChevronUp className="w-2.5 h-2.5" />
                           ) : (
                             <ChevronDown className="w-2.5 h-2.5" />
                           )}
                           Thinking
-                        </div>
+                        </button>
                         {thinkingExpanded ? (
-                          <p className="text-[11px] text-zinc-500 whitespace-pre-wrap">
-                            {message.thinkingContent}
-                          </p>
+                          <div className="relative min-h-0 flex-1 overflow-hidden bg-zinc-900">
+                            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-5 bg-gradient-to-b from-zinc-900 via-zinc-900/90 to-transparent" />
+                            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-5 bg-gradient-to-t from-zinc-900 via-zinc-900/90 to-transparent" />
+                            <div
+                              id={thinkingPanelId}
+                              ref={isStreamingThinking ? activeThinkingScrollRef : undefined}
+                              className="h-full overflow-y-auto overscroll-contain px-2.5 pb-4 pt-3 text-[11px] leading-5 text-zinc-500 whitespace-pre-wrap [scrollbar-gutter:stable]"
+                            >
+                              {message.thinkingContent}
+                            </div>
+                          </div>
                         ) : null}
-                      </button>
+                      </div>
                     </div>
                   )}
                 </div>
