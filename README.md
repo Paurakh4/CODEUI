@@ -99,7 +99,7 @@ Fill in `.env.local` with the values your environment needs.
 | 🗄️ Database | `MONGODB_URI` |
 | 🔐 Auth | `AUTH_SECRET`, `AUTH_URL` |
 | Google OAuth | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
-| 🤖 AI | `OPENROUTER_API_KEY` |
+| 🤖 AI | `OPENROUTER_API_KEY`, optional `ENABLED_AI_MODELS`, `DEFAULT_AI_MODEL`, `FALLBACK_AI_MODELS` |
 | ✉️ Optional email | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` |
 | 💳 Optional Stripe | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, subscription and top-up price IDs |
 | 🛡️ Optional admin access | `ADMIN_EMAILS` |

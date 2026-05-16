@@ -170,16 +170,24 @@ export function AI_Prompt({
             .then(data => {
                 if (data.models && Array.isArray(data.models)) {
                     const models = data.models.map((m: any) => ({ id: m.id, name: m.name }));
+                    const defaultModelId =
+                        typeof data.defaultModelId === "string" &&
+                        models.some((model: { id: string }) => model.id === data.defaultModelId)
+                            ? data.defaultModelId
+                            : undefined;
                     setLocalAvailableModels(models);
 
                     if (models.length > 0 && !initialModelId) {
                         setSelectedModelId((currentModelId) => {
+                            if (defaultModelId) {
+                                return defaultModelId;
+                            }
+
                             if (models.some((m: { id: string }) => m.id === currentModelId)) {
                                 return currentModelId;
                             }
 
-                            const previewModel = models.find((m: { id: string }) => m.id === CODEUI_GOD_MODE_MODEL_ID);
-                            return previewModel ? previewModel.id : models[0].id;
+                            return models[0].id;
                         });
                     }
                 }

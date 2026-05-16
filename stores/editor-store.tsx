@@ -311,15 +311,21 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(editorReducer, initialState)
   const [hasHydratedSelectedModel, setHasHydratedSelectedModel] = useState(false)
   const [hasHydratedGenerationSettings, setHasHydratedGenerationSettings] = useState(false)
+  const [catalogDefaultModelId, setCatalogDefaultModelId] = useState<string | null>(null)
   const persistedSelectedModelRef = useRef<string | null>(null)
+  const hasExplicitSelectedModelRef = useRef(false)
   const { toast } = useToast()
   const { data: session, status } = useSession()
   const { setTheme: applyTheme } = useTheme()
   const applyThemeRef = useRef(applyTheme)
   applyThemeRef.current = applyTheme
 
-  const applyPersistedSettings = useCallback((settings: ReturnType<typeof createDefaultUserPreferences>) => {
+  const applyPersistedSettings = useCallback((
+    settings: ReturnType<typeof createDefaultUserPreferences>,
+    options?: { explicitSelectedModel?: boolean },
+  ) => {
     dispatch({ type: "SET_MODEL", payload: settings.defaultModel })
+    hasExplicitSelectedModelRef.current = options?.explicitSelectedModel ?? true
     persistedSelectedModelRef.current = settings.defaultModel
     dispatch({ type: "SET_PRIMARY_COLOR", payload: settings.primaryColor })
     dispatch({ type: "SET_SECONDARY_COLOR", payload: settings.secondaryColor })
@@ -333,6 +339,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     const defaults = createDefaultUserPreferences()
     const savedModel = localStorage.getItem("selected_model")
     const savedGenerationSettings = localStorage.getItem("generation_settings")
+    hasExplicitSelectedModelRef.current = Boolean(savedModel)
 
     dispatch({
       type: "SET_MODEL",
@@ -366,7 +373,9 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         applyThemeRef.current(theme)
       } catch (error) {
         console.error("Failed to restore generation settings", error)
-        applyPersistedSettings(defaults)
+        applyPersistedSettings(defaults, {
+          explicitSelectedModel: Boolean(savedModel),
+        })
         return
       }
     } else {
@@ -421,6 +430,13 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       .then(res => res.json())
       .then(data => {
         if (data.models && Array.isArray(data.models)) {
+          const defaultModelId =
+            typeof data.defaultModelId === "string" &&
+            data.models.some((model: { id: string }) => model.id === data.defaultModelId)
+              ? data.defaultModelId
+              : null
+
+          setCatalogDefaultModelId(defaultModelId)
           dispatch({
             type: "SET_AVAILABLE_MODELS",
             payload: data.models.map((m: any) => ({ id: m.id, name: m.name })),
@@ -447,21 +463,25 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   }, [toast])
 
   useEffect(() => {
-    if (state.isLoadingModels || state.availableModels.length === 0) return
+    if (!hasHydratedSelectedModel || state.isLoadingModels || state.availableModels.length === 0) return
+
+    const preferredModelId =
+      catalogDefaultModelId && state.availableModels.some((model) => model.id === catalogDefaultModelId)
+        ? catalogDefaultModelId
+        : state.availableModels[0]?.id
 
     if (state.availableModels.some((model) => model.id === state.selectedModel)) {
+      if (!hasExplicitSelectedModelRef.current && preferredModelId && state.selectedModel !== preferredModelId) {
+        dispatch({ type: "SET_MODEL", payload: preferredModelId })
+      }
+
       return
     }
 
-    const previewModel = state.availableModels.find(
-      (model) => model.id === CODEUI_GOD_MODE_MODEL_ID
-    )
-    const fallbackModel = previewModel?.id || state.availableModels[0]?.id
-
-    if (fallbackModel) {
-      dispatch({ type: "SET_MODEL", payload: fallbackModel })
+    if (preferredModelId) {
+      dispatch({ type: "SET_MODEL", payload: preferredModelId })
     }
-  }, [state.availableModels, state.isLoadingModels, state.selectedModel])
+  }, [catalogDefaultModelId, hasHydratedSelectedModel, state.availableModels, state.isLoadingModels, state.selectedModel])
 
   // Save selected model to localStorage and listen for changes
   useEffect(() => {

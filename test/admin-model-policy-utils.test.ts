@@ -89,6 +89,16 @@ describe("admin model policy utils", () => {
     ).toBe("deepseek/deepseek-chat")
   })
 
+  it("uses the env fallback default when the admin default is unavailable", () => {
+    expect(
+      resolveDefaultModelId(
+        "unknown/model",
+        ["deepseek/deepseek-chat", CODEUI_GOD_MODE_MODEL_ID],
+        "deepseek/deepseek-chat",
+      ),
+    ).toBe("deepseek/deepseek-chat")
+  })
+
   it("falls back to god mode when the requested default is unavailable", () => {
     expect(
       resolveDefaultModelId(undefined, [CODEUI_GOD_MODE_MODEL_ID, "deepseek/deepseek-chat"]),

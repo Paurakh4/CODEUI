@@ -95,26 +95,90 @@ const ALL_MODELS: AIModel[] = [
   },
 ]
 
+function getServerEnvValue(name: string): string | undefined {
+  return typeof window === "undefined" ? process.env[name] : undefined
+}
+
+function normalizeConfiguredModelId(value: string | null | undefined) {
+  const normalized = value?.trim()
+  return normalized && normalized.length > 0 ? normalized : undefined
+}
+
+function parseConfiguredModelIdList(value: string | null | undefined): string[] {
+  return (value || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0)
+}
+
+export function getConfiguredDefaultModelId(): string | undefined {
+  return normalizeConfiguredModelId(getServerEnvValue("DEFAULT_AI_MODEL"))
+}
+
+export function getConfiguredFallbackModelIds(): string[] {
+  return parseConfiguredModelIdList(getServerEnvValue("FALLBACK_AI_MODELS"))
+}
+
+export function buildModelFallbackChain({
+  enabledModels,
+  defaultModelId,
+  primaryModelId,
+  configuredFallbackModelIds = getConfiguredFallbackModelIds(),
+}: {
+  enabledModels: ReadonlyArray<Pick<AIModel, "id" | "provider">>
+  defaultModelId?: string
+  primaryModelId?: string
+  configuredFallbackModelIds?: readonly string[]
+}) {
+  const byId = new Map(enabledModels.map((model) => [model.id, model]))
+  const resolvedPrimary =
+    primaryModelId && byId.has(primaryModelId)
+      ? primaryModelId
+      : defaultModelId && byId.has(defaultModelId)
+        ? defaultModelId
+        : enabledModels[0]?.id
+
+  const chain: string[] = []
+  const seen = new Set<string>()
+
+  const pushIfEnabled = (id?: string) => {
+    if (!id || seen.has(id) || !byId.has(id)) {
+      return
+    }
+
+    seen.add(id)
+    chain.push(id)
+  }
+
+  pushIfEnabled(resolvedPrimary)
+  pushIfEnabled(defaultModelId)
+  configuredFallbackModelIds.forEach((modelId) => pushIfEnabled(modelId))
+  pushIfEnabled(CODEUI_GOD_MODE_MODEL_ID)
+
+  const primaryProvider = resolvedPrimary ? byId.get(resolvedPrimary)?.provider : undefined
+
+  enabledModels
+    .filter((model) => model.provider !== primaryProvider)
+    .forEach((model) => pushIfEnabled(model.id))
+
+  enabledModels.forEach((model) => pushIfEnabled(model.id))
+
+  return chain
+}
+
 /**
  * Get enabled model IDs from environment variable
  * Format: Comma-separated list of model IDs
  * Example: "deepseek/deepseek-chat,deepseek/deepseek-r1,moonshotai/kimi-k2-thinking"
  */
 export function getConfiguredEnabledModelIds(): string[] {
-  // Check if running on server (environment variable available)
-  const enabledModelsEnv = typeof window === 'undefined' 
-    ? process.env.ENABLED_AI_MODELS 
-    : undefined
+  const enabledModelsEnv = getServerEnvValue("ENABLED_AI_MODELS")
 
   if (!enabledModelsEnv) {
-    // If not set, enable all models by default
-    return ALL_MODELS.map(m => m.id)
+    return ALL_MODELS.map((model) => model.id)
   }
 
-  return enabledModelsEnv
-    .split(',')
-    .map(id => id.trim())
-    .filter(id => id.length > 0)
+  return parseConfiguredModelIdList(enabledModelsEnv)
 }
 
 /**
@@ -142,10 +206,16 @@ export function isModelEnabled(id: string): boolean {
 
 /**
  * Get default model ID
- * Prefers Gemini 3 Flash Preview when available, otherwise first enabled model.
+ * Prefers DEFAULT_AI_MODEL when enabled, then Gemini 3 Flash Preview, then first enabled model.
  */
 export function getDefaultModelId(): string {
   const enabled = getEnabledModels()
+  const configuredDefaultModelId = getConfiguredDefaultModelId()
+
+  if (configuredDefaultModelId && enabled.some((model) => model.id === configuredDefaultModelId)) {
+    return configuredDefaultModelId
+  }
+
   const preferred = enabled.find((model) => model.id === CODEUI_GOD_MODE_MODEL_ID)
   if (preferred) {
     return preferred.id
@@ -159,8 +229,9 @@ export function getDefaultModelId(): string {
  * Priority:
  * 1) Requested/enforced primary model (if enabled)
  * 2) Default model
- * 3) Gemini 3 Flash Preview model
- * 4) Remaining enabled models (prefer different providers first)
+ * 3) FALLBACK_AI_MODELS entries in env order
+ * 4) Gemini 3 Flash Preview model
+ * 5) Remaining enabled models (prefer different providers first)
  */
 export function getModelFallbackChain(primaryModelId?: string): string[] {
   const enabled = getEnabledModels()
@@ -169,37 +240,11 @@ export function getModelFallbackChain(primaryModelId?: string): string[] {
     return [CODEUI_GOD_MODE_MODEL_ID]
   }
 
-  const byId = new Map(enabled.map((model) => [model.id, model]))
-  const resolvedPrimary =
-    primaryModelId && byId.has(primaryModelId)
-      ? primaryModelId
-      : getDefaultModelId()
-
-  const chain: string[] = []
-  const seen = new Set<string>()
-
-  const pushIfEnabled = (id?: string) => {
-    if (!id || seen.has(id) || !byId.has(id)) {
-      return
-    }
-
-    seen.add(id)
-    chain.push(id)
-  }
-
-  pushIfEnabled(resolvedPrimary)
-  pushIfEnabled(getDefaultModelId())
-  pushIfEnabled(CODEUI_GOD_MODE_MODEL_ID)
-
-  const primaryProvider = byId.get(resolvedPrimary)?.provider
-
-  enabled
-    .filter((model) => model.provider !== primaryProvider)
-    .forEach((model) => pushIfEnabled(model.id))
-
-  enabled.forEach((model) => pushIfEnabled(model.id))
-
-  return chain
+  return buildModelFallbackChain({
+    enabledModels: enabled,
+    defaultModelId: getDefaultModelId(),
+    primaryModelId,
+  })
 }
 
 /**

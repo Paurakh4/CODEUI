@@ -3,7 +3,9 @@ import "server-only"
 import connectDB from "@/lib/db"
 import {
   ALL_MODELS,
+  buildModelFallbackChain,
   getConfiguredEnabledModelIds,
+  getConfiguredDefaultModelId,
   type AIModel,
 } from "@/lib/ai-models"
 import { createAdminAuditEntry } from "@/lib/admin/audit"
@@ -73,7 +75,11 @@ export async function getAdminModelCatalog() {
     getConfiguredEnabledModelIds(),
     models.map((model) => model.id),
   )
-  const defaultModelId = resolveDefaultModelId(config?.defaultModelId, enabledModelIds)
+  const defaultModelId = resolveDefaultModelId(
+    config?.defaultModelId,
+    enabledModelIds,
+    getConfiguredDefaultModelId(),
+  )
 
   return {
     ...buildCatalogSnapshot({ models, enabledModelIds, defaultModelId }),
@@ -114,34 +120,11 @@ export async function getRuntimeModelFallbackChain(primaryModelId?: string) {
     return []
   }
 
-  const byId = new Map(enabled.map((model) => [model.id, model]))
-  const resolvedPrimary = primaryModelId && byId.has(primaryModelId)
-    ? primaryModelId
-    : catalog.defaultModelId
-  const chain: string[] = []
-  const seen = new Set<string>()
-
-  const pushIfEnabled = (modelId?: string) => {
-    if (!modelId || seen.has(modelId) || !byId.has(modelId)) {
-      return
-    }
-
-    seen.add(modelId)
-    chain.push(modelId)
-  }
-
-  pushIfEnabled(resolvedPrimary)
-  pushIfEnabled(catalog.defaultModelId)
-
-  const primaryProvider = byId.get(resolvedPrimary)?.provider
-
-  enabled
-    .filter((model) => model.provider !== primaryProvider)
-    .forEach((model) => pushIfEnabled(model.id))
-
-  enabled.forEach((model) => pushIfEnabled(model.id))
-
-  return chain
+  return buildModelFallbackChain({
+    enabledModels: enabled,
+    defaultModelId: catalog.defaultModelId,
+    primaryModelId,
+  })
 }
 
 export async function upsertAdminModelPolicy(input: {
@@ -163,6 +146,7 @@ export async function upsertAdminModelPolicy(input: {
   const currentDefaultModelId = resolveDefaultModelId(
     currentConfig?.defaultModelId,
     currentEnabledModelIds,
+    getConfiguredDefaultModelId(),
   )
 
   const nextModels = resolveModelCatalog(input.models)
@@ -179,7 +163,11 @@ export async function upsertAdminModelPolicy(input: {
     throw new AdminModelPolicyMutationError("At least one model must remain enabled.")
   }
 
-  const nextDefaultModelId = resolveDefaultModelId(input.defaultModelId, nextEnabledModelIds)
+  const nextDefaultModelId = resolveDefaultModelId(
+    input.defaultModelId,
+    nextEnabledModelIds,
+    getConfiguredDefaultModelId(),
+  )
   const before = buildCatalogSnapshot({
     models: currentModels,
     enabledModelIds: currentEnabledModelIds,

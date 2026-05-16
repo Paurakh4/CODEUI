@@ -104,12 +104,18 @@ export function sanitizeEnabledModelIds(
 export function resolveDefaultModelId(
   candidateDefaultModelId: string | null | undefined,
   enabledModelIds: readonly string[],
+  fallbackDefaultModelId?: string | null,
 ) {
   const enabledSet = new Set(enabledModelIds)
   const normalizedCandidate = candidateDefaultModelId?.trim()
+  const normalizedFallbackCandidate = fallbackDefaultModelId?.trim()
 
   if (normalizedCandidate && enabledSet.has(normalizedCandidate)) {
     return normalizedCandidate
+  }
+
+  if (normalizedFallbackCandidate && enabledSet.has(normalizedFallbackCandidate)) {
+    return normalizedFallbackCandidate
   }
 
   if (enabledSet.has(CODEUI_GOD_MODE_MODEL_ID)) {
