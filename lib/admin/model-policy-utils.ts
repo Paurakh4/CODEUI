@@ -8,7 +8,20 @@ export interface ModelCatalogEntryInput {
   contextLength?: number | null
   supportsReasoning?: boolean | null
   isFast?: boolean | null
+  isNewModel?: boolean | null
   isNew?: boolean | null
+}
+
+function resolveNewBadgeFlag(candidate: ModelCatalogEntryInput, baseModel?: AIModel) {
+  if (typeof candidate.isNewModel === "boolean") {
+    return candidate.isNewModel
+  }
+
+  if (typeof candidate.isNew === "boolean") {
+    return candidate.isNew
+  }
+
+  return baseModel?.isNewModel
 }
 
 function normalizeText(value: string | null | undefined) {
@@ -62,10 +75,7 @@ export function resolveModelCatalog(
         typeof candidate.isFast === "boolean"
           ? candidate.isFast
           : baseModel?.isFast,
-      isNew:
-        typeof candidate.isNew === "boolean"
-          ? candidate.isNew
-          : baseModel?.isNew,
+      isNewModel: resolveNewBadgeFlag(candidate, baseModel),
     })
   }
 

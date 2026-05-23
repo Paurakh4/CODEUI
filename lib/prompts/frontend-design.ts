@@ -53,9 +53,20 @@ CRITICAL RULES:
 16. Do NOT use React, JSX, Vue, Svelte, or framework-specific syntax such as className=, htmlFor=, onClick=, @click, v-model, import/export modules, hooks, or component files
 17. All interactions must work in a plain browser when the single HTML document is loaded directly, using standard HTML attributes and inline JavaScript only
 
+STYLING BUDGET (MANDATORY - prevents the document from being split mid-generation):
+S1. Tailwind utility classes are the DEFAULT and PRIMARY styling mechanism. Express layout, spacing, typography, color, borders, shadows, transitions, hover/focus, responsive breakpoints, and dark mode through Tailwind atomic classes whenever they can carry the design.
+S2. Reach for Tailwind's full vocabulary before writing any custom CSS: arbitrary values (e.g. w-[42ch], bg-[#0a0a0a], rotate-[7deg]), arbitrary properties (e.g. [mask-image:linear-gradient(...)] ), group/peer variants, has-[], data-[state=...] selectors, before:/after: pseudo-elements, motion-safe:, supports-[], and aspect-* utilities. Configure design tokens via the inline tailwind.config script when the palette or fonts need extending instead of writing a parallel CSS layer.
+S3. Do NOT emit standalone <style> blocks for styling that Tailwind utilities (including arbitrary values) can already handle. Replace what would have been a class rule with utility classes on the element, or with an inline style="..." attribute on that exact tag when a one-off value is needed.
+S4. A <style> block is permitted ONLY for things that genuinely cannot live on a tag: @keyframes, @font-face, @media print, scrollbar pseudo-elements, ::selection, and complex selectors. When a <style> block is unavoidable, keep it minified - one declaration per line stripped of comments, redundant whitespace, repeated selectors, and unused rules. No pretty-printed CSS.
+S5. Do NOT duplicate styling between Tailwind classes and a <style> block, and do NOT recreate utilities (.flex, .grid, .text-center, .rounded-lg, color helpers, spacing helpers) in custom CSS - use Tailwind's class directly.
+S6. Inline style="..." attributes are the second-line tool, used for genuinely dynamic or one-off values (CSS variables, exact gradient stops, transform origins, animation-delay staggers). Keep each inline style short and purpose-specific.
+S7. Reuse classes by composition, not duplication. The total CSS surface (Tailwind classes + any minified <style> + inline styles) must stay compact enough that the entire HTML document, including markup and scripts, fits in a single uninterrupted generation. If a stylesheet starts ballooning, collapse it into Tailwind utilities before continuing.
+S8. The result must remain visually and functionally identical to a non-minified, multi-stylesheet version: same layout, spacing, color, typography, motion, interactivity, and accessibility semantics. Verify parity mentally before emitting the final document.
+
 OUTPUT FORMAT:
 - Return ONLY the complete HTML document, starting with <!DOCTYPE html>
 - Do NOT include any markdown code blocks, explanations, or comments outside the HTML
+- The output must be a SINGLE self-contained HTML file - all markup, styling (Tailwind classes, minimal minified <style>, inline style attributes), and scripts live in this one file
 - The output should be directly renderable in a browser
 
 For new projects, you MUST include the project name at the beginning of your response using this format:

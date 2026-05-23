@@ -45,7 +45,7 @@ function serializeModels(models: EditableModel[]) {
     contextLength: model.contextLength,
     supportsReasoning: Boolean(model.supportsReasoning),
     isFast: Boolean(model.isFast),
-    isNew: Boolean(model.isNew),
+    isNewModel: Boolean(model.isNewModel),
     enabled: Boolean(model.enabled),
   }))
 }
@@ -199,7 +199,7 @@ export function ModelPolicyForm({
             contextLength: model.contextLength,
             supportsReasoning: Boolean(model.supportsReasoning),
             isFast: Boolean(model.isFast),
-            isNew: Boolean(model.isNew),
+            isNewModel: Boolean(model.isNewModel),
           })),
           enabledModelIds,
           defaultModelId: selectedDefaultModelId,
@@ -313,7 +313,7 @@ export function ModelPolicyForm({
                             Fast
                           </Badge>
                         ) : null}
-                        {model.isNew ? (
+                        {model.isNewModel ? (
                           <Badge
                             variant="outline"
                             className="border-emerald-500/20 text-emerald-200 text-[10px]"
@@ -463,10 +463,10 @@ export function ModelPolicyForm({
                             <label className="flex items-center gap-2 text-sm">
                               <input
                                 type="checkbox"
-                                checked={Boolean(model.isNew)}
+                                checked={Boolean(model.isNewModel)}
                                 disabled={readOnly || isSaving}
                                 onChange={(e) =>
-                                  updateModel(model.id, { isNew: e.target.checked })
+                                  updateModel(model.id, { isNewModel: e.target.checked })
                                 }
                                 className="h-4 w-4 rounded border-border bg-background text-primary"
                               />

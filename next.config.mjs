@@ -1,4 +1,3 @@
-/** @type {import('next').NextConfig} */
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "base-uri 'self'",

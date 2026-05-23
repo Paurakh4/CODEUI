@@ -6,6 +6,7 @@ const userFindById = vi.fn()
 const userFindByIdAndUpdate = vi.fn()
 const usageLogCreate = vi.fn(async () => undefined)
 const getRuntimeDefaultModelId = vi.fn(async () => "test-model")
+const getRuntimeModelById = vi.fn(async (id: string) => ({ id, contextLength: 64_000 }))
 const getRuntimeModelFallbackChain = vi.fn(async (model: string) => [model])
 const isRuntimeModelEnabled = vi.fn(async () => true)
 const isInternalUserRole = vi.fn(() => true)
@@ -33,6 +34,7 @@ vi.mock("@/lib/models", () => ({
 
 vi.mock("@/lib/admin/model-policies", () => ({
   getRuntimeDefaultModelId,
+  getRuntimeModelById,
   getRuntimeModelFallbackChain,
   isRuntimeModelEnabled,
 }))

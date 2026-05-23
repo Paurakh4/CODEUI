@@ -35,10 +35,12 @@ import {
 } from "@/lib/constants"
 import { detectIncompletePatchBlocks, validateAIResponse } from "@/lib/parsers/stream-parser"
 import {
-  getAtomicFollowUpOutputIssue,
   hasCompleteHtmlDocument,
   hasStructuredPatchMarkers,
 } from "@/lib/reprompting/atomic-follow-up"
+import {
+  finalizeFollowUpResponse,
+} from "@/lib/reprompting/follow-up-finalizer"
 import { estimateTokenCount } from "@/lib/token-counter"
 import { getPromptAdaptationGuidance } from "@/lib/prompt-adaptation"
 import { createRepromptLogger } from "@/lib/utils/reprompt-logger"
@@ -126,7 +128,7 @@ const DEFAULT_CONTINUATION_THRESHOLD_TOKENS = 8_000
 const DEFAULT_MAX_CONTINUATIONS = 3
 const MAX_HIDDEN_FOLLOW_UP_RETRIES = 1
 const DEFAULT_CONTINUATION_CONTEXT_BUFFER_TOKENS = 4_000
-const DEFAULT_UPSTREAM_READ_TIMEOUT_MS = 45_000
+const DEFAULT_UPSTREAM_READ_TIMEOUT_MS = 90_000
 const logger = createRepromptLogger("api-ai-route")
 
 function parsePositiveInteger(value: string | undefined, fallback: number, min = 1, max = Number.MAX_SAFE_INTEGER) {
@@ -877,10 +879,29 @@ export async function POST(req: NextRequest) {
             return "continue"
           }
 
-          const outputIssue = getAtomicFollowUpOutputIssue(aggregatedContent)
-          if (!outputIssue) {
+          // Step 1: Run the model-agnostic finalizer. This handles the vast
+          // majority of non-Gemini outputs (thinking tags, fenced blocks,
+          // narration, SEARCH/REPLACE patches) without a re-prompt round trip.
+          const finalized = finalizeFollowUpResponse({
+            rawContent: aggregatedContent,
+            currentHtml: currentHtml ?? "",
+          })
+
+          if (finalized.ok) {
+            // Replace the raw aggregate with the finalized HTML so downstream
+            // emit sites send a single clean document.
+            aggregatedContent = finalized.html
+            totalEmittedContentLength = finalized.html.length
+            logger.info("Follow-up response finalized via in-memory strategy", {
+              phase: "finalize",
+              requestId,
+              strategy: finalized.strategy,
+              appliedPatchCount: finalized.appliedPatchCount,
+            })
             return "continue"
           }
+
+          const outputIssue = finalized.reason
 
           if (hiddenFollowUpRetryCount >= MAX_HIDDEN_FOLLOW_UP_RETRIES) {
             logger.warn("Atomic follow-up failed validation after hidden retry budget", {

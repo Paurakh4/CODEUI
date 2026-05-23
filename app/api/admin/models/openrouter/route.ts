@@ -30,7 +30,7 @@ type OpenRouterAdminModel = {
   contextLength: number
   supportsReasoning: boolean
   isFast: boolean
-  isNew: boolean
+  isNewModel: boolean
   isFree: boolean
 }
 
@@ -112,7 +112,7 @@ function normalizeModel(model: OpenRouterApiModel): OpenRouterAdminModel {
     contextLength: resolveContextLength(model),
     supportsReasoning: resolveReasoningSupport(model),
     isFast: resolveFastFlag(model),
-    isNew: false,
+    isNewModel: false,
     isFree: model.id.includes(":free"),
   }
 }

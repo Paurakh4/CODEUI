@@ -109,7 +109,7 @@ export function ModelSelector({
                 <span className="text-sm font-medium text-zinc-200">
                   {model.name}
                 </span>
-                {model.isNew && (
+                {model.isNewModel && (
                   <span className="text-[10px] font-medium bg-green-500/20 text-green-300 px-1.5 py-0.5 rounded">
                     NEW
                   </span>

@@ -13,7 +13,7 @@ export interface AIModel {
   contextLength: number
   supportsReasoning?: boolean
   isFast?: boolean
-  isNew?: boolean
+  isNewModel?: boolean
 }
 
 export const CODEUI_GOD_MODE_MODEL_ID = "google/gemini-3-flash-preview"
@@ -35,7 +35,7 @@ const ALL_MODELS: AIModel[] = [
     description: "Lightweight Claude for fast, low-cost tasks",
     contextLength: 200000,
     isFast: true,
-    isNew: true,
+    isNewModel: true,
   },
   {
     id: "deepseek/deepseek-r1",
@@ -82,7 +82,7 @@ const ALL_MODELS: AIModel[] = [
     description: "Latest Gemini model preview",
     contextLength: 2000000,
     isFast: true,
-    isNew: true,
+    isNewModel: true,
   },
   {
     id: "google/gemini-3.1-flash-lite-preview",
@@ -91,7 +91,7 @@ const ALL_MODELS: AIModel[] = [
     description: "Fast and lightweight Gemini 3.1 preview model",
     contextLength: 1000000,
     isFast: true,
-    isNew: true,
+    isNewModel: true,
   },
 ]
 

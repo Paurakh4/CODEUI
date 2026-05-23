@@ -16,7 +16,8 @@ const adminModelSchema = z
     contextLength: z.number().int().positive().max(10_000_000),
     supportsReasoning: z.boolean().optional().default(false),
     isFast: z.boolean().optional().default(false),
-    isNew: z.boolean().optional().default(false),
+    isNewModel: z.boolean().optional().default(false),
+    isNew: z.boolean().optional(),
   })
   .strict()
 

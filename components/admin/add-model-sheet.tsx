@@ -33,7 +33,7 @@ interface EditableModel {
   contextLength: number
   supportsReasoning: boolean
   isFast: boolean
-  isNew: boolean
+  isNewModel: boolean
   enabled: boolean
   envEnabled: boolean
   isCustom: boolean
@@ -47,7 +47,7 @@ interface NewModelDraft {
   contextLength: string
   supportsReasoning: boolean
   isFast: boolean
-  isNew: boolean
+  isNewModel: boolean
   enabled: boolean
   makeDefault: boolean
 }
@@ -60,7 +60,7 @@ interface OpenRouterModelOption {
   contextLength: number
   supportsReasoning: boolean
   isFast: boolean
-  isNew: boolean
+  isNewModel: boolean
   isFree: boolean
 }
 
@@ -82,7 +82,7 @@ function createEmptyNewModel(): NewModelDraft {
     contextLength: "128000",
     supportsReasoning: false,
     isFast: false,
-    isNew: false,
+    isNewModel: false,
     enabled: true,
     makeDefault: false,
   }
@@ -102,7 +102,7 @@ function toEditableModel(model: OpenRouterModelOption): EditableModel {
     contextLength: model.contextLength,
     supportsReasoning: model.supportsReasoning,
     isFast: model.isFast,
-    isNew: model.isNew,
+    isNewModel: model.isNewModel,
     enabled: true,
     envEnabled: false,
     isCustom: true,
@@ -211,7 +211,7 @@ export function AddModelSheet({
       contextLength,
       supportsReasoning: newModel.supportsReasoning,
       isFast: newModel.isFast,
-      isNew: newModel.isNew,
+      isNewModel: newModel.isNewModel,
       enabled: newModel.enabled,
       envEnabled: false,
       isCustom: true,
@@ -378,9 +378,9 @@ export function AddModelSheet({
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  checked={newModel.isNew}
+                  checked={newModel.isNewModel}
                   disabled={readOnly}
-                  onChange={(e) => setNewModel((c) => ({ ...c, isNew: e.target.checked }))}
+                  onChange={(e) => setNewModel((c) => ({ ...c, isNewModel: e.target.checked }))}
                   className="h-4 w-4 rounded border-border bg-background text-primary"
                 />
                 New badge

@@ -72,12 +72,25 @@ export function useLiveCredits(options: UseLiveCreditsOptions = {}) {
   )
   const [liveCredits, setLiveCredits] = useState<LiveCreditsSnapshot | null>(sessionCredits)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const liveCreditsRef = useRef<LiveCreditsSnapshot | null>(sessionCredits)
+  const sessionCreditsRef = useRef<LiveCreditsSnapshot | null>(sessionCredits)
+  const refreshPromiseRef = useRef<Promise<LiveCreditsSnapshot | null> | null>(null)
   const syncInFlightRef = useRef(false)
   const requestedSessionSyncSignatureRef = useRef<string | null>(null)
 
   useEffect(() => {
+    sessionCreditsRef.current = sessionCredits
+  }, [sessionCredits])
+
+  useEffect(() => {
+    liveCreditsRef.current = liveCredits ?? sessionCredits ?? null
+  }, [liveCredits, sessionCredits])
+
+  useEffect(() => {
     if (status === "unauthenticated") {
       setLiveCredits(null)
+      liveCreditsRef.current = null
+      sessionCreditsRef.current = null
       requestedSessionSyncSignatureRef.current = null
       return
     }
@@ -86,7 +99,11 @@ export function useLiveCredits(options: UseLiveCreditsOptions = {}) {
       return
     }
 
-    setLiveCredits((current) => (areCreditsEqual(current, sessionCredits) ? current ?? sessionCredits : sessionCredits))
+    setLiveCredits((current) => {
+      const nextCredits = areCreditsEqual(current, sessionCredits) ? current ?? sessionCredits : sessionCredits
+      liveCreditsRef.current = nextCredits
+      return nextCredits
+    })
 
     const sessionSignature = getCreditsSignature(sessionCredits)
     if (requestedSessionSyncSignatureRef.current && requestedSessionSyncSignatureRef.current === sessionSignature) {
@@ -96,56 +113,75 @@ export function useLiveCredits(options: UseLiveCreditsOptions = {}) {
 
   const refreshCredits = useCallback(async () => {
     if (!enabled || status !== "authenticated") {
-      return sessionCredits
+      return sessionCreditsRef.current
     }
 
-    try {
-      setIsRefreshing(true)
+    if (refreshPromiseRef.current) {
+      return refreshPromiseRef.current
+    }
 
-      const response = await fetch("/api/user/credits", {
-        cache: "no-store",
-        headers: {
-          "Cache-Control": "no-cache",
-        },
-      })
+    const refreshPromise = (async () => {
+      try {
+        setIsRefreshing(true)
 
-      const data = await response.json().catch(() => null)
-      if (!response.ok || !data || data.error) {
-        throw new Error(data?.error || "Failed to fetch credits")
-      }
+        const response = await fetch("/api/user/credits", {
+          cache: "no-store",
+          headers: {
+            "Cache-Control": "no-cache",
+          },
+        })
 
-      const nextCredits: LiveCreditsSnapshot = {
-        monthlyCredits: data.monthlyCredits ?? 0,
-        topupCredits: data.topupCredits ?? 0,
-        totalCredits: data.totalCredits ?? ((data.monthlyCredits ?? 0) + (data.topupCredits ?? 0)),
-        tier: data.tier,
-      }
-
-      setLiveCredits((current) => (areCreditsEqual(current, nextCredits) ? current ?? nextCredits : nextCredits))
-
-      if (sessionCredits && !areCreditsEqual(sessionCredits, nextCredits) && !syncInFlightRef.current) {
-        const nextSignature = getCreditsSignature(nextCredits)
-        if (requestedSessionSyncSignatureRef.current !== nextSignature) {
-          requestedSessionSyncSignatureRef.current = nextSignature
-          syncInFlightRef.current = true
-          void Promise.resolve(updateSession())
-            .catch((error) => {
-              console.error("Failed to refresh session credits:", error)
-            })
-            .finally(() => {
-              syncInFlightRef.current = false
-            })
+        const data = await response.json().catch(() => null)
+        if (!response.ok || !data || data.error) {
+          throw new Error(data?.error || "Failed to fetch credits")
         }
-      }
 
-      return nextCredits
-    } catch (error) {
-      console.error("Failed to fetch live credits:", error)
-      return liveCredits ?? sessionCredits
-    } finally {
-      setIsRefreshing(false)
-    }
-  }, [enabled, liveCredits, sessionCredits, status, updateSession])
+        const nextCredits: LiveCreditsSnapshot = {
+          monthlyCredits: data.monthlyCredits ?? 0,
+          topupCredits: data.topupCredits ?? 0,
+          totalCredits: data.totalCredits ?? ((data.monthlyCredits ?? 0) + (data.topupCredits ?? 0)),
+          tier: data.tier,
+        }
+
+        setLiveCredits((current) => {
+          const resolvedCredits = areCreditsEqual(current, nextCredits) ? current ?? nextCredits : nextCredits
+          liveCreditsRef.current = resolvedCredits
+          return resolvedCredits
+        })
+
+        const currentSessionCredits = sessionCreditsRef.current
+        if (currentSessionCredits && !areCreditsEqual(currentSessionCredits, nextCredits) && !syncInFlightRef.current) {
+          const nextSignature = getCreditsSignature(nextCredits)
+          if (requestedSessionSyncSignatureRef.current !== nextSignature) {
+            requestedSessionSyncSignatureRef.current = nextSignature
+            syncInFlightRef.current = true
+            void Promise.resolve(updateSession())
+              .catch((error) => {
+                console.error("Failed to refresh session credits:", error)
+              })
+              .finally(() => {
+                syncInFlightRef.current = false
+              })
+          }
+        }
+
+        return nextCredits
+      } catch (error) {
+        console.error("Failed to fetch live credits:", error)
+        return liveCreditsRef.current ?? sessionCreditsRef.current
+      } finally {
+        setIsRefreshing(false)
+      }
+    })()
+
+    refreshPromiseRef.current = refreshPromise
+
+    return refreshPromise.finally(() => {
+      if (refreshPromiseRef.current === refreshPromise) {
+        refreshPromiseRef.current = null
+      }
+    })
+  }, [enabled, status, updateSession])
 
   useEffect(() => {
     if (!enabled || status !== "authenticated") {
@@ -160,21 +196,15 @@ export function useLiveCredits(options: UseLiveCreditsOptions = {}) {
       return
     }
 
-    const handleFocus = () => {
-      void refreshCredits()
-    }
-
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         void refreshCredits()
       }
     }
 
-    window.addEventListener("focus", handleFocus)
     document.addEventListener("visibilitychange", handleVisibilityChange)
 
     return () => {
-      window.removeEventListener("focus", handleFocus)
       document.removeEventListener("visibilitychange", handleVisibilityChange)
     }
   }, [enabled, refreshCredits, status])

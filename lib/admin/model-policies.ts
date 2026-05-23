@@ -34,6 +34,30 @@ interface AdminActor {
   role: UserRole
 }
 
+function normalizePersistedModels(
+  models?: readonly ModelCatalogEntryInput[] | null,
+) {
+  let changed = false
+
+  const normalizedModels = (models || []).map((model) => {
+    if (typeof model?.isNewModel === "boolean" || typeof model?.isNew !== "boolean") {
+      return model
+    }
+
+    changed = true
+    const { isNew, ...rest } = model
+    return {
+      ...rest,
+      isNewModel: isNew,
+    }
+  })
+
+  return {
+    changed,
+    models: normalizedModels,
+  }
+}
+
 export class AdminModelPolicyMutationError extends Error {
   status: number
 
@@ -69,7 +93,17 @@ export async function getAdminModelCatalog() {
   await connectDB()
 
   const config = await AdminModelConfig.findById(ADMIN_MODEL_CONFIG_ID).lean()
-  const models = resolveModelCatalog(config?.models)
+  const normalizedPersistedModels = normalizePersistedModels(config?.models)
+
+  if (config && normalizedPersistedModels.changed) {
+    await AdminModelConfig.findByIdAndUpdate(ADMIN_MODEL_CONFIG_ID, {
+      $set: {
+        models: normalizedPersistedModels.models,
+      },
+    })
+  }
+
+  const models = resolveModelCatalog(normalizedPersistedModels.models)
   const enabledModelIds = sanitizeEnabledModelIds(
     config?.enabledModelIds,
     getConfiguredEnabledModelIds(),
@@ -137,7 +171,17 @@ export async function upsertAdminModelPolicy(input: {
   await connectDB()
 
   const currentConfig = await AdminModelConfig.findById(ADMIN_MODEL_CONFIG_ID).lean()
-  const currentModels = resolveModelCatalog(currentConfig?.models)
+  const normalizedPersistedModels = normalizePersistedModels(currentConfig?.models)
+
+  if (currentConfig && normalizedPersistedModels.changed) {
+    await AdminModelConfig.findByIdAndUpdate(ADMIN_MODEL_CONFIG_ID, {
+      $set: {
+        models: normalizedPersistedModels.models,
+      },
+    })
+  }
+
+  const currentModels = resolveModelCatalog(normalizedPersistedModels.models)
   const currentEnabledModelIds = sanitizeEnabledModelIds(
     currentConfig?.enabledModelIds,
     getConfiguredEnabledModelIds(),

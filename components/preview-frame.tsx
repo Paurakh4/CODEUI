@@ -361,16 +361,49 @@ export function PreviewFrame({
     const viewport = canvasViewportRef.current
     const bounds = viewport?.getBoundingClientRect()
     const nextSize = getDefaultFrameSize(deviceMode, bounds)
+    const fitScale = getFitToViewportScale(deviceMode, nextSize, bounds)
     setFrameSize(nextSize)
+    setCanvasScale(fitScale)
 
     const rafId = window.requestAnimationFrame(() => {
-      centerFrame(nextSize, canvasScaleRef.current)
+      centerFrame(nextSize, fitScale)
     })
 
     return () => {
       window.cancelAnimationFrame(rafId)
     }
   }, [centerFrame, deviceMode])
+
+  // Refit canvas to viewport when the viewport itself changes size
+  // (e.g. opening / closing the chat or style panel, window resize).
+  // We only shrink the scale when the current one would clip the frame so that
+  // user-controlled zoom levels that still fit are preserved.
+  useEffect(() => {
+    const viewport = canvasViewportRef.current
+    if (!viewport) return
+
+    let lastWidth = viewport.clientWidth
+    let lastHeight = viewport.clientHeight
+
+    const observer = new ResizeObserver(() => {
+      const bounds = viewport.getBoundingClientRect()
+      if (bounds.width === lastWidth && bounds.height === lastHeight) return
+      lastWidth = bounds.width
+      lastHeight = bounds.height
+
+      const fitScale = getFitToViewportScale(deviceMode, frameSize, bounds)
+      const currentScale = canvasScaleRef.current
+      if (currentScale > fitScale + 0.001) {
+        setCanvasScale(fitScale)
+        window.requestAnimationFrame(() => {
+          centerFrame(frameSize, fitScale)
+        })
+      }
+    })
+
+    observer.observe(viewport)
+    return () => observer.disconnect()
+  }, [centerFrame, deviceMode, frameSize])
 
   useEffect(() => {
     const viewport = canvasViewportRef.current
@@ -462,6 +495,119 @@ export function PreviewFrame({
       cleanupCurrentListener()
     }
   }, [iframeRef, isCanvasNavigationEnabled, isDesignMode, reloadToken, zoomCanvasAtPoint])
+
+  // Prevent the previewed page from navigating the iframe away from the
+  // generated document. Without this, clicking links / submitting forms inside
+  // a srcdoc iframe with allow-same-origin resolves URLs against the parent
+  // app and replaces the preview with the editor itself.
+  useEffect(() => {
+    const iframe = iframeRef.current
+    if (!iframe) return
+
+    let activeDoc: Document | null = null
+    let activeWin: Window | null = null
+    let originalOpen: typeof window.open | null = null
+    let setupTimeoutId: number | null = null
+
+    const handleAnchorClick = (event: MouseEvent) => {
+      const path = (event.composedPath?.() ?? []) as EventTarget[]
+      const anchor = (path.find(
+        (node) => node instanceof HTMLElement && node.tagName === "A",
+      ) ?? (event.target as HTMLElement | null)?.closest?.("a")) as HTMLAnchorElement | null
+      if (!anchor) return
+
+      const href = anchor.getAttribute("href")
+      // Allow pure in-page anchors to keep working for previews of long pages.
+      if (href && href.startsWith("#") && !anchor.target) return
+
+      event.preventDefault()
+      event.stopPropagation()
+    }
+
+    const handleFormSubmit = (event: Event) => {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+
+    const cleanupCurrentListeners = () => {
+      if (activeDoc) {
+        activeDoc.removeEventListener("click", handleAnchorClick, true)
+        activeDoc.removeEventListener("submit", handleFormSubmit, true)
+      }
+      if (activeWin && originalOpen) {
+        try {
+          activeWin.open = originalOpen
+        } catch {
+          // ignore - some browsers disallow reassigning window.open
+        }
+      }
+      activeDoc = null
+      activeWin = null
+      originalOpen = null
+    }
+
+    const setupListeners = () => {
+      const doc = iframe.contentDocument || iframe.contentWindow?.document
+      const win = iframe.contentWindow
+      if (!doc || !doc.body || !win) return
+      if (activeDoc === doc && activeWin === win) return
+
+      cleanupCurrentListeners()
+      activeDoc = doc
+      activeWin = win
+
+      doc.addEventListener("click", handleAnchorClick, true)
+      doc.addEventListener("submit", handleFormSubmit, true)
+
+      // Route window.open to a new tab in the parent so popups don't replace
+      // the iframe contents either.
+      try {
+        originalOpen = win.open
+        win.open = ((url?: string | URL, _target?: string, features?: string) => {
+          if (!url) return null
+          try {
+            return window.open(url, "_blank", features)
+          } catch {
+            return null
+          }
+        }) as typeof window.open
+      } catch {
+        originalOpen = null
+      }
+    }
+
+    const clearPendingSetup = () => {
+      if (setupTimeoutId !== null) {
+        window.clearTimeout(setupTimeoutId)
+        setupTimeoutId = null
+      }
+    }
+
+    const scheduleSetup = () => {
+      clearPendingSetup()
+      setupTimeoutId = window.setTimeout(() => {
+        setupTimeoutId = null
+        setupListeners()
+      }, 0)
+    }
+
+    const handleIframeLoad = () => {
+      cleanupCurrentListeners()
+      scheduleSetup()
+    }
+
+    iframe.addEventListener("load", handleIframeLoad)
+
+    if (iframe.contentDocument?.readyState === "complete") {
+      scheduleSetup()
+    }
+
+    return () => {
+      clearPendingSetup()
+      iframe.removeEventListener("load", handleIframeLoad)
+      cleanupCurrentListeners()
+    }
+  }, [iframeRef, reloadToken])
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
@@ -1309,6 +1455,24 @@ function getDefaultFrameSize(
     width: Math.max(MIN_FRAME_WIDTH, Math.round(baseSize.width * scale)),
     height: Math.max(MIN_FRAME_HEIGHT, Math.round(baseSize.height * scale)),
   }
+}
+
+function getFitToViewportScale(
+  deviceMode: DeviceMode,
+  frameSize: FrameSize,
+  viewportBounds: DOMRect | undefined,
+): number {
+  if (!viewportBounds || viewportBounds.width <= 0 || viewportBounds.height <= 0) return 1
+
+  const footprint = getFrameFootprintDimensions(deviceMode, frameSize)
+  const availableWidth = Math.max(1, viewportBounds.width - CANVAS_FRAME_PADDING * 2)
+  const availableHeight = Math.max(1, viewportBounds.height - CANVAS_FRAME_PADDING * 2)
+  const widthScale = availableWidth / footprint.width
+  const heightScale = availableHeight / footprint.height
+
+  // Cap at 1 so we don't upscale on large screens, and at the canvas min so we
+  // don't fall below the user-controlled lower bound.
+  return clamp(Math.min(widthScale, heightScale, 1), MIN_CANVAS_SCALE, MAX_CANVAS_SCALE)
 }
 
 function mod(value: number, divisor: number): number {

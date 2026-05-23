@@ -49,6 +49,7 @@ describe("admin model policy utils", () => {
         description: "Admin-added model",
         contextLength: 400000,
         isFast: true,
+        isNewModel: true,
       },
     ])
 
@@ -66,6 +67,26 @@ describe("admin model policy utils", () => {
         description: "Admin-added model",
         contextLength: 400000,
         isFast: true,
+        isNewModel: true,
+      }),
+    )
+  })
+
+  it("supports legacy persisted isNew flags during rollout", () => {
+    const catalog = resolveModelCatalog([
+      {
+        id: "openai/gpt-5-mini",
+        name: "GPT-5 Mini",
+        provider: "OpenAI",
+        contextLength: 400000,
+        isNew: true,
+      },
+    ])
+
+    expect(catalog.at(-1)).toEqual(
+      expect.objectContaining({
+        id: "openai/gpt-5-mini",
+        isNewModel: true,
       }),
     )
   })

@@ -8,7 +8,7 @@ export interface IAdminManagedModel {
   contextLength: number
   supportsReasoning?: boolean
   isFast?: boolean
-  isNew?: boolean
+  isNewModel?: boolean
 }
 
 export interface IAdminModelConfig extends Document<string> {
@@ -56,7 +56,7 @@ const AdminManagedModelSchema = new Schema<IAdminManagedModel>(
       type: Boolean,
       default: false,
     },
-    isNew: {
+    isNewModel: {
       type: Boolean,
       default: false,
     },
@@ -102,7 +102,12 @@ const AdminModelConfigSchema = new Schema<IAdminModelConfig>(
 
 const existingAdminModelConfig = mongoose.models.AdminModelConfig as Model<IAdminModelConfig> | undefined
 
-if (existingAdminModelConfig && !existingAdminModelConfig.schema.path("models")) {
+function hasExpectedManagedModelPath(model: Model<IAdminModelConfig> | undefined) {
+  const modelsPath = model?.schema.path("models") as { schema?: Schema<IAdminManagedModel> } | undefined
+  return Boolean(modelsPath?.schema?.path("isNewModel"))
+}
+
+if (existingAdminModelConfig && !hasExpectedManagedModelPath(existingAdminModelConfig)) {
   delete mongoose.models.AdminModelConfig
 }
 

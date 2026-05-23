@@ -215,8 +215,8 @@ export function DashboardSidebar({
                               }}
                               className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs text-[#E7E7E9] hover:bg-[#1B1B1F] transition-colors"
                             >
-                              <span className="truncate">{project.name}</span>
-                              <span className="text-[9px] text-[#9B9B9F] whitespace-nowrap">
+                              <span className="truncate min-w-0 flex-1">{project.name}</span>
+                              <span className="text-[9px] text-[#9B9B9F] whitespace-nowrap shrink-0">
                                 {formatRelativeDate(project.updatedAt)}
                               </span>
                             </Link>
@@ -250,14 +250,16 @@ export function DashboardSidebar({
                 {favoriteProjects.map((project) => (
                   <SidebarMenuItem key={`fav-${project.id}`}>
                     <SidebarMenuButton asChild tooltip={project.name} size="sm">
-                      <Link href={`/project/${project.id}`}>
-                        <Heart className="w-3 h-3 text-[#E7E7E9] fill-current shrink-0" />
-                        <span className="truncate">{project.name}</span>
+                      <Link href={`/project/${project.id}`} className="flex items-center justify-between w-full min-w-0">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <Heart className="w-3 h-3 text-[#E7E7E9] fill-current shrink-0" />
+                          <span className="truncate">{project.name}</span>
+                        </div>
+                        <span className="text-[9px] text-[#9B9B9F] whitespace-nowrap ml-2 shrink-0">
+                          {formatRelativeDate(project.updatedAt)}
+                        </span>
                       </Link>
                     </SidebarMenuButton>
-                    <SidebarMenuBadge className="text-[9px] text-[#9B9B9F]">
-                      {formatRelativeDate(project.updatedAt)}
-                    </SidebarMenuBadge>
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
@@ -287,14 +289,16 @@ export function DashboardSidebar({
                 {recentProjects.map((project) => (
                   <SidebarMenuItem key={`recent-${project.id}`}>
                     <SidebarMenuButton asChild tooltip={project.name} size="sm">
-                      <Link href={`/project/${project.id}`}>
-                        <Clock className="w-3 h-3 text-[#9B9B9F] shrink-0" />
-                        <span className="truncate">{project.name}</span>
+                      <Link href={`/project/${project.id}`} className="flex items-center justify-between w-full min-w-0">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <Clock className="w-3 h-3 text-[#9B9B9F] shrink-0" />
+                          <span className="truncate">{project.name}</span>
+                        </div>
+                        <span className="text-[9px] text-[#9B9B9F] whitespace-nowrap ml-2 shrink-0">
+                          {formatRelativeDate(project.updatedAt)}
+                        </span>
                       </Link>
                     </SidebarMenuButton>
-                    <SidebarMenuBadge className="text-[9px] text-[#9B9B9F]">
-                      {formatRelativeDate(project.updatedAt)}
-                    </SidebarMenuBadge>
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
@@ -324,9 +328,9 @@ export function DashboardSidebar({
                 {savedProjects.map((project) => (
                   <SidebarMenuItem key={`saved-${project.id}`}>
                     <SidebarMenuButton asChild tooltip={project.name} size="sm">
-                      <Link href={`/project/${project.id}`}>
+                      <Link href={`/project/${project.id}`} className="flex items-center gap-1.5 w-full min-w-0">
                         <Save className="w-3 h-3 text-[#9B9B9F] shrink-0" />
-                        <span className="truncate">{project.name}</span>
+                        <span className="truncate flex-1">{project.name}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -346,11 +350,11 @@ export function DashboardSidebar({
 
       {/* Footer: Credits Widget */}
       {!isCollapsed && (
-        <SidebarFooter className="p-1.5">
-          <div className="rounded-lg bg-[#0E0E10] border border-white/[0.04] p-2 space-y-1.5">
+        <SidebarFooter className="p-2 pb-4 mt-auto">
+          <div className="rounded-xl bg-[#0E0E10] border border-white/[0.04] p-3 space-y-3 shadow-md">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] font-normal text-[#9B9B9F]">Credits</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-medium text-[#9B9B9F] uppercase tracking-wider">Credits</span>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
@@ -365,19 +369,21 @@ export function DashboardSidebar({
                   </TooltipContent>
                 </Tooltip>
               </div>
-              <span className="text-[11px] font-semibold text-[#E7E7E9]">{userTotalCredits}</span>
+              <span className="text-[11px] font-bold text-[#E7E7E9] tabular-nums">{userTotalCredits}</span>
             </div>
-            <div className="h-0.5 w-full bg-[#050505] rounded-full overflow-hidden">
+            
+            <div className="relative h-1 w-full bg-[#050505] rounded-full overflow-hidden">
               <div
-                className="h-full rounded-full transition-all duration-500 bg-[#E7E7E9]"
+                className="absolute inset-y-0 left-0 rounded-full transition-all duration-500 bg-[#E7E7E9]"
                 style={{ width: `${usagePct}%` }}
               />
             </div>
-            <div className="flex items-center justify-between">
-              <p className="text-[9px] text-[#9B9B9F]">{userMonthlyCredits} monthly credits</p>
+
+            <div className="flex items-center justify-between pt-0.5">
+              <p className="text-[9px] text-[#9B9B9F] leading-none">{userMonthlyCredits} monthly credits</p>
               <button
                 onClick={onOpenPricing}
-                className="text-[9px] font-normal text-[#9B9B9F] hover:text-[#E7E7E9] transition-colors"
+                className="text-[9px] font-medium text-[#E7E7E9] hover:underline underline-offset-2 transition-colors"
               >
                 View plans &rarr;
               </button>
