@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { normalizeHtml } from "@/lib/reprompting/normalize-html"
+
 const auth = vi.fn()
 const connectDB = vi.fn(async () => undefined)
 const userFindById = vi.fn()
@@ -145,7 +147,7 @@ describe("UT-30 cross-model reprompt route", () => {
     expect(response.status).toBe(200)
     expect(fetchCallCount).toBe(1)
     const contentEvents = events.filter((event) => event.type === "content")
-    expect(contentEvents).toEqual([{ type: "content", data: UPDATED_HTML }])
+    expect(contentEvents).toEqual([{ type: "content", data: normalizeHtml(UPDATED_HTML) }])
     expect(events.some((event) => event.type === "error")).toBe(false)
   })
 
@@ -160,7 +162,7 @@ describe("UT-30 cross-model reprompt route", () => {
     expect(response.status).toBe(200)
     expect(fetchCallCount).toBe(1) // No retry needed, finalizer handled it
     const contentEvents = events.filter((event) => event.type === "content")
-    expect(contentEvents).toEqual([{ type: "content", data: UPDATED_HTML }])
+    expect(contentEvents).toEqual([{ type: "content", data: normalizeHtml(UPDATED_HTML) }])
   })
 
   it("Kimi K2 Thinking: handles <reasoning> wrapper", async () => {
@@ -174,7 +176,7 @@ describe("UT-30 cross-model reprompt route", () => {
     expect(response.status).toBe(200)
     expect(fetchCallCount).toBe(1)
     const contentEvents = events.filter((event) => event.type === "content")
-    expect(contentEvents).toEqual([{ type: "content", data: UPDATED_HTML }])
+    expect(contentEvents).toEqual([{ type: "content", data: normalizeHtml(UPDATED_HTML) }])
   })
 
   it("Claude Haiku narration + fenced HTML: extracts the fenced document", async () => {
@@ -188,7 +190,7 @@ describe("UT-30 cross-model reprompt route", () => {
     expect(response.status).toBe(200)
     expect(fetchCallCount).toBe(1)
     const contentEvents = events.filter((event) => event.type === "content")
-    expect(contentEvents).toEqual([{ type: "content", data: UPDATED_HTML }])
+    expect(contentEvents).toEqual([{ type: "content", data: normalizeHtml(UPDATED_HTML) }])
   })
 
   it("DeepSeek-Chat patch-style output: applies SEARCH/REPLACE against current HTML", async () => {
@@ -232,7 +234,7 @@ describe("UT-30 cross-model reprompt route", () => {
     expect(response.status).toBe(200)
     expect(fetchCallCount).toBe(1)
     const contentEvents = events.filter((event) => event.type === "content")
-    expect(contentEvents).toEqual([{ type: "content", data: UPDATED_HTML }])
+    expect(contentEvents).toEqual([{ type: "content", data: normalizeHtml(UPDATED_HTML) }])
   })
 
   it("Devstral fenced+truncated output: recovers a doc with no closing fence", async () => {
@@ -246,7 +248,7 @@ describe("UT-30 cross-model reprompt route", () => {
     expect(response.status).toBe(200)
     expect(fetchCallCount).toBe(1)
     const contentEvents = events.filter((event) => event.type === "content")
-    expect(contentEvents).toEqual([{ type: "content", data: UPDATED_HTML }])
+    expect(contentEvents).toEqual([{ type: "content", data: normalizeHtml(UPDATED_HTML) }])
   })
 
   it("rolls back to the prior page when the model returns only narration (no HTML, no patches)", async () => {

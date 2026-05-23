@@ -6,6 +6,7 @@ import {
   buildModelFallbackChain,
   getConfiguredEnabledModelIds,
   getConfiguredDefaultModelId,
+  synthesizeAIModelFromId,
   type AIModel,
 } from "@/lib/ai-models"
 import { createAdminAuditEntry } from "@/lib/admin/audit"
@@ -72,6 +73,7 @@ function buildCatalogSnapshot(input: {
   models: AIModel[]
   enabledModelIds: string[]
   defaultModelId: string
+  persistedModelIds: ReadonlySet<string>
 }) {
   const enabledSet = new Set(input.enabledModelIds)
   const envEnabledSet = new Set(getConfiguredEnabledModelIds())
@@ -84,9 +86,35 @@ function buildCatalogSnapshot(input: {
       enabled: enabledSet.has(model.id),
       isDefault: model.id === input.defaultModelId,
       envEnabled: envEnabledSet.has(model.id),
-      isCustom: !BASE_MODEL_ID_SET.has(model.id),
+      // A model is "custom" only when an admin persisted it via the dashboard.
+      // Env-sourced models aren't deletable from the UI because the env var
+      // would just re-add them on the next reload.
+      isCustom:
+        !BASE_MODEL_ID_SET.has(model.id) && input.persistedModelIds.has(model.id),
     })),
   }
+}
+
+/**
+ * Build a base model list that includes every entry from `ALL_MODELS` plus
+ * any env-configured model id that lacks a hardcoded record. This makes the
+ * admin catalog automatically reflect models added via `ENABLED_AI_MODELS`.
+ */
+function mergeEnvSynthesizedModels(
+  baseModels: readonly AIModel[],
+  envEnabledIds: readonly string[],
+): AIModel[] {
+  const byId = new Map(baseModels.map((model) => [model.id, model]))
+
+  for (const id of envEnabledIds) {
+    if (byId.has(id)) continue
+    const synthetic = synthesizeAIModelFromId(id)
+    if (synthetic) {
+      byId.set(synthetic.id, synthetic)
+    }
+  }
+
+  return Array.from(byId.values())
 }
 
 export async function getAdminModelCatalog() {
@@ -103,12 +131,33 @@ export async function getAdminModelCatalog() {
     })
   }
 
-  const models = resolveModelCatalog(normalizedPersistedModels.models)
-  const enabledModelIds = sanitizeEnabledModelIds(
-    config?.enabledModelIds,
-    getConfiguredEnabledModelIds(),
-    models.map((model) => model.id),
+  const envEnabledIds = getConfiguredEnabledModelIds()
+  const baseModels = mergeEnvSynthesizedModels(ALL_MODELS, envEnabledIds)
+  const models = resolveModelCatalog(normalizedPersistedModels.models, baseModels)
+  const knownModelIds = models.map((model) => model.id)
+
+  const persistedModelIds = new Set(
+    (normalizedPersistedModels.models || [])
+      .map((model) => (typeof model?.id === "string" ? model.id.trim() : ""))
+      .filter((id) => id.length > 0),
   )
+
+  const sanitizedAdminEnabledIds = sanitizeEnabledModelIds(
+    config?.enabledModelIds,
+    envEnabledIds,
+    knownModelIds,
+  )
+
+  // Env-only models (not part of the hardcoded base list and not persisted by
+  // an admin) are auto-enabled so adding an id to ENABLED_AI_MODELS surfaces
+  // it instantly in the dashboard and dropdown without an admin save step.
+  const envOnlyEnabledIds = envEnabledIds.filter(
+    (id) => !BASE_MODEL_ID_SET.has(id) && !persistedModelIds.has(id),
+  )
+  const enabledModelIds = Array.from(
+    new Set([...sanitizedAdminEnabledIds, ...envOnlyEnabledIds]),
+  ).filter((id) => knownModelIds.includes(id))
+
   const defaultModelId = resolveDefaultModelId(
     config?.defaultModelId,
     enabledModelIds,
@@ -116,7 +165,7 @@ export async function getAdminModelCatalog() {
   )
 
   return {
-    ...buildCatalogSnapshot({ models, enabledModelIds, defaultModelId }),
+    ...buildCatalogSnapshot({ models, enabledModelIds, defaultModelId, persistedModelIds }),
     updatedAt: config?.updatedAt ?? null,
     updatedByEmail: config?.updatedByEmail ?? null,
   }
@@ -181,10 +230,13 @@ export async function upsertAdminModelPolicy(input: {
     })
   }
 
-  const currentModels = resolveModelCatalog(normalizedPersistedModels.models)
+  const envEnabledIds = getConfiguredEnabledModelIds()
+  const envEnabledIdSet = new Set(envEnabledIds)
+  const baseModels = mergeEnvSynthesizedModels(ALL_MODELS, envEnabledIds)
+  const currentModels = resolveModelCatalog(normalizedPersistedModels.models, baseModels)
   const currentEnabledModelIds = sanitizeEnabledModelIds(
     currentConfig?.enabledModelIds,
-    getConfiguredEnabledModelIds(),
+    envEnabledIds,
     currentModels.map((model) => model.id),
   )
   const currentDefaultModelId = resolveDefaultModelId(
@@ -193,10 +245,25 @@ export async function upsertAdminModelPolicy(input: {
     getConfiguredDefaultModelId(),
   )
 
-  const nextModels = resolveModelCatalog(input.models)
+  const previouslyPersistedIds = new Set(
+    (normalizedPersistedModels.models || [])
+      .map((model) => (typeof model?.id === "string" ? model.id.trim() : ""))
+      .filter((id) => id.length > 0),
+  )
+
+  const nextModels = resolveModelCatalog(input.models, baseModels)
   if (nextModels.length === 0) {
     throw new AdminModelPolicyMutationError("At least one model must be configured.")
   }
+
+  // Keep env-only models out of the persisted set so changes to
+  // ENABLED_AI_MODELS continue to flow through automatically. Anything an
+  // admin already persisted (or any base model the admin edited) is kept.
+  const modelsToPersist = nextModels.filter((model) => {
+    if (BASE_MODEL_ID_SET.has(model.id)) return true
+    if (previouslyPersistedIds.has(model.id)) return true
+    return !envEnabledIdSet.has(model.id)
+  })
 
   const nextEnabledModelIds = sanitizeEnabledModelIds(
     input.enabledModelIds,
@@ -212,17 +279,19 @@ export async function upsertAdminModelPolicy(input: {
     nextEnabledModelIds,
     getConfiguredDefaultModelId(),
   )
+
   const before = buildCatalogSnapshot({
     models: currentModels,
     enabledModelIds: currentEnabledModelIds,
     defaultModelId: currentDefaultModelId,
+    persistedModelIds: previouslyPersistedIds,
   })
 
   await AdminModelConfig.findByIdAndUpdate(
     ADMIN_MODEL_CONFIG_ID,
     {
       $set: {
-        models: nextModels,
+        models: modelsToPersist,
         enabledModelIds: nextEnabledModelIds,
         defaultModelId: nextDefaultModelId,
         updatedByUserId: input.actor.id,
@@ -236,10 +305,14 @@ export async function upsertAdminModelPolicy(input: {
     },
   )
 
+  const persistedModelIdsAfterSave = new Set(
+    modelsToPersist.map((model) => model.id),
+  )
   const after = buildCatalogSnapshot({
     models: nextModels,
     enabledModelIds: nextEnabledModelIds,
     defaultModelId: nextDefaultModelId,
+    persistedModelIds: persistedModelIdsAfterSave,
   })
 
   await createAdminAuditEntry({

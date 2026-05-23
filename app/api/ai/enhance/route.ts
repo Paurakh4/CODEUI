@@ -102,7 +102,9 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         enhancedPrompt: buildDeterministicPromptEnhancement(context),
-        warning,
+        warning:
+          warning ||
+          "Prompt Enhance is using a basic fallback because the AI service is unavailable.",
       })
     }
   } catch (error) {

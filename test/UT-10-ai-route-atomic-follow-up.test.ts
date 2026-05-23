@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { normalizeHtml } from "@/lib/reprompting/normalize-html"
+
 const auth = vi.fn()
 const connectDB = vi.fn(async () => undefined)
 const userFindById = vi.fn()
@@ -127,7 +129,7 @@ describe("UT-10 AI route atomic follow-up retry", () => {
     const contentEvents = events.filter((event) => event.type === "content")
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(contentEvents).toEqual([{ type: "content", data: validHtml }])
+    expect(contentEvents).toEqual([{ type: "content", data: normalizeHtml(validHtml) }])
     expect(events.some((event) => event.type === "error")).toBe(false)
   })
 

@@ -23,6 +23,7 @@ import {
 } from "@/lib/constants"
 import { isCompleteHtmlDocument } from "@/lib/ai-update-recovery"
 import { StreamParser } from "@/lib/parsers/stream-parser"
+import { normalizeHtml } from "@/lib/reprompting/normalize-html"
 import { escapeRegExp } from "@/lib/utils/regex-helper"
 
 export type FollowUpFinalizerStrategy =
@@ -236,7 +237,12 @@ export interface FinalizeFollowUpInput {
  *   5. Apply SEARCH/REPLACE patches against the prior HTML.
  *
  * On success, the returned HTML is guaranteed to satisfy
- * `isStrictCompleteHtmlDocument` — i.e., the editor can render it directly.
+ * `isStrictCompleteHtmlDocument` AND has been run through `normalizeHtml`,
+ * so callers can rely on byte-stable canonical output. This matters for
+ * the `search-replace` strategy on the next reprompt: SEARCH blocks are
+ * matched against the previously stored HTML, so any formatter drift
+ * between requests would invalidate patches.
+ *
  * Callers should keep `currentHtml` as the source of truth on failure.
  */
 export function finalizeFollowUpResponse(
@@ -249,14 +255,18 @@ export function finalizeFollowUpResponse(
 
   const passthrough = tryStrictPassthrough(cleaned)
   if (passthrough) {
-    return { ok: true, html: passthrough, strategy: "passthrough" }
+    return { ok: true, html: normalizeHtml(passthrough), strategy: "passthrough" }
   }
 
   const withoutThinking = stripThinkingBlocks(cleaned).trim()
   if (withoutThinking && withoutThinking !== cleaned.trim()) {
     const passthroughAfterThink = tryStrictPassthrough(withoutThinking)
     if (passthroughAfterThink) {
-      return { ok: true, html: passthroughAfterThink, strategy: "stripped-thinking" }
+      return {
+        ok: true,
+        html: normalizeHtml(passthroughAfterThink),
+        strategy: "stripped-thinking",
+      }
     }
   }
 
@@ -266,12 +276,16 @@ export function finalizeFollowUpResponse(
   // multiple fenced examples, the fenced block is the canonical answer.
   const fenced = tryExtractFencedBlock(candidate)
   if (fenced) {
-    return { ok: true, html: fenced, strategy: "fenced-block" }
+    return { ok: true, html: normalizeHtml(fenced), strategy: "fenced-block" }
   }
 
   const extracted = tryExtractCompleteDocument(candidate)
   if (extracted) {
-    return { ok: true, html: extracted, strategy: "extracted-from-narration" }
+    return {
+      ok: true,
+      html: normalizeHtml(extracted),
+      strategy: "extracted-from-narration",
+    }
   }
 
   if (input.currentHtml && isStrictCompleteHtmlDocument(input.currentHtml)) {
@@ -279,7 +293,7 @@ export function finalizeFollowUpResponse(
     if (patched) {
       return {
         ok: true,
-        html: patched.html,
+        html: normalizeHtml(patched.html),
         strategy: "search-replace",
         appliedPatchCount: patched.appliedPatchCount,
       }

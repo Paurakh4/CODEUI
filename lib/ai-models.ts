@@ -99,6 +99,79 @@ function getServerEnvValue(name: string): string | undefined {
   return typeof window === "undefined" ? process.env[name] : undefined
 }
 
+/**
+ * Default context length used for env-configured models when no metadata is
+ * available. Picked to be a reasonable middle ground for modern LLMs.
+ */
+const ENV_MODEL_DEFAULT_CONTEXT_LENGTH = 128_000
+
+/**
+ * Pretty labels for known provider slugs. Falls back to a humanized version
+ * of the slug when not listed.
+ */
+const PROVIDER_LABEL_OVERRIDES: Record<string, string> = {
+  "x-ai": "xAI",
+  "openai": "OpenAI",
+  "google": "Google",
+  "deepseek": "DeepSeek",
+  "qwen": "Qwen",
+  "anthropic": "Anthropic",
+  "moonshotai": "Moonshot AI",
+  "z-ai": "Zhipu",
+  "mistralai": "Mistral",
+  "meta-llama": "Meta",
+  "cohere": "Cohere",
+  "perplexity": "Perplexity",
+}
+
+function humanizeSlug(slug: string): string {
+  return slug
+    .split(/[-_]/g)
+    .filter((part) => part.length > 0)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
+}
+
+function deriveProviderLabel(providerSlug: string): string {
+  const key = providerSlug.toLowerCase()
+  return PROVIDER_LABEL_OVERRIDES[key] ?? humanizeSlug(providerSlug)
+}
+
+function deriveModelDisplayName(modelSlug: string): string {
+  // Strip OpenRouter style suffix tags such as :nitro, :free, :beta and
+  // surface them as parenthesized hints so the visible name stays clean.
+  const [coreSlug, ...tagParts] = modelSlug.split(":")
+  const coreName = humanizeSlug(coreSlug)
+  if (tagParts.length === 0) return coreName
+  const tagLabel = tagParts.map((tag) => humanizeSlug(tag)).join(" ")
+  return `${coreName} (${tagLabel})`
+}
+
+/**
+ * Build a synthetic AIModel record for an env-configured model id that does
+ * not exist in the hardcoded master list. The id is expected to follow the
+ * `provider/model` convention used by OpenRouter; if it does not, the entire
+ * id is treated as the model slug with provider "Custom".
+ */
+export function synthesizeAIModelFromId(modelId: string): AIModel | undefined {
+  const id = modelId.trim()
+  if (!id) return undefined
+
+  const slashIndex = id.indexOf("/")
+  const providerSlug = slashIndex > 0 ? id.slice(0, slashIndex) : "custom"
+  const modelSlug = slashIndex > 0 ? id.slice(slashIndex + 1) : id
+
+  if (!modelSlug) return undefined
+
+  return {
+    id,
+    name: deriveModelDisplayName(modelSlug),
+    provider: deriveProviderLabel(providerSlug),
+    description: "Configured via ENABLED_AI_MODELS",
+    contextLength: ENV_MODEL_DEFAULT_CONTEXT_LENGTH,
+  }
+}
+
 function normalizeConfiguredModelId(value: string | null | undefined) {
   const normalized = value?.trim()
   return normalized && normalized.length > 0 ? normalized : undefined
@@ -184,16 +257,51 @@ export function getConfiguredEnabledModelIds(): string[] {
 /**
  * Get the list of enabled models based on environment configuration
  */
+/**
+ * Get the list of enabled models based on environment configuration.
+ * Models listed in `ENABLED_AI_MODELS` that are not in the hardcoded master
+ * list are synthesized so they can flow through downstream catalogs and the
+ * model dropdown without a code change.
+ */
 export function getEnabledModels(): AIModel[] {
-  const enabledIds = new Set(getConfiguredEnabledModelIds())
-  return ALL_MODELS.filter(model => enabledIds.has(model.id))
+  const enabledIds = getConfiguredEnabledModelIds()
+  const baseById = new Map(ALL_MODELS.map((model) => [model.id, model]))
+  const result: AIModel[] = []
+  const seen = new Set<string>()
+
+  for (const id of enabledIds) {
+    if (seen.has(id)) continue
+    const base = baseById.get(id)
+    if (base) {
+      result.push(base)
+      seen.add(id)
+      continue
+    }
+
+    const synthetic = synthesizeAIModelFromId(id)
+    if (synthetic) {
+      result.push(synthetic)
+      seen.add(id)
+    }
+  }
+
+  return result
 }
 
 /**
- * Get a specific model by ID
+ * Get a specific model by ID. Falls back to synthesizing metadata for ids
+ * configured via `ENABLED_AI_MODELS` but not present in the master list.
  */
 export function getModelById(id: string): AIModel | undefined {
-  return ALL_MODELS.find(model => model.id === id)
+  const base = ALL_MODELS.find((model) => model.id === id)
+  if (base) return base
+
+  const enabledIds = new Set(getConfiguredEnabledModelIds())
+  if (enabledIds.has(id)) {
+    return synthesizeAIModelFromId(id)
+  }
+
+  return undefined
 }
 
 /**

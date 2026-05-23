@@ -74,7 +74,9 @@ describe("prompt enhancement", () => {
       strength: "standard",
     })
 
-    expect(result.enhancedPrompt).toContain("Design brief guidance:")
+    expect(result.enhancedPrompt).toContain("Create a mobile app for students")
+    expect(result.enhancedPrompt).not.toContain("Design brief guidance:")
+    expect(result.enhancedPrompt).not.toBe("Create a mobile app for students")
   })
 
   it("falls back deterministically when the enhancer returns the original prompt unchanged", () => {
@@ -83,7 +85,8 @@ describe("prompt enhancement", () => {
       strength: "standard",
     })
 
-    expect(result.enhancedPrompt).toContain("Design brief guidance:")
+    expect(result.enhancedPrompt).toContain("Create a landing page for a recruiting platform")
+    expect(result.enhancedPrompt).not.toContain("Design brief guidance:")
     expect(result.enhancedPrompt).not.toBe("Create a landing page for a recruiting platform")
   })
 
@@ -103,6 +106,6 @@ describe("prompt enhancement", () => {
     })
 
     expect(result).toContain("Create a landing page for a recruiting platform")
-    expect(result).toContain("Keep the same core intent")
+    expect(result).not.toContain("Design brief guidance:")
   })
 })

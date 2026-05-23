@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest"
 
 import { finalizeFollowUpResponse } from "@/lib/reprompting/follow-up-finalizer"
 
-const COMPLETE_HTML = `<!DOCTYPE html>
+// All `ok` results from the finalizer are run through `normalizeHtml`, so
+// the canonical "expected" shape includes parse5's inferred <head></head>
+// element and a trailing newline. We write the source HTML in the form a
+// real model would emit (no <head>) and compare against the normalized
+// version stored here.
+const COMPLETE_HTML_SOURCE = `<!DOCTYPE html>
 <html>
   <body>
     <main>
@@ -11,6 +16,18 @@ const COMPLETE_HTML = `<!DOCTYPE html>
     </main>
   </body>
 </html>`
+
+const COMPLETE_HTML_NORMALIZED = `<!DOCTYPE html>
+<html>
+  <head></head>
+  <body>
+    <main>
+      <h1>Updated heading</h1>
+      <p>Updated copy.</p>
+    </main>
+  </body>
+</html>
+`
 
 const PRIOR_HTML = `<!DOCTYPE html>
 <html>
@@ -26,31 +43,31 @@ describe("UT-29 follow-up finalizer", () => {
   describe("Gemini-style clean output", () => {
     it("passes through a complete HTML document untouched", () => {
       const result = finalizeFollowUpResponse({
-        rawContent: COMPLETE_HTML,
+        rawContent: COMPLETE_HTML_SOURCE,
         currentHtml: PRIOR_HTML,
       })
 
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.strategy).toBe("passthrough")
-      expect(result.html).toBe(COMPLETE_HTML)
+      expect(result.html).toBe(COMPLETE_HTML_NORMALIZED)
     })
 
     it("trims surrounding whitespace from a passthrough document", () => {
       const result = finalizeFollowUpResponse({
-        rawContent: `\n\n${COMPLETE_HTML}\n\n`,
+        rawContent: `\n\n${COMPLETE_HTML_SOURCE}\n\n`,
         currentHtml: PRIOR_HTML,
       })
 
       expect(result.ok).toBe(true)
       if (!result.ok) return
-      expect(result.html).toBe(COMPLETE_HTML)
+      expect(result.html).toBe(COMPLETE_HTML_NORMALIZED)
     })
   })
 
   describe("Thinking-model output (DeepSeek R1, Kimi K2 Thinking, GLM 4.7)", () => {
     it("strips <think>...</think> blocks before the document", () => {
-      const raw = `<think>The user wants a light theme. I need to update the body background.</think>\n${COMPLETE_HTML}`
+      const raw = `<think>The user wants a light theme. I need to update the body background.</think>\n${COMPLETE_HTML_SOURCE}`
 
       const result = finalizeFollowUpResponse({
         rawContent: raw,
@@ -60,14 +77,14 @@ describe("UT-29 follow-up finalizer", () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.strategy).toBe("stripped-thinking")
-      expect(result.html).toBe(COMPLETE_HTML)
+      expect(result.html).toBe(COMPLETE_HTML_NORMALIZED)
       expect(result.html).not.toContain("<think>")
     })
 
     it("strips multiple thinking tag variants", () => {
       const raw = `<reasoning>Step 1: parse request.</reasoning>
 <reflection>Be careful with edge cases.</reflection>
-${COMPLETE_HTML}`
+${COMPLETE_HTML_SOURCE}`
 
       const result = finalizeFollowUpResponse({
         rawContent: raw,
@@ -76,14 +93,14 @@ ${COMPLETE_HTML}`
 
       expect(result.ok).toBe(true)
       if (!result.ok) return
-      expect(result.html).toBe(COMPLETE_HTML)
+      expect(result.html).toBe(COMPLETE_HTML_NORMALIZED)
     })
 
     it("recovers when an open <think> tag is left dangling before the doctype", () => {
       const raw = `<think>I should change the heading...
 Then update copy.
 
-${COMPLETE_HTML}`
+${COMPLETE_HTML_SOURCE}`
 
       const result = finalizeFollowUpResponse({
         rawContent: raw,
@@ -92,13 +109,13 @@ ${COMPLETE_HTML}`
 
       expect(result.ok).toBe(true)
       if (!result.ok) return
-      expect(result.html).toBe(COMPLETE_HTML)
+      expect(result.html).toBe(COMPLETE_HTML_NORMALIZED)
     })
   })
 
   describe("Markdown-fenced output (OpenAI, Mistral, some Anthropic models)", () => {
     it("unwraps a ```html fenced block", () => {
-      const raw = `\`\`\`html\n${COMPLETE_HTML}\n\`\`\``
+      const raw = `\`\`\`html\n${COMPLETE_HTML_SOURCE}\n\`\`\``
 
       const result = finalizeFollowUpResponse({
         rawContent: raw,
@@ -108,11 +125,11 @@ ${COMPLETE_HTML}`
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.strategy).toBe("fenced-block")
-      expect(result.html).toBe(COMPLETE_HTML)
+      expect(result.html).toBe(COMPLETE_HTML_NORMALIZED)
     })
 
     it("unwraps an unlabeled fenced block", () => {
-      const raw = `Here is the updated page:\n\n\`\`\`\n${COMPLETE_HTML}\n\`\`\``
+      const raw = `Here is the updated page:\n\n\`\`\`\n${COMPLETE_HTML_SOURCE}\n\`\`\``
 
       const result = finalizeFollowUpResponse({
         rawContent: raw,
@@ -121,11 +138,11 @@ ${COMPLETE_HTML}`
 
       expect(result.ok).toBe(true)
       if (!result.ok) return
-      expect(result.html).toBe(COMPLETE_HTML)
+      expect(result.html).toBe(COMPLETE_HTML_NORMALIZED)
     })
 
     it("recovers a fenced block whose closing fence was truncated", () => {
-      const raw = `\`\`\`html\n${COMPLETE_HTML}`
+      const raw = `\`\`\`html\n${COMPLETE_HTML_SOURCE}`
 
       const result = finalizeFollowUpResponse({
         rawContent: raw,
@@ -134,12 +151,12 @@ ${COMPLETE_HTML}`
 
       expect(result.ok).toBe(true)
       if (!result.ok) return
-      expect(result.html).toBe(COMPLETE_HTML)
+      expect(result.html).toBe(COMPLETE_HTML_NORMALIZED)
     })
 
     it("picks the largest fenced HTML block when multiple are present", () => {
       const smallSnippet = `<!DOCTYPE html><html><body>Small</body></html>`
-      const raw = `Before:\n\`\`\`html\n${smallSnippet}\n\`\`\`\nAfter the big update:\n\`\`\`html\n${COMPLETE_HTML}\n\`\`\``
+      const raw = `Before:\n\`\`\`html\n${smallSnippet}\n\`\`\`\nAfter the big update:\n\`\`\`html\n${COMPLETE_HTML_SOURCE}\n\`\`\``
 
       const result = finalizeFollowUpResponse({
         rawContent: raw,
@@ -148,13 +165,13 @@ ${COMPLETE_HTML}`
 
       expect(result.ok).toBe(true)
       if (!result.ok) return
-      expect(result.html).toBe(COMPLETE_HTML)
+      expect(result.html).toBe(COMPLETE_HTML_NORMALIZED)
     })
   })
 
   describe("Narration-wrapped output", () => {
     it("extracts the document from leading narration", () => {
-      const raw = `Sure! Here is the updated page with the change you asked for:\n\n${COMPLETE_HTML}\n\nLet me know if you want anything else!`
+      const raw = `Sure! Here is the updated page with the change you asked for:\n\n${COMPLETE_HTML_SOURCE}\n\nLet me know if you want anything else!`
 
       const result = finalizeFollowUpResponse({
         rawContent: raw,
@@ -164,7 +181,7 @@ ${COMPLETE_HTML}`
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.strategy).toBe("extracted-from-narration")
-      expect(result.html).toBe(COMPLETE_HTML)
+      expect(result.html).toBe(COMPLETE_HTML_NORMALIZED)
     })
   })
 

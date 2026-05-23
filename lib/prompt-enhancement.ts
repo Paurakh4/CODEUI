@@ -270,28 +270,36 @@ export function sanitizeEnhancedPromptOutput(output: string): string {
   )
 }
 
+function polishSentenceCase(value: string): string {
+  if (!value) {
+    return value
+  }
+
+  const firstChar = value.charAt(0)
+  const upperFirst = firstChar.toUpperCase()
+  const head = upperFirst === firstChar ? value : `${upperFirst}${value.slice(1)}`
+  return /[.!?]$/.test(head) ? head : `${head}.`
+}
+
 export function buildDeterministicPromptEnhancement({
   prompt,
   strength = "standard",
 }: PromptEnhancementContext): string {
   const normalizedPrompt = normalizeWhitespace(prompt)
-  const leadIn =
-    strength === "light"
-      ? "Clarify the request and tighten the wording while preserving the existing scope."
-      : strength === "strong"
-        ? "Restructure the request into a polished design brief while staying faithful to the original intent."
-        : "Rewrite the request into a clearer, more professional UI brief without changing its meaning."
+  if (!normalizedPrompt) {
+    return ""
+  }
 
-  return [
-    normalizedPrompt,
-    "",
-    "Design brief guidance:",
-    `- ${leadIn}`,
-    "- Keep the same core intent, product scope, platform assumptions, and audience assumptions.",
-    "- Make the layout direction, visual hierarchy, and component emphasis easier to understand.",
-    "- Describe relevant interaction states, spacing, typography, and responsive behavior only where the original request already points in that direction.",
-    "- Do not invent new features or expand the product scope.",
-  ].join("\n")
+  const polishedRequest = polishSentenceCase(normalizedPrompt)
+
+  const designPolish =
+    strength === "light"
+      ? "Keep the existing scope, but tighten the layout, typography, and spacing for a cleaner, more polished result."
+      : strength === "strong"
+        ? "Use a polished, modern layout with a clear visual hierarchy, generous spacing, refined typography, and tasteful interaction states, while keeping the original product scope intact."
+        : "Use a clean, modern layout with a clear visual hierarchy, balanced spacing, and refined typography, while keeping the original product scope intact."
+
+  return `${polishedRequest} ${designPolish}`
 }
 
 export function detectPromptEnhancementWarning(prompt: string): string | undefined {
