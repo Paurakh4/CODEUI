@@ -11,7 +11,11 @@ import {
   Info,
   Star,
   Clock,
-  Save,
+  MoreHorizontal,
+  Globe,
+  Lock,
+  ExternalLink,
+  Trash2,
 } from "lucide-react"
 import {
   Sidebar,
@@ -24,7 +28,6 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarMenuBadge,
   useSidebar,
 } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
@@ -33,6 +36,22 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { cn } from "@/lib/utils"
 import type { SubscriptionTier } from "@/lib/pricing"
 
@@ -60,6 +79,13 @@ interface DashboardSidebarProps {
   userMonthlyCredits: number
   usagePercentage: number
   formatRelativeDate: (date: string) => string
+  onToggleFavorite?: (projectId: string) => void
+  onToggleVisibility?: (projectId: string) => void
+  onDeleteProject?: (projectId: string) => void
+  onOpenPublic?: (projectId: string) => void
+  updatingFavoriteIds?: string[]
+  updatingVisibilityIds?: string[]
+  deletingProjectId?: string | null
 }
 
 const TIER_CREDITS: Record<SubscriptionTier, number> = {
@@ -79,6 +105,153 @@ function getTierBadge(tier: SubscriptionTier) {
   }
 }
 
+interface SidebarProjectItemProps {
+  project: Project
+  icon: "favorite" | "recent"
+  formatRelativeDate: (date: string) => string
+  onToggleFavorite?: (projectId: string) => void
+  onToggleVisibility?: (projectId: string) => void
+  onDeleteRequest?: (project: Project) => void
+  onOpenPublic?: (projectId: string) => void
+  isFavoriteUpdating?: boolean
+  isVisibilityUpdating?: boolean
+}
+
+function SidebarProjectItem({
+  project,
+  icon,
+  formatRelativeDate,
+  onToggleFavorite,
+  onToggleVisibility,
+  onDeleteRequest,
+  onOpenPublic,
+  isFavoriteUpdating = false,
+  isVisibilityUpdating = false,
+}: SidebarProjectItemProps) {
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  const handleHeartClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (isFavoriteUpdating) return
+    onToggleFavorite?.(project.id)
+  }
+
+  const showFavoriteHeart = icon === "favorite"
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild tooltip={project.name} size="sm">
+        <Link
+          href={`/project/${project.id}`}
+          className="flex items-center w-full min-w-0 pr-12"
+        >
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            {showFavoriteHeart ? (
+              <button
+                type="button"
+                onClick={handleHeartClick}
+                disabled={isFavoriteUpdating}
+                aria-label={`Remove ${project.name} from favorites`}
+                className="shrink-0 text-[#E7E7E9] hover:text-[#9B9B9F] transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {isFavoriteUpdating ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Heart className="w-3 h-3 fill-current" />
+                )}
+              </button>
+            ) : (
+              <Clock className="w-3 h-3 text-[#9B9B9F] shrink-0" />
+            )}
+            <span className="truncate">{project.name}</span>
+          </div>
+          <span className="text-[9px] text-[#9B9B9F] whitespace-nowrap ml-2 shrink-0 group-hover/menu-item:opacity-0 transition-opacity">
+            {formatRelativeDate(project.updatedAt)}
+          </span>
+        </Link>
+      </SidebarMenuButton>
+
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+            }}
+            aria-label={`Actions for ${project.name}`}
+            className={cn(
+              "absolute right-1 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-md w-5 h-5 text-[#9B9B9F] hover:text-[#E7E7E9] hover:bg-[#1B1B1F] transition-opacity",
+              "opacity-0 group-hover/menu-item:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
+              menuOpen && "opacity-100",
+            )}
+          >
+            <MoreHorizontal className="w-3 h-3" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          side="right"
+          onClick={(e) => e.stopPropagation()}
+          className="bg-[#0E0E10] border-white/[0.04] text-[#E7E7E9] min-w-[160px]"
+        >
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault()
+              if (!isFavoriteUpdating) onToggleFavorite?.(project.id)
+            }}
+            className="gap-2 cursor-pointer focus:bg-[#1B1B1F] focus:text-[#E7E7E9] text-xs"
+            disabled={isFavoriteUpdating}
+          >
+            <Heart className={cn("w-3.5 h-3.5", project.isFavorite && "fill-current")} />
+            {project.isFavorite ? "Remove favorite" : "Add to favorites"}
+          </DropdownMenuItem>
+          {!project.isPrivate && (
+            <DropdownMenuItem
+              onSelect={(e) => {
+                e.preventDefault()
+                onOpenPublic?.(project.id)
+              }}
+              className="gap-2 cursor-pointer focus:bg-[#1B1B1F] focus:text-[#E7E7E9] text-xs"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Open public page
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault()
+              if (!isVisibilityUpdating) onToggleVisibility?.(project.id)
+            }}
+            className="gap-2 cursor-pointer focus:bg-[#1B1B1F] focus:text-[#E7E7E9] text-xs"
+            disabled={isVisibilityUpdating}
+          >
+            {isVisibilityUpdating ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : project.isPrivate ? (
+              <Globe className="w-3.5 h-3.5" />
+            ) : (
+              <Lock className="w-3.5 h-3.5" />
+            )}
+            {project.isPrivate ? "Make public" : "Make private"}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault()
+              onDeleteRequest?.(project)
+            }}
+            className="gap-2 cursor-pointer text-red-400 focus:text-red-300 focus:bg-red-500/10 text-xs"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete project
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </SidebarMenuItem>
+  )
+}
+
 export function DashboardSidebar({
   projects,
   isLoadingProjects,
@@ -88,13 +261,21 @@ export function DashboardSidebar({
   userTier,
   userTotalCredits,
   userMonthlyCredits,
-  usagePercentage,
+  usagePercentage: _usagePercentage,
   formatRelativeDate,
+  onToggleFavorite,
+  onToggleVisibility,
+  onDeleteProject,
+  onOpenPublic,
+  updatingFavoriteIds = [],
+  updatingVisibilityIds = [],
+  deletingProjectId = null,
 }: DashboardSidebarProps) {
   const { state } = useSidebar()
   const isCollapsed = state === "collapsed"
   const [searchQuery, setSearchQuery] = useState("")
   const [isSearchFocused, setIsSearchFocused] = useState(false)
+  const [projectPendingDelete, setProjectPendingDelete] = useState<Project | null>(null)
   const tierBadge = getTierBadge(userTier)
 
   const normalizedQuery = searchQuery.trim().toLowerCase()
@@ -121,15 +302,15 @@ export function DashboardSidebar({
     [projects],
   )
 
-  const savedProjects = useMemo(
-    () => [...projects]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 6),
-    [projects],
-  )
-
   const maxCredits = TIER_CREDITS[userTier] || 20
   const usagePct = Math.max(0, Math.min(100, (userMonthlyCredits / maxCredits) * 100))
+
+  const handleConfirmDelete = () => {
+    if (projectPendingDelete && onDeleteProject) {
+      onDeleteProject(projectPendingDelete.id)
+    }
+    setProjectPendingDelete(null)
+  }
 
   return (
     <Sidebar
@@ -248,19 +429,18 @@ export function DashboardSidebar({
             ) : favoriteProjects.length > 0 ? (
               <SidebarMenu>
                 {favoriteProjects.map((project) => (
-                  <SidebarMenuItem key={`fav-${project.id}`}>
-                    <SidebarMenuButton asChild tooltip={project.name} size="sm">
-                      <Link href={`/project/${project.id}`} className="flex items-center justify-between w-full min-w-0">
-                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                          <Heart className="w-3 h-3 text-[#E7E7E9] fill-current shrink-0" />
-                          <span className="truncate">{project.name}</span>
-                        </div>
-                        <span className="text-[9px] text-[#9B9B9F] whitespace-nowrap ml-2 shrink-0">
-                          {formatRelativeDate(project.updatedAt)}
-                        </span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  <SidebarProjectItem
+                    key={`fav-${project.id}`}
+                    project={project}
+                    icon="favorite"
+                    formatRelativeDate={formatRelativeDate}
+                    onToggleFavorite={onToggleFavorite}
+                    onToggleVisibility={onToggleVisibility}
+                    onDeleteRequest={setProjectPendingDelete}
+                    onOpenPublic={onOpenPublic}
+                    isFavoriteUpdating={updatingFavoriteIds.includes(project.id)}
+                    isVisibilityUpdating={updatingVisibilityIds.includes(project.id)}
+                  />
                 ))}
               </SidebarMenu>
             ) : (
@@ -287,19 +467,18 @@ export function DashboardSidebar({
             ) : recentProjects.length > 0 ? (
               <SidebarMenu>
                 {recentProjects.map((project) => (
-                  <SidebarMenuItem key={`recent-${project.id}`}>
-                    <SidebarMenuButton asChild tooltip={project.name} size="sm">
-                      <Link href={`/project/${project.id}`} className="flex items-center justify-between w-full min-w-0">
-                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                          <Clock className="w-3 h-3 text-[#9B9B9F] shrink-0" />
-                          <span className="truncate">{project.name}</span>
-                        </div>
-                        <span className="text-[9px] text-[#9B9B9F] whitespace-nowrap ml-2 shrink-0">
-                          {formatRelativeDate(project.updatedAt)}
-                        </span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  <SidebarProjectItem
+                    key={`recent-${project.id}`}
+                    project={project}
+                    icon="recent"
+                    formatRelativeDate={formatRelativeDate}
+                    onToggleFavorite={onToggleFavorite}
+                    onToggleVisibility={onToggleVisibility}
+                    onDeleteRequest={setProjectPendingDelete}
+                    onOpenPublic={onOpenPublic}
+                    isFavoriteUpdating={updatingFavoriteIds.includes(project.id)}
+                    isVisibilityUpdating={updatingVisibilityIds.includes(project.id)}
+                  />
                 ))}
               </SidebarMenu>
             ) : (
@@ -307,40 +486,6 @@ export function DashboardSidebar({
                 <span className="flex items-center gap-1.5">
                   <Clock className="w-2.5 h-2.5" />
                   No activity yet.
-                </span>
-              </div>
-            )}
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Saved Projects */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[#9B9B9F] text-[10px] font-semibold">
-            Saved
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            {isLoadingProjects ? (
-              <div className="flex items-center justify-center py-2">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#9B9B9F]" />
-              </div>
-            ) : savedProjects.length > 0 ? (
-              <SidebarMenu>
-                {savedProjects.map((project) => (
-                  <SidebarMenuItem key={`saved-${project.id}`}>
-                    <SidebarMenuButton asChild tooltip={project.name} size="sm">
-                      <Link href={`/project/${project.id}`} className="flex items-center gap-1.5 w-full min-w-0">
-                        <Save className="w-3 h-3 text-[#9B9B9F] shrink-0" />
-                        <span className="truncate flex-1">{project.name}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            ) : (
-              <div className="px-2 py-2 text-[11px] text-[#9B9B9F]">
-                <span className="flex items-center gap-1.5">
-                  <FolderOpen className="w-2.5 h-2.5" />
-                  No saved projects.
                 </span>
               </div>
             )}
@@ -391,6 +536,56 @@ export function DashboardSidebar({
           </div>
         </SidebarFooter>
       )}
+
+      <AlertDialog
+        open={projectPendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setProjectPendingDelete(null)
+        }}
+      >
+        <AlertDialogContent className="bg-[#0E0E10] border-white/[0.04] text-[#E7E7E9]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[#E7E7E9]">Delete project?</AlertDialogTitle>
+            <AlertDialogDescription className="text-[#9B9B9F]">
+              {projectPendingDelete
+                ? `"${projectPendingDelete.name}" will be permanently deleted. This action cannot be undone.`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              className="bg-transparent border-white/[0.04] text-[#E7E7E9] hover:bg-[#1B1B1F] hover:text-[#E7E7E9]"
+              disabled={
+                projectPendingDelete !== null &&
+                deletingProjectId === projectPendingDelete.id
+              }
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                handleConfirmDelete()
+              }}
+              className="bg-red-500/90 text-white hover:bg-red-500"
+              disabled={
+                projectPendingDelete !== null &&
+                deletingProjectId === projectPendingDelete.id
+              }
+            >
+              {projectPendingDelete !== null &&
+              deletingProjectId === projectPendingDelete.id ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Deleting...
+                </span>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sidebar>
   )
 }

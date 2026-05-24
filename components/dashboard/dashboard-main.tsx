@@ -241,10 +241,6 @@ export function DashboardMain({
 
   const handleDeleteProject = useCallback(
     async (projectId: string) => {
-      const confirmed = window.confirm(
-        "Delete this project? This action cannot be undone.",
-      )
-      if (!confirmed) return
       setDeletingProjectId(projectId)
       try {
         const res = await fetch(`/api/projects/${projectId}`, {
@@ -252,13 +248,22 @@ export function DashboardMain({
         })
         if (!res.ok) throw new Error("Failed to delete project")
         setProjects((prev) => prev.filter((p) => p.id !== projectId))
+        toast({
+          title: "Project deleted",
+          description: "The project was removed successfully.",
+        })
       } catch (error) {
         console.error("Failed to delete project:", error)
+        toast({
+          title: "Failed to delete project",
+          description: "Please try again in a moment.",
+          variant: "destructive",
+        })
       } finally {
         setDeletingProjectId(null)
       }
     },
-    [],
+    [toast],
   )
 
   const handleToggleFavorite = useCallback(
@@ -391,6 +396,13 @@ export function DashboardMain({
         userMonthlyCredits={userMonthlyCredits}
         usagePercentage={usagePercentage}
         formatRelativeDate={formatRelativeDate}
+        onToggleFavorite={handleToggleFavorite}
+        onToggleVisibility={handleToggleVisibility}
+        onDeleteProject={handleDeleteProject}
+        onOpenPublic={handleOpenPublicProject}
+        updatingFavoriteIds={updatingFavoriteIds}
+        updatingVisibilityIds={updatingVisibilityIds}
+        deletingProjectId={deletingProjectId}
       />
 
       <SidebarInset className="relative flex flex-col overflow-y-auto overflow-x-hidden min-h-0 min-w-0 bg-background">
