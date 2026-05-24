@@ -115,6 +115,16 @@ export async function sendAuthActionEmail(input: {
   });
 
   if (!delivery.delivered) {
+    if (delivery.error) {
+      console.error(
+        `[AUTH_EMAIL:${input.type}] mail transport error for ${input.email}: ${delivery.error}`,
+      );
+    } else if (delivery.skipped && isLocalAuthDebugEnabled()) {
+      console.info(
+        `[AUTH_EMAIL:${input.type}] mail transport not configured; falling back to debug URL for ${input.email}`,
+      );
+    }
+
     return {
       delivered: false,
       debugUrl: isLocalAuthDebugEnabled() ? input.actionUrl : undefined,

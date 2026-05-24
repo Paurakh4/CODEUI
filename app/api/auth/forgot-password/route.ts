@@ -27,14 +27,33 @@ export async function POST(request: Request) {
 
     const email = normalizeAuthEmail(parsed.data.email);
     const user = await User.findOne({ email }).select("+passwordHash");
+    // Allow password reset for any registered, non-suspended user. Google-only
+    // accounts can use this flow to set a password without affecting their
+    // existing Google sign-in (googleId stays intact).
     const canResetPassword = Boolean(
-      user &&
-        (user.passwordHash ||
-          (typeof user.googleId === "string" && user.googleId.startsWith("local:")))
+      user && user.accountStatus !== "suspended"
     );
+
+    if (process.env.NODE_ENV !== "production") {
+      console.info("[forgot-password] request", {
+        email,
+        userFound: Boolean(user),
+        hasPasswordHash: Boolean(user?.passwordHash),
+        googleId: user?.googleId,
+        accountStatus: user?.accountStatus,
+        canResetPassword,
+      });
+    }
 
     if (canResetPassword) {
       const delivery = await issuePasswordResetEmail(email);
+
+      if (process.env.NODE_ENV !== "production") {
+        console.info("[forgot-password] delivery", {
+          email,
+          delivered: delivery.delivered,
+        });
+      }
 
       return NextResponse.json(
         {
