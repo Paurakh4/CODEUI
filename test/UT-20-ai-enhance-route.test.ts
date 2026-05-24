@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const auth = vi.fn()
 const getRuntimeDefaultModelId = vi.fn(async () => "test-model")
+const getRuntimePromptEnhanceModelId = vi.fn(async () => "test-model")
 const getRuntimeModelFallbackChain = vi.fn(async (model: string) => [model])
 const isRuntimeModelEnabled = vi.fn(async () => true)
 
@@ -11,6 +12,7 @@ vi.mock("@/lib/auth", () => ({ auth }))
 
 vi.mock("@/lib/admin/model-policies", () => ({
   getRuntimeDefaultModelId,
+  getRuntimePromptEnhanceModelId,
   getRuntimeModelFallbackChain,
   isRuntimeModelEnabled,
 }))

@@ -6,8 +6,6 @@ import { cn } from "@/lib/utils"
 import { Grip, Loader2, LocateFixed, RefreshCw, X } from "lucide-react"
 import { DeviceMode } from "@/stores/editor-store"
 
-const CINEMATHEQUE_TEMPLATE_LOADING_MARKER = "CINEMATHEQUE_TEMPLATE_LOADING"
-
 export interface SelectedElementInfo {
   selector: string;
   type: string;
@@ -28,12 +26,6 @@ export interface PreviewFrameProps {
   forwardedRef?: React.RefObject<HTMLIFrameElement | null>
   previewUpdateToken?: number
   previewUpdateMode?: "full" | "style"
-  templateLoadError?: string | null
-  onRetryLoadingTemplate?: () => void
-}
-
-function isCinemathequeTemplateLoadingDocument(value: string | null | undefined): boolean {
-  return (value || "").includes(CINEMATHEQUE_TEMPLATE_LOADING_MARKER)
 }
 
 const TRACKED_STYLE_PROPERTIES = [
@@ -215,8 +207,6 @@ export function PreviewFrame({
   forwardedRef,
   previewUpdateToken = 0,
   previewUpdateMode = "full",
-  templateLoadError,
-  onRetryLoadingTemplate,
 }: PreviewFrameProps) {
   const localIframeRef = useRef<HTMLIFrameElement>(null)
   const iframeRef = forwardedRef || localIframeRef
@@ -241,7 +231,6 @@ export function PreviewFrame({
 
   const hasPreviewShell = deviceMode === "desktop"
   const isTabletMode = deviceMode === "tablet"
-  const isTemplateLoadingDocument = isCinemathequeTemplateLoadingDocument(htmlContent)
   const frameShellClassName = cn(
     "relative flex-none touch-none",
     activeInteraction ? "transition-none" : "transition-all duration-300",
@@ -808,7 +797,7 @@ export function PreviewFrame({
     
     // Handle load event
     const handleLoad = () => {
-      setIsLoading(isTemplateLoadingDocument)
+      setIsLoading(false)
     }
     
     iframe.onload = handleLoad
@@ -820,7 +809,7 @@ export function PreviewFrame({
     return () => {
       iframe.onload = null
     }
-  }, [htmlContent, isTemplateLoadingDocument, previewUpdateMode, previewUpdateToken, reloadToken])
+  }, [htmlContent, previewUpdateMode, previewUpdateToken, reloadToken])
 
   // Refresh the preview
   const handleRefresh = useCallback(() => {
@@ -1158,33 +1147,9 @@ export function PreviewFrame({
       </div>
       
       {/* Loading indicator */}
-      {(isLoading || isTemplateLoadingDocument || Boolean(templateLoadError)) && (
+      {isLoading && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-zinc-950/72 backdrop-blur-sm">
-          {isTemplateLoadingDocument || templateLoadError ? (
-            <div className="mx-6 w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950/95 p-5 shadow-2xl">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-zinc-100">
-                  {templateLoadError ? "Starter canvas unavailable" : "Loading starter canvas..."}
-                </p>
-                <p className="text-sm leading-6 text-zinc-400">
-                  {templateLoadError || "The preview will unlock once the default Cinematheque template has loaded."}
-                </p>
-              </div>
-
-              <div className="mt-4 flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={onRetryLoadingTemplate || handleRefresh}
-                  className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm font-medium text-zinc-100 transition-colors hover:border-zinc-600 hover:bg-zinc-800"
-                >
-                  Retry template load
-                </button>
-                {!templateLoadError ? <Loader2 className="h-4 w-4 animate-spin text-blue-500" /> : null}
-              </div>
-            </div>
-          ) : (
-            <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
-          )}
+          <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
         </div>
       )}
       

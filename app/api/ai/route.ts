@@ -785,6 +785,13 @@ export async function POST(req: NextRequest) {
         let totalParts = 0
         let hiddenFollowUpRetryCount = 0
         let requestAborted = requestSignal.aborted
+        // For initial generation we stream raw model output to the client so
+        // Monaco can render it live. For follow-up edits we still buffer the
+        // final content (so the in-memory finalizer + hidden retry can
+        // validate SEARCH/REPLACE blocks before they reach the client) but we
+        // additionally emit a "draft" event with each chunk so Monaco can
+        // show live progress during a reprompt without the client applying
+        // half-applied patches.
         const streamContentIncrementally = !isFollowUp
         const modelsUsed = new Set<string>()
         let lastModelUsed = initialUpstreamRequest.modelUsed
@@ -992,6 +999,12 @@ export async function POST(req: NextRequest) {
                 totalEmittedContentLength += content.length
                 if (streamContentIncrementally) {
                   emitEvent("content", content)
+                } else {
+                  // Buffered follow-up path: still surface partial output to
+                  // the client as a non-applied "draft" so Monaco can render
+                  // live progress while we wait for the full response to be
+                  // validated.
+                  emitEvent("draft", content)
                 }
               },
               onThinking: (thinking) => {

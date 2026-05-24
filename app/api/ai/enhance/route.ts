@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import {
-  getRuntimeDefaultModelId,
   getRuntimeModelFallbackChain,
+  getRuntimePromptEnhanceModelId,
   isRuntimeModelEnabled,
 } from "@/lib/admin/model-policies"
 import {
@@ -23,6 +23,8 @@ const logger = createRepromptLogger("api-ai-enhance")
 
 interface EnhanceRequestBody {
   prompt: string
+  // Accepted for backward compatibility but ignored — Prompt Enhance always
+  // uses the model configured in the admin model policy / PROMPT_ENHANCE_MODEL.
   model?: string
   strength?: PromptEnhancementStrength
 }
@@ -36,11 +38,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const runtimeDefaultModelId = await getRuntimeDefaultModelId()
     const body = (await request.json()) as EnhanceRequestBody
     const prompt = typeof body.prompt === "string" ? body.prompt.trim() : ""
-    const model = body.model || runtimeDefaultModelId
     const strength = body.strength || "standard"
+
+    // Always use the admin/env-configured prompt enhance model regardless of
+    // the user's currently selected generation model. This keeps Prompt
+    // Enhance deterministic and lets admins pin a cheap, fast rewriter.
+    const promptEnhanceModelId = await getRuntimePromptEnhanceModelId()
 
     if (!prompt) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 })
@@ -53,11 +58,20 @@ export async function POST(request: Request) {
       )
     }
 
-    if (!(await isRuntimeModelEnabled(model))) {
-      return NextResponse.json(
-        { error: `Model \"${model}\" is not enabled or does not exist` },
-        { status: 400 },
-      )
+    if (!(await isRuntimeModelEnabled(promptEnhanceModelId))) {
+      logger.warn("Configured Prompt Enhance model is not enabled — falling back to deterministic rewrite", {
+        phase: "route",
+        requestId,
+        promptEnhanceModelId,
+      })
+      const context: PromptEnhancementContext = { prompt, strength }
+      const warning = detectPromptEnhancementWarning(prompt)
+      return NextResponse.json({
+        enhancedPrompt: buildDeterministicPromptEnhancement(context),
+        warning:
+          warning ||
+          "Prompt Enhance is using a basic fallback because the configured model is not currently enabled.",
+      })
     }
 
     const context: PromptEnhancementContext = { prompt, strength }
@@ -73,8 +87,8 @@ export async function POST(request: Request) {
     try {
       const completion = await requestOpenRouterTextCompletion({
         requestId,
-        requestedModel: model,
-        fallbackChain: await getRuntimeModelFallbackChain(model),
+        requestedModel: promptEnhanceModelId,
+        fallbackChain: await getRuntimeModelFallbackChain(promptEnhanceModelId),
         messages: [
           { role: "system", content: PROMPT_ENHANCEMENT_SYSTEM_PROMPT },
           { role: "user", content: buildPromptEnhancementUserPrompt(context) },

@@ -26,6 +26,7 @@ const updateAdminModelsSchema = z
     models: z.array(adminModelSchema).min(1),
     enabledModelIds: z.array(z.string().trim().min(1)).min(1),
     defaultModelId: z.string().trim().min(1),
+    promptEnhanceModelId: z.string().trim().min(1).optional(),
     reason: z.string().trim().min(3).max(200),
   })
   .strict()
@@ -77,6 +78,7 @@ export async function PATCH(request: Request) {
       models: parsed.data.models,
       enabledModelIds: parsed.data.enabledModelIds,
       defaultModelId: parsed.data.defaultModelId,
+      promptEnhanceModelId: parsed.data.promptEnhanceModelId,
       reason: parsed.data.reason,
     })
 

@@ -16,6 +16,7 @@ export interface IAdminModelConfig extends Document<string> {
   models: IAdminManagedModel[]
   enabledModelIds: string[]
   defaultModelId: string
+  promptEnhanceModelId?: string
   updatedByUserId?: mongoose.Types.ObjectId
   updatedByEmail?: string
   createdAt: Date
@@ -83,6 +84,10 @@ const AdminModelConfigSchema = new Schema<IAdminModelConfig>(
     defaultModelId: {
       type: String,
       required: true,
+      trim: true,
+    },
+    promptEnhanceModelId: {
+      type: String,
       trim: true,
     },
     updatedByUserId: {

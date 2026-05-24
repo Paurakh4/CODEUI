@@ -16,7 +16,6 @@ import { useToast } from "@/hooks/use-toast"
 import { CODEUI_GOD_MODE_MODEL_ID } from "@/lib/ai-models"
 import { createDefaultUserPreferences } from "@/lib/user-preferences"
 
-const CINEMATHEQUE_TEMPLATE_ENDPOINT = "/api/templates/cinematheque-preview"
 const createEditorStoreId = (prefix: string): string => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return `${prefix}_${crypto.randomUUID()}`
@@ -25,27 +24,17 @@ const createEditorStoreId = (prefix: string): string => {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 }
 
-const LOADING_HTML = `<!DOCTYPE html>
+// Empty starter document. The editor opens with a blank canvas, blank code,
+// and no preloaded template — generation populates the document on the first
+// AI request.
+const EMPTY_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Loading preview…</title>
-  <style>
-    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background: #0b0b0c; color: #eaeaea; }
-    .wrap { min-height: 100vh; display: grid; place-items: center; }
-    .card { max-width: 560px; padding: 24px 20px; border: 1px solid #222; background: #121214; }
-    .muted { color: #a1a1aa; margin-top: 8px; }
-  </style>
+  <title>Untitled</title>
 </head>
 <body>
-  <!-- CINEMATHEQUE_TEMPLATE_LOADING -->
-  <div class="wrap">
-    <div class="card">
-      <div>Loading Cinematheque preview template…</div>
-      <div class="muted">If this persists, refresh.</div>
-    </div>
-  </div>
 </body>
 </html>`
 
@@ -115,7 +104,7 @@ export interface EditorState {
 // Initial State
 export const initialState: EditorState = {
   project: null,
-  htmlContent: LOADING_HTML,
+  htmlContent: EMPTY_HTML,
   
   viewMode: "preview",
   deviceMode: "desktop",
@@ -544,29 +533,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     window.addEventListener("storage", handleStorageChange)
     return () => window.removeEventListener("storage", handleStorageChange)
   }, [session?.user?.id])
-
-  // Load default preview template (Cinematheque) once the provider mounts.
-  useEffect(() => {
-    if (!state.htmlContent.includes("CINEMATHEQUE_TEMPLATE_LOADING")) return
-
-    let cancelled = false
-
-    ;(async () => {
-      try {
-        const res = await fetch(CINEMATHEQUE_TEMPLATE_ENDPOINT)
-        if (!res.ok) return
-        const templateHtml = await res.text()
-        if (cancelled) return
-        dispatch({ type: "SET_HTML_CONTENT_INITIAL", payload: templateHtml })
-      } catch {
-        // Keep LOADING_HTML on failure.
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [state.htmlContent])
 
   // Persist generation settings
   useEffect(() => {

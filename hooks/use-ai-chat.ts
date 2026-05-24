@@ -52,6 +52,14 @@ export interface AICompletionResult {
 
 interface UseAIChatOptions {
   onContentUpdate?: (content: string) => void
+  /**
+   * Fires for partial follow-up output while the API is still buffering the
+   * response for validation. The data here is unvalidated and may contain
+   * incomplete SEARCH/REPLACE markers — only use it for live progress
+   * surfaces (e.g. streaming patches into Monaco). The committed result is
+   * delivered via `onContentUpdate` when the buffered response is finalized.
+   */
+  onDraftUpdate?: (draft: string) => void
   onThinkingUpdate?: (thinking: string) => void
   onProgressUpdate?: (progress: AIStreamProgress) => void
   onComplete?: (result: AICompletionResult) => void
@@ -179,6 +187,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
 
       let fullContent = ""
       let fullThinking = ""
+      let draftContent = ""
       let responseMeta: AIStreamMeta | undefined
       let latestProgress: AIStreamProgress | undefined
       let chunkCount = 0
@@ -254,6 +263,16 @@ export function useAIChat(options: UseAIChatOptions = {}) {
               fullThinking += data.data
               setThinking(fullThinking)
               optionsRef.current.onThinkingUpdate?.(fullThinking)
+            }
+
+            if (data.type === "draft") {
+              if (!isRequestActive()) {
+                return false
+              }
+
+              draftContent += data.data
+              optionsRef.current.onDraftUpdate?.(draftContent)
+              continue
             }
           } catch (blockError) {
             if (blockError instanceof Error) {

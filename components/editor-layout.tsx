@@ -181,40 +181,44 @@ const coerceVersionId = (value: unknown): string => {
   return createEditorEntityId("local")
 }
 
-const CINEMATHEQUE_TEMPLATE_ENDPOINT = "/api/templates/cinematheque-preview"
-const CINEMATHEQUE_TEMPLATE_LOADING_MARKER = "CINEMATHEQUE_TEMPLATE_LOADING"
 const TEXT_CONTENT_PROPERTY = "__textContent__"
 const MAX_SCOPE_RECOVERY_ATTEMPTS = 2
-const LOADING_HTML = `<!DOCTYPE html>
+
+// Empty starter document. The editor opens with a blank canvas and blank
+// code; AI generation populates the document on the first request. There is
+// no preloaded template — the user sees an empty state until they prompt.
+const EMPTY_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Loading preview…</title>
-  <style>
-    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background: #0b0b0c; color: #eaeaea; }
-    .wrap { min-height: 100vh; display: grid; place-items: center; }
-    .card { max-width: 560px; padding: 24px 20px; border: 1px solid #222; background: #121214; }
-    .muted { color: #a1a1aa; margin-top: 8px; }
-  </style>
+  <title>Untitled</title>
 </head>
 <body>
-  <!-- ${CINEMATHEQUE_TEMPLATE_LOADING_MARKER} -->
-  <div class="wrap">
-    <div class="card">
-      <div>Loading Cinematheque preview template…</div>
-      <div class="muted">If this persists, refresh the preview.</div>
-    </div>
-  </div>
 </body>
 </html>`
 
-function isCinemathequeTemplateLoadingDocument(value: string | null | undefined): boolean {
-  return (value || "").includes(CINEMATHEQUE_TEMPLATE_LOADING_MARKER)
+function isEmptyStarterDocument(value: string | null | undefined): boolean {
+  if (!value) return true
+  const trimmed = value.trim()
+  if (!trimmed) return true
+
+  if (typeof DOMParser === "undefined") {
+    return /<body[^>]*>\s*<\/body>/i.test(trimmed)
+  }
+
+  try {
+    const doc = new DOMParser().parseFromString(trimmed, "text/html")
+    const body = doc.body
+    if (!body) return true
+    return body.children.length === 0 && (body.textContent || "").trim().length === 0
+  } catch {
+    return /<body[^>]*>\s*<\/body>/i.test(trimmed)
+  }
 }
 
 function canUseStableProjectHtml(value: string | null | undefined): value is string {
-  return Boolean(value && isCompleteHtmlDocument(value) && !isCinemathequeTemplateLoadingDocument(value))
+  return Boolean(value && isCompleteHtmlDocument(value) && !isEmptyStarterDocument(value))
 }
 
 // Random prompt examples for the dice button
@@ -597,10 +601,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   
   // Project State
   const [projectName, setProjectName] = useState("untitled-project")
-  const [htmlContent, setHtmlContent] = useState(LOADING_HTML)
-  const [isTemplateLoading, setIsTemplateLoading] = useState(() => isCinemathequeTemplateLoadingDocument(LOADING_HTML))
-  const [templateLoadError, setTemplateLoadError] = useState<string | null>(null)
-  const [templateReloadKey, setTemplateReloadKey] = useState(0)
+  const [htmlContent, setHtmlContent] = useState(EMPTY_HTML)
   const htmlContentRef = useRef(htmlContent)
 
   const [versions, setVersions] = useState<HistoryVersion[]>([])
@@ -696,7 +697,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   // Track pending style updates for smooth animations
   const pendingStyleUpdate = useRef<{ property: string; value: StyleProperty } | null>(null)
   const lastAppliedHtml = useRef<string>("")
-  const requestStableHtmlRef = useRef<string>(LOADING_HTML)
+  const requestStableHtmlRef = useRef<string>(EMPTY_HTML)
   const lastPatchFailureRef = useRef<PatchFailureContext | null>(null)
   const previewRef = useRef<HTMLIFrameElement>(null)
   const activeAiRequestRef = useRef<{
@@ -737,8 +738,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     recoveryInFlightRef.current = false
     promptScopeRecoveryInFlightRef.current = false
     scopeRecoveryAttemptsRef.current = 0
-    lastAppliedHtml.current = LOADING_HTML
-    requestStableHtmlRef.current = LOADING_HTML
+    lastAppliedHtml.current = EMPTY_HTML
+    requestStableHtmlRef.current = EMPTY_HTML
     lastPatchFailureRef.current = null
 
     setPendingRecovery(null)
@@ -755,8 +756,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     setPreviewHtmlContent(null)
     setHasUnsavedChanges(false)
     setProjectName("untitled-project")
-    setHtmlContent(LOADING_HTML)
-    htmlContentRef.current = LOADING_HTML
+    setHtmlContent(EMPTY_HTML)
+    htmlContentRef.current = EMPTY_HTML
     lastSavedContentRef.current = ""
     setPreviewUpdateSignal({ token: 0, mode: "full" })
     setViewMode("preview")
@@ -815,7 +816,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         htmlContentRef.current,
         htmlContent,
       ],
-      LOADING_HTML,
+      EMPTY_HTML,
     )
 
     commitHtmlContentUpdate(restoredHtml)
@@ -1208,14 +1209,14 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
             htmlContentRef.current = project.htmlContent
             lastAppliedHtml.current = isCompleteHtmlDocument(project.htmlContent)
               ? project.htmlContent.trim()
-              : LOADING_HTML
+              : EMPTY_HTML
             requestStableHtmlRef.current = lastAppliedHtml.current
             lastSavedContentRef.current = project.htmlContent
           } else {
-            setHtmlContent(LOADING_HTML)
-            htmlContentRef.current = LOADING_HTML
-            lastAppliedHtml.current = LOADING_HTML
-            requestStableHtmlRef.current = LOADING_HTML
+            setHtmlContent(EMPTY_HTML)
+            htmlContentRef.current = EMPTY_HTML
+            lastAppliedHtml.current = EMPTY_HTML
+            requestStableHtmlRef.current = EMPTY_HTML
             lastSavedContentRef.current = ""
           }
           // Restore messages from MongoDB
@@ -1353,61 +1354,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     }
   }, [previewHtmlContent, versionHistoryOpen])
 
-  const retryTemplateLoad = useCallback(() => {
-    setTemplateLoadError(null)
-    setTemplateReloadKey((current) => current + 1)
-  }, [])
-
-  // Load the default preview template whenever the editor is showing the loading sentinel.
-  useEffect(() => {
-    if (!isCinemathequeTemplateLoadingDocument(htmlContent)) {
-      setIsTemplateLoading(false)
-      setTemplateLoadError(null)
-      return
-    }
-
-    let cancelled = false
-    setIsTemplateLoading(true)
-    setTemplateLoadError(null)
-
-    ;(async () => {
-      try {
-        const res = await fetch(CINEMATHEQUE_TEMPLATE_ENDPOINT)
-        if (!res.ok) {
-          throw new Error(`Template request failed with ${res.status}`)
-        }
-
-        const templateHtml = await res.text()
-        if (cancelled) return
-
-        setHtmlContent((current) => {
-          if (!isCinemathequeTemplateLoadingDocument(current)) {
-            return current
-          }
-
-          htmlContentRef.current = templateHtml
-          lastAppliedHtml.current = templateHtml.trim()
-          requestStableHtmlRef.current = templateHtml.trim()
-          return templateHtml
-        })
-
-        setIsTemplateLoading(false)
-      } catch (error) {
-        if (cancelled) {
-          return
-        }
-
-        console.error("Failed to load Cinematheque preview template", error)
-        setIsTemplateLoading(false)
-        setTemplateLoadError("Preview starter failed to load. Retry to restore the default canvas.")
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [htmlContent, templateReloadKey])
-
   const finalizeAssistantMessage = useCallback(
     (content: string, assistantMessageId?: string) => {
       const lastMessage = messagesRef.current[messagesRef.current.length - 1]
@@ -1477,7 +1423,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     lastPatchFailureRef.current = null
     requestStableHtmlRef.current = selectStableHtmlDocument(
       [htmlContentRef.current, lastAppliedHtml.current],
-      LOADING_HTML,
+      EMPTY_HTML,
     )
 
     if (htmlContentRef.current) {
@@ -1503,6 +1449,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       if (streamingHtml && !activeRequest.isFollowUp) {
         commitHtmlContentUpdate(streamingHtml)
       }
+    },
+    // Follow-up requests buffer their committed content server-side so the
+    // SEARCH/REPLACE protocol can be validated before the client applies it.
+    // The API still emits a "draft" stream with the raw partial output so we
+    // can render the in-flight model output in Monaco for live feedback.
+    onDraftUpdate: (draft) => {
+      setDraftAiOutput(draft)
     },
     onThinkingUpdate: (thinkingContent) => {
       setMessages((prev) => {
@@ -1618,7 +1571,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       const hasUnexpectedFullDocument = usesPatchRepairFlow && hasCompleteHtml
       const preservedHtml = selectStableHtmlDocument(
         [requestStableHtmlRef.current, lastAppliedHtml.current, htmlContentRef.current, htmlContent],
-        LOADING_HTML,
+        EMPTY_HTML,
       )
       const hasCommittedUpdatedHtml =
         isCompleteHtmlDocument(htmlContentRef.current) && htmlContentRef.current.trim() !== preservedHtml
@@ -1977,7 +1930,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
       requestStableHtmlRef.current = selectStableHtmlDocument(
         [htmlContentRef.current, lastAppliedHtml.current, htmlContent],
-        LOADING_HTML,
+        EMPTY_HTML,
       )
 
       if (isGenerating) {
@@ -2952,9 +2905,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
   // Render content based on view mode
   const renderContent = () => {
-    const hasProtocolDraft = hasStreamProtocolMarkers(draftAiOutput)
     const liveDraftHtml = getRenderableStreamingHtml(draftAiOutput)
-    const isLoadingTemplateDocument = isCinemathequeTemplateLoadingDocument(htmlContent)
 
     switch (viewMode) {
       case "preview":
@@ -2975,8 +2926,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
               forwardedRef={previewRef}
               previewUpdateToken={previewUpdateSignal.token}
               previewUpdateMode={previewUpdateSignal.mode}
-              templateLoadError={templateLoadError}
-              onRetryLoadingTemplate={retryTemplateLoad}
             />
             {isDesignCanvasMode && selectedElement && panelPos && (
               <div 
@@ -3002,40 +2951,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           </div>
         )
       case "code":
-        const liveEditorValue = liveDraftHtml || draftAiOutput || (isLoadingTemplateDocument ? "" : htmlContent)
-
-        if (isLoadingTemplateDocument && !liveEditorValue) {
-          return (
-            <div className="flex h-full items-center justify-center bg-zinc-950 px-6">
-              <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900/70 p-6 text-left shadow-2xl">
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-zinc-100">
-                    {isTemplateLoading ? "Loading starter canvas..." : "Starter canvas unavailable"}
-                  </p>
-                  <p className="text-sm leading-6 text-zinc-400">
-                    {templateLoadError || "Code view will appear once the default Cinematheque template is ready."}
-                  </p>
-                </div>
-
-                <div className="mt-4 flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={retryTemplateLoad}
-                    disabled={isTemplateLoading}
-                    className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm font-medium text-zinc-100 transition-colors hover:border-zinc-600 hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isTemplateLoading ? "Loading..." : "Retry template load"}
-                  </button>
-                  <span className="text-xs text-zinc-500">The internal loading scaffold stays hidden from the editor.</span>
-                </div>
-              </div>
-            </div>
-          )
-        }
+        const liveEditorValue = liveDraftHtml || draftAiOutput || htmlContent
 
         return (
           <CodeEditor
-            value={isGenerating && !hasProtocolDraft ? liveEditorValue : htmlContent}
+            value={isGenerating ? liveEditorValue : htmlContent}
             onChange={handleCodeChange}
             readOnly={isGenerating}
             className="h-full"

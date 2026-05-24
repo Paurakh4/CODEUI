@@ -6,7 +6,9 @@ import {
   buildModelFallbackChain,
   getConfiguredEnabledModelIds,
   getConfiguredDefaultModelId,
+  getConfiguredPromptEnhanceModelId,
   synthesizeAIModelFromId,
+  DEFAULT_PROMPT_ENHANCE_MODEL_ID,
   type AIModel,
 } from "@/lib/ai-models"
 import { createAdminAuditEntry } from "@/lib/admin/audit"
@@ -73,6 +75,7 @@ function buildCatalogSnapshot(input: {
   models: AIModel[]
   enabledModelIds: string[]
   defaultModelId: string
+  promptEnhanceModelId: string
   persistedModelIds: ReadonlySet<string>
 }) {
   const enabledSet = new Set(input.enabledModelIds)
@@ -81,6 +84,7 @@ function buildCatalogSnapshot(input: {
   return {
     enabledModelIds: input.enabledModelIds,
     defaultModelId: input.defaultModelId,
+    promptEnhanceModelId: input.promptEnhanceModelId,
     models: input.models.map((model) => ({
       ...model,
       enabled: enabledSet.has(model.id),
@@ -117,6 +121,44 @@ function mergeEnvSynthesizedModels(
   return Array.from(byId.values())
 }
 
+/**
+ * Merge env-synthesized + admin entries to build the prompt-enhance model
+ * pool. Returns a model id that is currently part of the catalog (enabled or
+ * not) so we can include it in the dropdown without breaking selection.
+ */
+function ensureModelKnown(
+  candidateModelId: string | null | undefined,
+  knownModelIds: readonly string[],
+): string | undefined {
+  const normalized = candidateModelId?.trim()
+  if (!normalized) return undefined
+  return knownModelIds.includes(normalized) ? normalized : undefined
+}
+
+function resolvePromptEnhanceModelId(
+  candidateAdminModelId: string | null | undefined,
+  knownModelIds: readonly string[],
+  enabledModelIds: readonly string[],
+  defaultModelId: string,
+): string {
+  const enabledSet = new Set(enabledModelIds)
+
+  const adminCandidate = ensureModelKnown(candidateAdminModelId, knownModelIds)
+  if (adminCandidate) return adminCandidate
+
+  const envCandidate = ensureModelKnown(getConfiguredPromptEnhanceModelId(), knownModelIds)
+  if (envCandidate) return envCandidate
+
+  const baseline = ensureModelKnown(DEFAULT_PROMPT_ENHANCE_MODEL_ID, knownModelIds)
+  if (baseline) return baseline
+
+  if (enabledSet.has(defaultModelId)) {
+    return defaultModelId
+  }
+
+  return enabledModelIds[0] || defaultModelId
+}
+
 export async function getAdminModelCatalog() {
   await connectDB()
 
@@ -132,7 +174,14 @@ export async function getAdminModelCatalog() {
   }
 
   const envEnabledIds = getConfiguredEnabledModelIds()
-  const baseModels = mergeEnvSynthesizedModels(ALL_MODELS, envEnabledIds)
+  const envPromptEnhanceModelId = getConfiguredPromptEnhanceModelId()
+  // Ensure the env-configured Prompt Enhance model is part of the catalog
+  // even when it is missing from ENABLED_AI_MODELS, so admins can see it and
+  // the runtime resolver always has a target.
+  const synthesisIds = envPromptEnhanceModelId
+    ? Array.from(new Set([...envEnabledIds, envPromptEnhanceModelId]))
+    : envEnabledIds
+  const baseModels = mergeEnvSynthesizedModels(ALL_MODELS, synthesisIds)
   const models = resolveModelCatalog(normalizedPersistedModels.models, baseModels)
   const knownModelIds = models.map((model) => model.id)
 
@@ -154,8 +203,14 @@ export async function getAdminModelCatalog() {
   const envOnlyEnabledIds = envEnabledIds.filter(
     (id) => !BASE_MODEL_ID_SET.has(id) && !persistedModelIds.has(id),
   )
+  // Always auto-enable the configured Prompt Enhance model so the rewrite
+  // flow stays online even if an admin forgets to flip the toggle.
+  const promptEnhanceAutoEnableIds = envPromptEnhanceModelId &&
+    knownModelIds.includes(envPromptEnhanceModelId)
+    ? [envPromptEnhanceModelId]
+    : []
   const enabledModelIds = Array.from(
-    new Set([...sanitizedAdminEnabledIds, ...envOnlyEnabledIds]),
+    new Set([...sanitizedAdminEnabledIds, ...envOnlyEnabledIds, ...promptEnhanceAutoEnableIds]),
   ).filter((id) => knownModelIds.includes(id))
 
   const defaultModelId = resolveDefaultModelId(
@@ -164,8 +219,21 @@ export async function getAdminModelCatalog() {
     getConfiguredDefaultModelId(),
   )
 
+  const promptEnhanceModelId = resolvePromptEnhanceModelId(
+    config?.promptEnhanceModelId,
+    knownModelIds,
+    enabledModelIds,
+    defaultModelId,
+  )
+
   return {
-    ...buildCatalogSnapshot({ models, enabledModelIds, defaultModelId, persistedModelIds }),
+    ...buildCatalogSnapshot({
+      models,
+      enabledModelIds,
+      defaultModelId,
+      promptEnhanceModelId,
+      persistedModelIds,
+    }),
     updatedAt: config?.updatedAt ?? null,
     updatedByEmail: config?.updatedByEmail ?? null,
   }
@@ -195,6 +263,11 @@ export async function getRuntimeDefaultModelId() {
   return catalog.defaultModelId
 }
 
+export async function getRuntimePromptEnhanceModelId() {
+  const catalog = await getAdminModelCatalog()
+  return catalog.promptEnhanceModelId
+}
+
 export async function getRuntimeModelFallbackChain(primaryModelId?: string) {
   const catalog = await getPublicModelCatalog()
   const enabled = catalog.models
@@ -215,6 +288,7 @@ export async function upsertAdminModelPolicy(input: {
   models: ModelCatalogEntryInput[]
   enabledModelIds: string[]
   defaultModelId: string
+  promptEnhanceModelId?: string | null
   reason: string
 }) {
   await connectDB()
@@ -243,6 +317,12 @@ export async function upsertAdminModelPolicy(input: {
     currentConfig?.defaultModelId,
     currentEnabledModelIds,
     getConfiguredDefaultModelId(),
+  )
+  const currentPromptEnhanceModelId = resolvePromptEnhanceModelId(
+    currentConfig?.promptEnhanceModelId,
+    currentModels.map((model) => model.id),
+    currentEnabledModelIds,
+    currentDefaultModelId,
   )
 
   const previouslyPersistedIds = new Set(
@@ -280,10 +360,18 @@ export async function upsertAdminModelPolicy(input: {
     getConfiguredDefaultModelId(),
   )
 
+  const nextPromptEnhanceModelId = resolvePromptEnhanceModelId(
+    input.promptEnhanceModelId ?? currentConfig?.promptEnhanceModelId,
+    nextModels.map((model) => model.id),
+    nextEnabledModelIds,
+    nextDefaultModelId,
+  )
+
   const before = buildCatalogSnapshot({
     models: currentModels,
     enabledModelIds: currentEnabledModelIds,
     defaultModelId: currentDefaultModelId,
+    promptEnhanceModelId: currentPromptEnhanceModelId,
     persistedModelIds: previouslyPersistedIds,
   })
 
@@ -294,6 +382,7 @@ export async function upsertAdminModelPolicy(input: {
         models: modelsToPersist,
         enabledModelIds: nextEnabledModelIds,
         defaultModelId: nextDefaultModelId,
+        promptEnhanceModelId: nextPromptEnhanceModelId,
         updatedByUserId: input.actor.id,
         updatedByEmail: input.actor.email || "unknown@local",
       },
@@ -312,6 +401,7 @@ export async function upsertAdminModelPolicy(input: {
     models: nextModels,
     enabledModelIds: nextEnabledModelIds,
     defaultModelId: nextDefaultModelId,
+    promptEnhanceModelId: nextPromptEnhanceModelId,
     persistedModelIds: persistedModelIdsAfterSave,
   })
 
@@ -330,6 +420,7 @@ export async function upsertAdminModelPolicy(input: {
       enabledCount: nextEnabledModelIds.length,
       totalModelCount: nextModels.length,
       defaultModelId: nextDefaultModelId,
+      promptEnhanceModelId: nextPromptEnhanceModelId,
     },
   })
 

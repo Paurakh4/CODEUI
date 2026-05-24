@@ -18,6 +18,8 @@ export interface AIModel {
 
 export const CODEUI_GOD_MODE_MODEL_ID = "google/gemini-3-flash-preview"
 
+export const DEFAULT_PROMPT_ENHANCE_MODEL_ID = "x-ai/grok-build-0.1"
+
 // All available models (master list)
 const ALL_MODELS: AIModel[] = [
   {
@@ -190,6 +192,15 @@ export function getConfiguredDefaultModelId(): string | undefined {
 
 export function getConfiguredFallbackModelIds(): string[] {
   return parseConfiguredModelIdList(getServerEnvValue("FALLBACK_AI_MODELS"))
+}
+
+/**
+ * Returns the env-configured model id used for Prompt Enhance, if any. The
+ * runtime resolver pairs this with admin-configured overrides in
+ * `lib/admin/model-policies.ts`.
+ */
+export function getConfiguredPromptEnhanceModelId(): string | undefined {
+  return normalizeConfiguredModelId(getServerEnvValue("PROMPT_ENHANCE_MODEL"))
 }
 
 export function buildModelFallbackChain({

@@ -16,6 +16,7 @@ import type { AdminModelCatalogEntry } from "@/lib/admin/model-policies"
 interface ModelPolicyFormProps {
   models: AdminModelCatalogEntry[]
   defaultModelId: string
+  promptEnhanceModelId: string
   readOnly?: boolean
   readOnlyReason?: string
 }
@@ -53,6 +54,7 @@ function serializeModels(models: EditableModel[]) {
 export function ModelPolicyForm({
   models,
   defaultModelId,
+  promptEnhanceModelId,
   readOnly = false,
   readOnlyReason,
 }: ModelPolicyFormProps) {
@@ -60,6 +62,8 @@ export function ModelPolicyForm({
   const initialModels = useMemo(() => mapInitialModels(models), [models])
   const [catalogModels, setCatalogModels] = useState<EditableModel[]>(initialModels)
   const [selectedDefaultModelId, setSelectedDefaultModelId] = useState(defaultModelId)
+  const [selectedPromptEnhanceModelId, setSelectedPromptEnhanceModelId] =
+    useState(promptEnhanceModelId)
   const [expandedModelId, setExpandedModelId] = useState<string | null>(null)
   const [reason, setReason] = useState("")
   const [isSaving, setIsSaving] = useState(false)
@@ -77,13 +81,30 @@ export function ModelPolicyForm({
   const catalogModelIdSet = useMemo(() => new Set(catalogModels.map((model) => model.id)), [catalogModels])
 
   const hasChanges = useMemo(
-    () => currentSnapshot !== initialSnapshot || defaultModelId !== selectedDefaultModelId,
-    [currentSnapshot, defaultModelId, initialSnapshot, selectedDefaultModelId],
+    () =>
+      currentSnapshot !== initialSnapshot ||
+      defaultModelId !== selectedDefaultModelId ||
+      promptEnhanceModelId !== selectedPromptEnhanceModelId,
+    [
+      currentSnapshot,
+      defaultModelId,
+      initialSnapshot,
+      promptEnhanceModelId,
+      selectedDefaultModelId,
+      selectedPromptEnhanceModelId,
+    ],
   )
 
   const defaultModelName = useMemo(
     () => catalogModels.find((m) => m.id === selectedDefaultModelId)?.name ?? selectedDefaultModelId,
     [catalogModels, selectedDefaultModelId],
+  )
+
+  const promptEnhanceModelName = useMemo(
+    () =>
+      catalogModels.find((m) => m.id === selectedPromptEnhanceModelId)?.name ??
+      selectedPromptEnhanceModelId,
+    [catalogModels, selectedPromptEnhanceModelId],
   )
 
   function updateModel(modelId: string, patch: Partial<EditableModel>) {
@@ -114,6 +135,11 @@ export function ModelPolicyForm({
         if (nextDefault) setSelectedDefaultModelId(nextDefault)
       }
 
+      if (!wouldBeEnabled && selectedPromptEnhanceModelId === modelId) {
+        const nextEnhanceModel = next.find((m) => m.enabled)?.id
+        if (nextEnhanceModel) setSelectedPromptEnhanceModelId(nextEnhanceModel)
+      }
+
       return next
     })
   }
@@ -135,6 +161,11 @@ export function ModelPolicyForm({
     if (selectedDefaultModelId === modelId) {
       const nextDefaultModelId = nextModels.find((model) => model.enabled)?.id
       if (nextDefaultModelId) setSelectedDefaultModelId(nextDefaultModelId)
+    }
+
+    if (selectedPromptEnhanceModelId === modelId) {
+      const nextEnhanceId = nextModels.find((model) => model.enabled)?.id
+      if (nextEnhanceId) setSelectedPromptEnhanceModelId(nextEnhanceId)
     }
 
     if (expandedModelId === modelId) setExpandedModelId(null)
@@ -203,6 +234,7 @@ export function ModelPolicyForm({
           })),
           enabledModelIds,
           defaultModelId: selectedDefaultModelId,
+          promptEnhanceModelId: selectedPromptEnhanceModelId,
           reason: reason.trim(),
         }),
       })
@@ -482,6 +514,38 @@ export function ModelPolicyForm({
             })}
           </TableBody>
         </Table>
+      </div>
+
+      {/* Prompt Enhance Model */}
+      <div className="rounded-lg border bg-muted/10 p-4 space-y-3">
+        <div className="space-y-1">
+          <Label className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+            Prompt Enhance Model
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Always used to rewrite user prompts via the &quot;Enhance&quot; button.
+            This is independent of the user-selected generation model and the
+            global default. Sourced from <code>PROMPT_ENHANCE_MODEL</code> when
+            no admin override is set.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            value={selectedPromptEnhanceModelId}
+            onChange={(e) => setSelectedPromptEnhanceModelId(e.target.value)}
+            disabled={readOnly || isSaving}
+            className="h-10 min-w-[260px] rounded-xl border border-border bg-background px-3 text-sm"
+          >
+            {catalogModels.map((model) => (
+              <option key={model.id} value={model.id} disabled={!model.enabled}>
+                {model.name} ({model.id}){!model.enabled ? " — disabled" : ""}
+              </option>
+            ))}
+          </select>
+          <span className="text-xs text-muted-foreground">
+            Active: <span className="font-medium text-foreground">{promptEnhanceModelName}</span>
+          </span>
+        </div>
       </div>
 
       {/* Audit Reason */}

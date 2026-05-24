@@ -61,6 +61,7 @@ export default async function AdminModelsPage() {
           <ModelPolicyForm
             models={catalog.models}
             defaultModelId={catalog.defaultModelId}
+            promptEnhanceModelId={catalog.promptEnhanceModelId}
             readOnly={!canManageModels}
             readOnlyReason={
               canManageModels
