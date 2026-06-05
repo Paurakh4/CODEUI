@@ -4,6 +4,7 @@ const auth = vi.fn()
 const getRuntimeDefaultModelId = vi.fn(async () => "test-model")
 const getRuntimePromptEnhanceModelId = vi.fn(async () => "test-model")
 const getRuntimeModelFallbackChain = vi.fn(async (model: string) => [model])
+const getRuntimeModelsById = vi.fn(async () => new Map([["test-model", { provider: "OpenRouter", sourceProvider: "openrouter" }]]))
 const isRuntimeModelEnabled = vi.fn(async () => true)
 
 vi.mock("server-only", () => ({}))
@@ -14,6 +15,7 @@ vi.mock("@/lib/admin/model-policies", () => ({
   getRuntimeDefaultModelId,
   getRuntimePromptEnhanceModelId,
   getRuntimeModelFallbackChain,
+  getRuntimeModelsById,
   isRuntimeModelEnabled,
 }))
 
@@ -148,7 +150,7 @@ describe("UT-20 AI enhance route", () => {
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
-      enhancedPrompt: expect.stringContaining("Design brief guidance:"),
+      enhancedPrompt: expect.stringContaining("Create a mobile app for students."),
     })
   })
 })

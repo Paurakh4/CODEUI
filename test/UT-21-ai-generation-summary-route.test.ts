@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 const auth = vi.fn()
 const getRuntimeDefaultModelId = vi.fn(async () => "test-model")
 const getRuntimeModelFallbackChain = vi.fn(async (model: string) => [model])
+const getRuntimeModelsById = vi.fn(async () => new Map([["test-model", { provider: "OpenRouter", sourceProvider: "openrouter" }]]))
 const isRuntimeModelEnabled = vi.fn(async () => true)
 
 vi.mock("server-only", () => ({}))
@@ -12,6 +13,7 @@ vi.mock("@/lib/auth", () => ({ auth }))
 vi.mock("@/lib/admin/model-policies", () => ({
   getRuntimeDefaultModelId,
   getRuntimeModelFallbackChain,
+  getRuntimeModelsById,
   isRuntimeModelEnabled,
 }))
 

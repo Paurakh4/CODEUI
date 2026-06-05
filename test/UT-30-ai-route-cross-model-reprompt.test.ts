@@ -8,8 +8,9 @@ const userFindById = vi.fn()
 const userFindByIdAndUpdate = vi.fn()
 const usageLogCreate = vi.fn(async () => undefined)
 const getRuntimeDefaultModelId = vi.fn(async () => "test-model")
-const getRuntimeModelById = vi.fn(async (id: string) => ({ id, contextLength: 64_000 }))
+const getRuntimeModelById = vi.fn(async (id: string) => ({ id, provider: "OpenRouter", sourceProvider: "openrouter", contextLength: 64_000 }))
 const getRuntimeModelFallbackChain = vi.fn(async (model: string) => [model])
+const getRuntimeModelsById = vi.fn(async () => new Map([["test-model", { provider: "OpenRouter", sourceProvider: "openrouter" }]]))
 const isRuntimeModelEnabled = vi.fn(async () => true)
 const isInternalUserRole = vi.fn(() => true)
 const resolveUserRole = vi.fn(() => "admin")
@@ -38,6 +39,7 @@ vi.mock("@/lib/admin/model-policies", () => ({
   getRuntimeDefaultModelId,
   getRuntimeModelById,
   getRuntimeModelFallbackChain,
+  getRuntimeModelsById,
   isRuntimeModelEnabled,
 }))
 

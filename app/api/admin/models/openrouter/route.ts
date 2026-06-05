@@ -26,6 +26,7 @@ type OpenRouterAdminModel = {
   id: string
   name: string
   provider: string
+  sourceProvider: "openrouter"
   description: string
   contextLength: number
   supportsReasoning: boolean
@@ -108,6 +109,7 @@ function normalizeModel(model: OpenRouterApiModel): OpenRouterAdminModel {
     id: model.id,
     name: model.name?.trim() || model.id,
     provider: resolveProvider(model),
+    sourceProvider: "openrouter",
     description: model.description?.trim() || "",
     contextLength: resolveContextLength(model),
     supportsReasoning: resolveReasoningSupport(model),

@@ -4,6 +4,7 @@ export interface IAdminManagedModel {
   id: string
   name: string
   provider: string
+  sourceProvider?: "openrouter" | "pxroute"
   description?: string
   contextLength: number
   supportsReasoning?: boolean
@@ -39,6 +40,11 @@ const AdminManagedModelSchema = new Schema<IAdminManagedModel>(
       type: String,
       required: true,
       trim: true,
+    },
+    sourceProvider: {
+      type: String,
+      enum: ["openrouter", "pxroute"],
+      default: "openrouter",
     },
     description: {
       type: String,
@@ -109,7 +115,7 @@ const existingAdminModelConfig = mongoose.models.AdminModelConfig as Model<IAdmi
 
 function hasExpectedManagedModelPath(model: Model<IAdminModelConfig> | undefined) {
   const modelsPath = model?.schema.path("models") as { schema?: Schema<IAdminManagedModel> } | undefined
-  return Boolean(modelsPath?.schema?.path("isNewModel"))
+  return Boolean(modelsPath?.schema?.path("isNewModel") && modelsPath.schema.path("sourceProvider"))
 }
 
 if (existingAdminModelConfig && !hasExpectedManagedModelPath(existingAdminModelConfig)) {

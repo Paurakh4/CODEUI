@@ -9,6 +9,7 @@ export interface AIModel {
   id: string
   name: string
   provider: string
+  sourceProvider?: "openrouter" | "pxroute"
   description?: string
   contextLength: number
   supportsReasoning?: boolean
@@ -20,12 +21,43 @@ export const CODEUI_GOD_MODE_MODEL_ID = "google/gemini-3-flash-preview"
 
 export const DEFAULT_PROMPT_ENHANCE_MODEL_ID = "x-ai/grok-build-0.1"
 
+export const PXROUTE_SOURCE_PROVIDER = "pxroute" as const
+export const OPENROUTER_SOURCE_PROVIDER = "openrouter" as const
+
+export const PXROUTE_MODEL_IDS = [
+  "claude-opus-4-8",
+  "claude-opus-4-7",
+  "claude-opus-4-6",
+  "claude-sonnet-4-6",
+  "claude-haiku-4-5",
+  "gpt-5.5",
+  "gpt-5.4",
+  "gpt-5.3-codex",
+] as const
+
+export type ModelSourceProvider =
+  | typeof OPENROUTER_SOURCE_PROVIDER
+  | typeof PXROUTE_SOURCE_PROVIDER
+
+export function resolveModelSourceProvider(model?: Pick<AIModel, "provider" | "sourceProvider"> | null): ModelSourceProvider {
+  if (model?.sourceProvider === PXROUTE_SOURCE_PROVIDER) {
+    return PXROUTE_SOURCE_PROVIDER
+  }
+
+  if (model?.sourceProvider === OPENROUTER_SOURCE_PROVIDER) {
+    return OPENROUTER_SOURCE_PROVIDER
+  }
+
+  return model?.provider === "PxRoute" ? PXROUTE_SOURCE_PROVIDER : OPENROUTER_SOURCE_PROVIDER
+}
+
 // All available models (master list)
 const ALL_MODELS: AIModel[] = [
   {
     id: "deepseek/deepseek-chat",
     name: "DeepSeek V3",
     provider: "DeepSeek",
+    sourceProvider: OPENROUTER_SOURCE_PROVIDER,
     description: "Powerful general-purpose model",
     contextLength: 64000,
     isFast: true,
@@ -34,6 +66,7 @@ const ALL_MODELS: AIModel[] = [
     id: "anthropic/claude-haiku-4.5",
     name: "Claude Haiku 4.5",
     provider: "Anthropic",
+    sourceProvider: OPENROUTER_SOURCE_PROVIDER,
     description: "Lightweight Claude for fast, low-cost tasks",
     contextLength: 200000,
     isFast: true,
@@ -43,6 +76,7 @@ const ALL_MODELS: AIModel[] = [
     id: "deepseek/deepseek-r1",
     name: "DeepSeek R1",
     provider: "DeepSeek",
+    sourceProvider: OPENROUTER_SOURCE_PROVIDER,
     description: "Advanced reasoning model",
     contextLength: 64000,
     supportsReasoning: true,
@@ -51,6 +85,7 @@ const ALL_MODELS: AIModel[] = [
     id: "moonshotai/kimi-k2:free",
     name: "Kimi K2",
     provider: "Moonshot AI",
+    sourceProvider: OPENROUTER_SOURCE_PROVIDER,
     description: "Free Kimi K2 model",
     contextLength: 128000,
   },
@@ -58,6 +93,7 @@ const ALL_MODELS: AIModel[] = [
     id: "moonshotai/kimi-k2-thinking",
     name: "Kimi K2 Thinking",
     provider: "Moonshot AI",
+    sourceProvider: OPENROUTER_SOURCE_PROVIDER,
     description: "Reasoning-enhanced Kimi",
     contextLength: 128000,
     supportsReasoning: true,
@@ -66,6 +102,7 @@ const ALL_MODELS: AIModel[] = [
     id: "z-ai/glm-4.7",
     name: "GLM 4.7",
     provider: "Zhipu",
+    sourceProvider: OPENROUTER_SOURCE_PROVIDER,
     description: "GLM 4.7",
     contextLength: 128000,
   },
@@ -73,6 +110,7 @@ const ALL_MODELS: AIModel[] = [
     id: "mistralai/devstral-2512:free",
     name: "Devstral",
     provider: "Mistral",
+    sourceProvider: OPENROUTER_SOURCE_PROVIDER,
     description: "Devstral 2512 (free)",
     contextLength: 64000,
     isFast: true,
@@ -81,6 +119,7 @@ const ALL_MODELS: AIModel[] = [
     id: CODEUI_GOD_MODE_MODEL_ID,
     name: "Gemini 3 Flash Preview",
     provider: "Google",
+    sourceProvider: OPENROUTER_SOURCE_PROVIDER,
     description: "Latest Gemini model preview",
     contextLength: 2000000,
     isFast: true,
@@ -90,10 +129,87 @@ const ALL_MODELS: AIModel[] = [
     id: "google/gemini-3.1-flash-lite-preview",
     name: "Gemini 3.1 Flash Lite Preview",
     provider: "Google",
+    sourceProvider: OPENROUTER_SOURCE_PROVIDER,
     description: "Fast and lightweight Gemini 3.1 preview model",
     contextLength: 1000000,
     isFast: true,
     isNewModel: true,
+  },
+  {
+    id: "claude-opus-4-8",
+    name: "Claude Opus 4.8",
+    provider: "PxRoute",
+    sourceProvider: PXROUTE_SOURCE_PROVIDER,
+    description: "Latest flagship Claude via PxRoute",
+    contextLength: 200000,
+    supportsReasoning: true,
+    isNewModel: true,
+  },
+  {
+    id: "claude-opus-4-7",
+    name: "Claude Opus 4.7",
+    provider: "PxRoute",
+    sourceProvider: PXROUTE_SOURCE_PROVIDER,
+    description: "Previous flagship Claude via PxRoute",
+    contextLength: 200000,
+    supportsReasoning: true,
+  },
+  {
+    id: "claude-opus-4-6",
+    name: "Claude Opus 4.6",
+    provider: "PxRoute",
+    sourceProvider: PXROUTE_SOURCE_PROVIDER,
+    description: "Older flagship Claude via PxRoute",
+    contextLength: 200000,
+    supportsReasoning: true,
+  },
+  {
+    id: "claude-sonnet-4-6",
+    name: "Claude Sonnet 4.6",
+    provider: "PxRoute",
+    sourceProvider: PXROUTE_SOURCE_PROVIDER,
+    description: "Balanced PxRoute default for speed, quality, and cost",
+    contextLength: 200000,
+    supportsReasoning: true,
+    isFast: true,
+    isNewModel: true,
+  },
+  {
+    id: "claude-haiku-4-5",
+    name: "Claude Haiku 4.5",
+    provider: "PxRoute",
+    sourceProvider: PXROUTE_SOURCE_PROVIDER,
+    description: "Fast and cheap PxRoute Claude model for high-volume work",
+    contextLength: 200000,
+    isFast: true,
+  },
+  {
+    id: "gpt-5.5",
+    name: "GPT-5.5",
+    provider: "PxRoute",
+    sourceProvider: PXROUTE_SOURCE_PROVIDER,
+    description: "Latest GPT model via PxRoute for strong general reasoning",
+    contextLength: 400000,
+    supportsReasoning: true,
+    isNewModel: true,
+  },
+  {
+    id: "gpt-5.4",
+    name: "GPT-5.4",
+    provider: "PxRoute",
+    sourceProvider: PXROUTE_SOURCE_PROVIDER,
+    description: "Stable GPT flagship via PxRoute",
+    contextLength: 400000,
+    supportsReasoning: true,
+  },
+  {
+    id: "gpt-5.3-codex",
+    name: "GPT-5.3 Codex",
+    provider: "PxRoute",
+    sourceProvider: PXROUTE_SOURCE_PROVIDER,
+    description: "Code-specialized GPT model via PxRoute",
+    contextLength: 400000,
+    supportsReasoning: true,
   },
 ]
 
@@ -169,6 +285,7 @@ export function synthesizeAIModelFromId(modelId: string): AIModel | undefined {
     id,
     name: deriveModelDisplayName(modelSlug),
     provider: deriveProviderLabel(providerSlug),
+    sourceProvider: OPENROUTER_SOURCE_PROVIDER,
     description: "Configured via ENABLED_AI_MODELS",
     contextLength: ENV_MODEL_DEFAULT_CONTEXT_LENGTH,
   }

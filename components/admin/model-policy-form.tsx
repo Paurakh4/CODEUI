@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { AddModelSheet } from "@/components/admin/add-model-sheet"
 import type { AdminModelCatalogEntry } from "@/lib/admin/model-policies"
+import { OPENROUTER_SOURCE_PROVIDER, PXROUTE_SOURCE_PROVIDER } from "@/lib/ai-models"
 
 interface ModelPolicyFormProps {
   models: AdminModelCatalogEntry[]
@@ -42,6 +43,7 @@ function serializeModels(models: EditableModel[]) {
     id: model.id.trim(),
     name: model.name.trim(),
     provider: model.provider.trim(),
+    sourceProvider: model.sourceProvider ?? OPENROUTER_SOURCE_PROVIDER,
     description: model.description.trim(),
     contextLength: model.contextLength,
     supportsReasoning: Boolean(model.supportsReasoning),
@@ -226,6 +228,7 @@ export function ModelPolicyForm({
             id: model.id.trim(),
             name: model.name.trim(),
             provider: model.provider.trim(),
+            sourceProvider: model.sourceProvider ?? OPENROUTER_SOURCE_PROVIDER,
             description: model.description.trim(),
             contextLength: model.contextLength,
             supportsReasoning: Boolean(model.supportsReasoning),
@@ -366,6 +369,16 @@ export function ModelPolicyForm({
                             Custom
                           </Badge>
                         ) : null}
+                        <Badge
+                          variant="outline"
+                          className={
+                            model.sourceProvider === PXROUTE_SOURCE_PROVIDER
+                              ? "border-sky-500/20 bg-sky-500/10 text-sky-200 text-[10px]"
+                              : "text-[10px]"
+                          }
+                        >
+                          {model.sourceProvider === PXROUTE_SOURCE_PROVIDER ? "PxRoute" : "OpenRouter"}
+                        </Badge>
                       </div>
                     </TableCell>
                     <TableCell>

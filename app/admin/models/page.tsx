@@ -5,6 +5,7 @@ import { ModelPolicyForm } from "@/components/admin/model-policy-form"
 import { requireAdminPage } from "@/lib/admin/guards"
 import { hasAdminPermission } from "@/lib/admin/rbac"
 import { getAdminModelCatalog } from "@/lib/admin/model-policies"
+import { PXROUTE_SOURCE_PROVIDER } from "@/lib/ai-models"
 
 export default async function AdminModelsPage() {
   const session = await requireAdminPage("admin:view-models")
@@ -16,6 +17,7 @@ export default async function AdminModelsPage() {
   })
   const enabledCount = catalog.models.filter((model) => model.enabled).length
   const reasoningCount = catalog.models.filter((model) => model.supportsReasoning).length
+  const pxRouteCount = catalog.models.filter((model) => model.sourceProvider === PXROUTE_SOURCE_PROVIDER).length
 
   return (
     <div className="flex flex-col gap-6">
@@ -26,9 +28,10 @@ export default async function AdminModelsPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
         <StatCard title="Enabled" value={enabledCount} icon={Bot} />
         <StatCard title="Reasoning" value={reasoningCount} />
+        <StatCard title="PxRoute" value={pxRouteCount} />
         <StatCard
           title="Default Model"
           value={

@@ -12,6 +12,7 @@ const adminModelSchema = z
     id: z.string().trim().min(1),
     name: z.string().trim().min(1),
     provider: z.string().trim().min(1),
+    sourceProvider: z.enum(["openrouter", "pxroute"]).optional(),
     description: z.string().trim().max(280).optional().default(""),
     contextLength: z.number().int().positive().max(10_000_000),
     supportsReasoning: z.boolean().optional().default(false),

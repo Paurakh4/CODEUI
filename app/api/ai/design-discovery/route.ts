@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth"
 import {
   getRuntimeDefaultModelId,
   getRuntimeModelFallbackChain,
+  getRuntimeModelsById,
   isRuntimeModelEnabled,
 } from "@/lib/admin/model-policies"
 import {
@@ -10,7 +11,7 @@ import {
   buildDeterministicDesignDiscoveryResult,
   normalizeDesignDiscoveryResult,
 } from "@/lib/design-discovery"
-import { requestOpenRouterTextCompletion } from "@/lib/openrouter-text-completion"
+import { requestAITextCompletion } from "@/lib/ai-provider-client"
 import { createRepromptLogger } from "@/lib/utils/reprompt-logger"
 
 const MAX_PROMPT_LENGTH = 10_000
@@ -87,10 +88,11 @@ export async function POST(request: Request) {
     }
 
     try {
-      const completion = await requestOpenRouterTextCompletion({
+      const completion = await requestAITextCompletion({
         requestId,
         requestedModel: model,
         fallbackChain: await getRuntimeModelFallbackChain(model),
+        modelsById: await getRuntimeModelsById(),
         messages: [
           { role: "system", content: DESIGN_DISCOVERY_SYSTEM_PROMPT },
           {

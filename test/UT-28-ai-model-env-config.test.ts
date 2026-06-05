@@ -2,8 +2,11 @@ import { afterEach, describe, expect, it } from "vitest"
 
 import {
   CODEUI_GOD_MODE_MODEL_ID,
+  PXROUTE_SOURCE_PROVIDER,
+  getEnabledModels,
   getDefaultModelId,
   getModelFallbackChain,
+  resolveModelSourceProvider,
 } from "@/lib/ai-models"
 
 const originalEnabledModels = process.env.ENABLED_AI_MODELS
@@ -61,5 +64,19 @@ describe("UT-28 ai model env configuration", () => {
       "anthropic/claude-haiku-4.5",
       "deepseek/deepseek-r1",
     ])
+  })
+
+  it("includes PxRoute models with PxRoute provider metadata", () => {
+    const pxRouteModel = getEnabledModels().find((model) => model.id === "claude-sonnet-4-6")
+
+    expect(pxRouteModel).toEqual(
+      expect.objectContaining({
+        id: "claude-sonnet-4-6",
+        provider: "PxRoute",
+        sourceProvider: PXROUTE_SOURCE_PROVIDER,
+        isFast: true,
+      }),
+    )
+    expect(resolveModelSourceProvider(pxRouteModel)).toBe(PXROUTE_SOURCE_PROVIDER)
   })
 })

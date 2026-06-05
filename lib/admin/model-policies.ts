@@ -258,6 +258,11 @@ export async function getRuntimeModelById(modelId: string) {
   return catalog.models.find((model) => model.id === modelId)
 }
 
+export async function getRuntimeModelsById() {
+  const catalog = await getPublicModelCatalog()
+  return new Map(catalog.models.map((model) => [model.id, model]))
+}
+
 export async function getRuntimeDefaultModelId() {
   const catalog = await getPublicModelCatalog()
   return catalog.defaultModelId

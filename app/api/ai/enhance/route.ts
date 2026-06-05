@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import {
   getRuntimeModelFallbackChain,
+  getRuntimeModelsById,
   getRuntimePromptEnhanceModelId,
   isRuntimeModelEnabled,
 } from "@/lib/admin/model-policies"
@@ -15,7 +16,7 @@ import {
   type PromptEnhancementContext,
   type PromptEnhancementStrength,
 } from "@/lib/prompt-enhancement"
-import { requestOpenRouterTextCompletion } from "@/lib/openrouter-text-completion"
+import { requestAITextCompletion } from "@/lib/ai-provider-client"
 import { createRepromptLogger } from "@/lib/utils/reprompt-logger"
 
 const MAX_PROMPT_LENGTH = 10_000
@@ -85,10 +86,11 @@ export async function POST(request: Request) {
     }
 
     try {
-      const completion = await requestOpenRouterTextCompletion({
+      const completion = await requestAITextCompletion({
         requestId,
         requestedModel: promptEnhanceModelId,
         fallbackChain: await getRuntimeModelFallbackChain(promptEnhanceModelId),
+        modelsById: await getRuntimeModelsById(),
         messages: [
           { role: "system", content: PROMPT_ENHANCEMENT_SYSTEM_PROMPT },
           { role: "user", content: buildPromptEnhancementUserPrompt(context) },

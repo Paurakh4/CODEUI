@@ -60,7 +60,7 @@ CodeUI is a full-stack AI website builder designed for fast iteration without hi
 | Auth        | NextAuth v5, Google OAuth, credentials auth                 |
 | Data        | MongoDB with Mongoose                                       |
 | Billing     | Stripe subscriptions and credit top-ups                     |
-| AI          | OpenRouter-backed multi-model generation with fallback      |
+| AI          | Multi-provider model generation with OpenRouter/PxRoute fallback |
 | Testing     | Vitest                                                      |
 +-------------+-------------------------------------------------------------+
 ```
@@ -99,7 +99,7 @@ Fill in `.env.local` with the values your environment needs.
 | 🗄️ Database | `MONGODB_URI` |
 | 🔐 Auth | `AUTH_SECRET`, `AUTH_URL` |
 | Google OAuth | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
-| 🤖 AI | `OPENROUTER_API_KEY`, optional `ENABLED_AI_MODELS`, `DEFAULT_AI_MODEL`, `FALLBACK_AI_MODELS` |
+| 🤖 AI | `OPENROUTER_API_KEY`, `PXROUTE_API_KEY`, optional `ENABLED_AI_MODELS`, `DEFAULT_AI_MODEL`, `FALLBACK_AI_MODELS` |
 | ✉️ Optional email | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` |
 | 💳 Optional Stripe | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, subscription and top-up price IDs |
 | 🛡️ Optional admin access | `ADMIN_EMAILS` |

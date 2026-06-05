@@ -1,9 +1,16 @@
-import { ALL_MODELS, CODEUI_GOD_MODE_MODEL_ID, type AIModel } from "@/lib/ai-models"
+import {
+  ALL_MODELS,
+  CODEUI_GOD_MODE_MODEL_ID,
+  resolveModelSourceProvider,
+  type AIModel,
+  type ModelSourceProvider,
+} from "@/lib/ai-models"
 
 export interface ModelCatalogEntryInput {
   id?: string | null
   name?: string | null
   provider?: string | null
+  sourceProvider?: ModelSourceProvider | null
   description?: string | null
   contextLength?: number | null
   supportsReasoning?: boolean | null
@@ -54,6 +61,7 @@ export function resolveModelCatalog(
     const baseModel = baseById.get(id)
     const name = normalizeText(candidate.name) ?? baseModel?.name
     const provider = normalizeText(candidate.provider) ?? baseModel?.provider
+    const sourceProvider = candidate.sourceProvider ?? baseModel?.sourceProvider
     const contextLength = normalizeContextLength(candidate.contextLength) ?? baseModel?.contextLength
 
     if (!name || !provider || !contextLength) {
@@ -65,6 +73,7 @@ export function resolveModelCatalog(
       id,
       name,
       provider,
+      sourceProvider: resolveModelSourceProvider({ provider, sourceProvider }),
       description,
       contextLength,
       supportsReasoning:

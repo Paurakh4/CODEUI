@@ -24,11 +24,13 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
+import { OPENROUTER_SOURCE_PROVIDER, PXROUTE_SOURCE_PROVIDER } from "@/lib/ai-models"
 
 interface EditableModel {
   id: string
   name: string
   provider: string
+  sourceProvider?: "openrouter" | "pxroute"
   description: string
   contextLength: number
   supportsReasoning: boolean
@@ -43,6 +45,7 @@ interface NewModelDraft {
   id: string
   name: string
   provider: string
+  sourceProvider: "openrouter" | "pxroute"
   description: string
   contextLength: string
   supportsReasoning: boolean
@@ -56,6 +59,7 @@ interface OpenRouterModelOption {
   id: string
   name: string
   provider: string
+  sourceProvider: "openrouter" | "pxroute"
   description: string
   contextLength: number
   supportsReasoning: boolean
@@ -73,11 +77,111 @@ const OPENROUTER_FILTERS: Array<{ value: OpenRouterFilter; label: string }> = [
   { value: "free", label: "Free" },
 ]
 
+const PXROUTE_PRESET_MODELS: OpenRouterModelOption[] = [
+  {
+    id: "claude-opus-4-8",
+    name: "Claude Opus 4.8",
+    provider: "PxRoute",
+    sourceProvider: PXROUTE_SOURCE_PROVIDER,
+    description: "Latest flagship - smartest, slowest, priciest",
+    contextLength: 200000,
+    supportsReasoning: true,
+    isFast: false,
+    isNewModel: true,
+    isFree: false,
+  },
+  {
+    id: "claude-opus-4-7",
+    name: "Claude Opus 4.7",
+    provider: "PxRoute",
+    sourceProvider: PXROUTE_SOURCE_PROVIDER,
+    description: "Previous flagship",
+    contextLength: 200000,
+    supportsReasoning: true,
+    isFast: false,
+    isNewModel: false,
+    isFree: false,
+  },
+  {
+    id: "claude-opus-4-6",
+    name: "Claude Opus 4.6",
+    provider: "PxRoute",
+    sourceProvider: PXROUTE_SOURCE_PROVIDER,
+    description: "Older flagship",
+    contextLength: 200000,
+    supportsReasoning: true,
+    isFast: false,
+    isNewModel: false,
+    isFree: false,
+  },
+  {
+    id: "claude-sonnet-4-6",
+    name: "Claude Sonnet 4.6",
+    provider: "PxRoute",
+    sourceProvider: PXROUTE_SOURCE_PROVIDER,
+    description: "Balanced - recommended default",
+    contextLength: 200000,
+    supportsReasoning: true,
+    isFast: true,
+    isNewModel: true,
+    isFree: false,
+  },
+  {
+    id: "claude-haiku-4-5",
+    name: "Claude Haiku 4.5",
+    provider: "PxRoute",
+    sourceProvider: PXROUTE_SOURCE_PROVIDER,
+    description: "Fast and cheap, good for high-volume",
+    contextLength: 200000,
+    supportsReasoning: false,
+    isFast: true,
+    isNewModel: false,
+    isFree: false,
+  },
+  {
+    id: "gpt-5.5",
+    name: "GPT-5.5",
+    provider: "PxRoute",
+    sourceProvider: PXROUTE_SOURCE_PROVIDER,
+    description: "Latest GPT - strong general reasoning",
+    contextLength: 400000,
+    supportsReasoning: true,
+    isFast: false,
+    isNewModel: true,
+    isFree: false,
+  },
+  {
+    id: "gpt-5.4",
+    name: "GPT-5.4",
+    provider: "PxRoute",
+    sourceProvider: PXROUTE_SOURCE_PROVIDER,
+    description: "Stable GPT flagship",
+    contextLength: 400000,
+    supportsReasoning: true,
+    isFast: false,
+    isNewModel: false,
+    isFree: false,
+  },
+  {
+    id: "gpt-5.3-codex",
+    name: "GPT-5.3 Codex",
+    provider: "PxRoute",
+    sourceProvider: PXROUTE_SOURCE_PROVIDER,
+    description: "Code-specialized",
+    contextLength: 400000,
+    supportsReasoning: true,
+    isFast: true,
+    isNewModel: false,
+    isFree: false,
+  },
+]
+
 function createEmptyNewModel(): NewModelDraft {
   return {
     id: "",
     name: "",
     provider: "",
+    sourceProvider: OPENROUTER_SOURCE_PROVIDER,
     description: "",
     contextLength: "128000",
     supportsReasoning: false,
@@ -98,6 +202,7 @@ function toEditableModel(model: OpenRouterModelOption): EditableModel {
     id: model.id,
     name: model.name,
     provider: model.provider,
+    sourceProvider: model.sourceProvider,
     description: model.description,
     contextLength: model.contextLength,
     supportsReasoning: model.supportsReasoning,
@@ -185,6 +290,7 @@ export function AddModelSheet({
     const id = newModel.id.trim()
     const name = newModel.name.trim()
     const provider = newModel.provider.trim()
+    const sourceProvider = provider === "PxRoute" ? PXROUTE_SOURCE_PROVIDER : newModel.sourceProvider
     const description = newModel.description.trim()
     const contextLength = Number.parseInt(newModel.contextLength, 10)
 
@@ -207,6 +313,7 @@ export function AddModelSheet({
       id,
       name,
       provider,
+      sourceProvider,
       description,
       contextLength,
       supportsReasoning: newModel.supportsReasoning,
@@ -240,6 +347,19 @@ export function AddModelSheet({
     onAddModels(modelsToAdd.map(toEditableModel))
     setSelectedOpenRouterModelIds([])
     setIsOpenRouterPopoverOpen(false)
+    setOpenRouterError(null)
+    setError(null)
+  }
+
+  function handleAddPxRoutePresets() {
+    const modelsToAdd = PXROUTE_PRESET_MODELS.filter((model) => !existingModelIds.has(model.id))
+
+    if (modelsToAdd.length === 0) {
+      setError("All PxRoute preset models are already in the catalog.")
+      return
+    }
+
+    onAddModels(modelsToAdd.map(toEditableModel))
     setOpenRouterError(null)
     setError(null)
   }
@@ -398,6 +518,52 @@ export function AddModelSheet({
             </Button>
 
             {error ? <p className="text-xs text-amber-200">{error}</p> : null}
+          </div>
+
+          <div className="border-t border-border" />
+
+          {/* PxRoute presets */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium">PxRoute Presets</h3>
+            <p className="text-xs text-muted-foreground">
+              Add the MidRelay-backed PxRoute models with the configured provider tag.
+            </p>
+
+            <div className="grid gap-2">
+              {PXROUTE_PRESET_MODELS.map((model) => {
+                const alreadyAdded = existingModelIds.has(model.id)
+
+                return (
+                  <div
+                    key={model.id}
+                    className="flex items-center gap-3 rounded-lg border px-3 py-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium">{model.name}</span>
+                        <Badge variant="outline" className="border-sky-500/20 bg-sky-500/10 text-sky-200">
+                          PxRoute
+                        </Badge>
+                        {model.isFast ? <Badge variant="outline">Fast</Badge> : null}
+                        {alreadyAdded ? <Badge variant="outline">Already added</Badge> : null}
+                      </div>
+                      <p className="truncate text-xs text-muted-foreground">{model.id}</p>
+                      <p className="text-xs text-muted-foreground">{model.description}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <Button
+              type="button"
+              onClick={handleAddPxRoutePresets}
+              disabled={readOnly}
+              className="w-full rounded-xl"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add PxRoute Presets
+            </Button>
           </div>
 
           <div className="border-t border-border" />

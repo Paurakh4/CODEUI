@@ -19,6 +19,7 @@ import {
   getRuntimeDefaultModelId,
   getRuntimeModelById,
   getRuntimeModelFallbackChain,
+  getRuntimeModelsById,
   isRuntimeModelEnabled,
 } from "@/lib/admin/model-policies"
 import {
@@ -43,6 +44,7 @@ import {
 } from "@/lib/reprompting/follow-up-finalizer"
 import { estimateTokenCount } from "@/lib/token-counter"
 import { getPromptAdaptationGuidance } from "@/lib/prompt-adaptation"
+import { resolveProviderRequestConfig } from "@/lib/ai-provider-client"
 import { createRepromptLogger } from "@/lib/utils/reprompt-logger"
 
 interface Message {
@@ -80,6 +82,7 @@ interface UpstreamRequestResult {
   response: Response | null
   modelUsed: string
   fatalStatus: number | null
+  readTimeoutMs: number
 }
 
 interface StreamMetaEvent {
@@ -110,6 +113,7 @@ interface StreamProgressEvent {
 interface StreamOpenRouterOptions {
   response: Response
   thresholdChars: number
+  readTimeoutMs: number
   onContent: (content: string) => void
   onThinking: (thinking: string) => void
   signal?: AbortSignal
@@ -262,6 +266,7 @@ function throwIfAborted(signal?: AbortSignal) {
 
 async function readStreamChunkWithTimeout(
   reader: ReadableStreamDefaultReader<Uint8Array>,
+  readTimeoutMs: number,
   signal?: AbortSignal,
 ): Promise<ReadableStreamReadResult<Uint8Array>> {
   throwIfAborted(signal)
@@ -274,8 +279,8 @@ async function readStreamChunkWithTimeout(
   pendingReads.push(
     new Promise<ReadableStreamReadResult<Uint8Array>>((_, reject) => {
       timeoutId = setTimeout(() => {
-        reject(new Error(`Upstream AI stream timed out after ${UPSTREAM_READ_TIMEOUT_MS}ms`))
-      }, UPSTREAM_READ_TIMEOUT_MS)
+        reject(new Error(`Upstream AI stream timed out after ${readTimeoutMs}ms`))
+      }, readTimeoutMs)
     }),
   )
 
@@ -304,6 +309,7 @@ async function readStreamChunkWithTimeout(
 async function streamOpenRouterResponse({
   response,
   thresholdChars,
+  readTimeoutMs,
   onContent,
   onThinking,
   signal,
@@ -357,7 +363,7 @@ async function streamOpenRouterResponse({
 
     let nextChunk: ReadableStreamReadResult<Uint8Array>
     try {
-      nextChunk = await readStreamChunkWithTimeout(reader, signal)
+      nextChunk = await readStreamChunkWithTimeout(reader, readTimeoutMs, signal)
     } catch (error) {
       await reader.cancel().catch(() => {})
       throw error
@@ -513,11 +519,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const openRouterApiKey = process.env.OPENROUTER_API_KEY
-    if (!openRouterApiKey) {
-      return NextResponse.json({ error: "OpenRouter API key not configured" }, { status: 500 })
-    }
-
     const isFullDocumentRecovery =
       isFollowUp &&
       (isFullDocumentRecoveryMode(recoveryMode) ||
@@ -669,32 +670,32 @@ export async function POST(req: NextRequest) {
     }
 
     const fallbackChain = await getRuntimeModelFallbackChain(model)
+    const runtimeModelsById = await getRuntimeModelsById()
     const requestBase = {
       stream: true,
       max_tokens: UPSTREAM_MAX_TOKENS,
       temperature: isFollowUp ? 0.25 : 0.7,
     }
 
-    const openRouterHeaders = {
-      Authorization: `Bearer ${openRouterApiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-      "X-Title": "CodeUI",
-      "X-CodeUI-Request-ID": requestId,
-    }
-
     const requestOpenRouterStream = async (partMessages: Message[]): Promise<UpstreamRequestResult> => {
       let response: Response | null = null
       let modelUsed = model
       let firstFailureStatus: number | null = null
+      let readTimeoutMs = UPSTREAM_READ_TIMEOUT_MS
 
       for (let index = 0; index < fallbackChain.length; index += 1) {
         const candidateModel = fallbackChain[index]
 
         try {
-          const candidateResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          const providerConfig = resolveProviderRequestConfig({
+            modelId: candidateModel,
+            model: runtimeModelsById.get(candidateModel),
+            requestId,
+            openRouterReadTimeoutMs: UPSTREAM_READ_TIMEOUT_MS,
+          })
+          const candidateResponse = await fetch(providerConfig.endpoint, {
             method: "POST",
-            headers: openRouterHeaders,
+            headers: providerConfig.headers,
             signal: requestSignal,
             body: JSON.stringify({
               ...requestBase,
@@ -706,6 +707,7 @@ export async function POST(req: NextRequest) {
           if (candidateResponse.ok && candidateResponse.body) {
             response = candidateResponse
             modelUsed = candidateModel
+            readTimeoutMs = providerConfig.readTimeoutMs
             break
           }
 
@@ -720,10 +722,11 @@ export async function POST(req: NextRequest) {
             firstFailureStatus = candidateResponse.status
           }
 
-          logger.warn("OpenRouter model attempt failed", {
+          logger.warn("AI provider model attempt failed", {
             phase: "upstream",
             requestId,
             candidateModel,
+            sourceProvider: providerConfig.sourceProvider,
             status: candidateResponse.status,
             detail: failureDetails.slice(0, 300),
           })
@@ -734,6 +737,7 @@ export async function POST(req: NextRequest) {
               response: null,
               modelUsed,
               fatalStatus: candidateResponse.status,
+              readTimeoutMs,
             }
           }
         } catch (fetchError) {
@@ -741,7 +745,7 @@ export async function POST(req: NextRequest) {
             throw fetchError
           }
 
-          logger.warn("OpenRouter network error on model attempt", {
+          logger.warn("AI provider network error on model attempt", {
             phase: "upstream",
             requestId,
             candidateModel,
@@ -754,6 +758,7 @@ export async function POST(req: NextRequest) {
         response,
         modelUsed,
         fatalStatus: firstFailureStatus,
+        readTimeoutMs,
       }
     }
 
@@ -950,11 +955,13 @@ export async function POST(req: NextRequest) {
           totalParts = 0
           activeResponse = retryUpstreamRequest.response
           activeModelUsed = retryUpstreamRequest.modelUsed
+          activeReadTimeoutMs = retryUpstreamRequest.readTimeoutMs
           return "retry"
         }
 
         let activeResponse: Response | null = initialUpstreamRequest.response
         let activeModelUsed = initialUpstreamRequest.modelUsed
+        let activeReadTimeoutMs = initialUpstreamRequest.readTimeoutMs
 
         emitMeta()
         emitProgress({
@@ -993,6 +1000,7 @@ export async function POST(req: NextRequest) {
             const partResult = await streamOpenRouterResponse({
               response: activeResponse,
               thresholdChars: continuationThresholdChars,
+              readTimeoutMs: activeReadTimeoutMs,
               signal: requestSignal,
               onContent: (content) => {
                 aggregatedContent += content
@@ -1105,6 +1113,7 @@ export async function POST(req: NextRequest) {
 
             activeResponse = nextUpstreamRequest.response
             activeModelUsed = nextUpstreamRequest.modelUsed
+            activeReadTimeoutMs = nextUpstreamRequest.readTimeoutMs
           }
 
           const retryDecision = await retryAtomicFollowUpIfNeeded()
@@ -1129,6 +1138,7 @@ export async function POST(req: NextRequest) {
               const partResult = await streamOpenRouterResponse({
                 response: activeResponse,
                 thresholdChars: continuationThresholdChars,
+                readTimeoutMs: activeReadTimeoutMs,
                 signal: requestSignal,
                 onContent: (content) => {
                   aggregatedContent += content
@@ -1189,6 +1199,7 @@ export async function POST(req: NextRequest) {
 
               activeResponse = nextUpstreamRequest.response
               activeModelUsed = nextUpstreamRequest.modelUsed
+              activeReadTimeoutMs = nextUpstreamRequest.readTimeoutMs
             }
           } else if (retryDecision === "closed") {
             return
