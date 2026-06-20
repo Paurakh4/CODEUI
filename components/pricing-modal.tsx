@@ -305,26 +305,28 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
         onClose()
       }
     }}>
-      <DialogContent className="w-[95vw] sm:max-w-5xl md:w-[80vw] border-white/[0.06] bg-[#060608] p-0 text-white sm:rounded-3xl">
-        <div className="px-6 py-6 sm:px-10 sm:py-10 overflow-y-auto max-h-[85vh] scrollbar-thin scrollbar-thumb-white/10">
+      <DialogContent className="w-[95vw] sm:max-w-5xl md:w-[80vw] border-white/[0.04] bg-[#0A0A0C] p-0 text-white sm:rounded-2xl">
+        <div className="px-4 py-4 sm:px-6 sm:py-6 overflow-y-auto max-h-[85vh] scrollbar-thin scrollbar-thumb-white/[0.06]">
           <DialogHeader className="items-start text-left">
-            <DialogTitle className="text-4xl font-semibold tracking-tight text-white">
+            <DialogTitle className="text-2xl sm:text-3xl font-semibold tracking-tight text-white">
               Choose your plan
             </DialogTitle>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400">
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#9B9B9F]">
               Upgrade when you need more monthly credits, private projects, and priority access. Live pricing is pulled directly from Stripe.
             </p>
 
-            <div className="mt-6 flex flex-wrap items-center gap-4">
-              <div className="flex gap-1 p-1 bg-white/[0.06] rounded-xl">
+            <div className="mt-4 flex flex-wrap items-center gap-4">
+              <div className="flex gap-1 p-1 bg-[#0E0E10] border border-white/[0.04] rounded-xl" role="radiogroup" aria-label="Billing cycle">
                 <button
                   onClick={() => setBillingCycle("monthly")}
                   className={cn(
                     "whitespace-nowrap px-5 py-2 rounded-lg text-sm font-medium transition-all",
                     billingCycle === "monthly"
-                      ? "bg-white text-black shadow-sm"
-                      : "text-zinc-400 hover:text-white"
+                      ? "bg-[#1B1B1F] text-[#E7E7E9]"
+                      : "text-[#6B6B70] hover:text-[#9B9B9F]"
                   )}
+                  role="radio"
+                  aria-checked={billingCycle === "monthly"}
                 >
                   Monthly
                 </button>
@@ -335,9 +337,11 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
                     "whitespace-nowrap px-5 py-2 rounded-lg text-sm font-medium transition-all",
                     "disabled:cursor-not-allowed disabled:opacity-50",
                     billingCycle === "yearly"
-                      ? "bg-white text-black shadow-sm"
-                      : "text-zinc-400 hover:text-white"
+                      ? "bg-[#1B1B1F] text-[#E7E7E9]"
+                      : "text-[#6B6B70] hover:text-[#9B9B9F]"
                   )}
+                  role="radio"
+                  aria-checked={billingCycle === "yearly"}
                 >
                   Yearly
                   {hasYearlyPlans && (
@@ -346,16 +350,16 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
                 </button>
               </div>
 
-              <div className="flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-4 py-1.5">
-                <Lock className="h-3 w-3 text-zinc-500" />
-                <span className="text-[11px] text-zinc-500">
+              <div className={cn("flex items-center gap-2 rounded-full border border-white/[0.06] bg-[#0E0E10] px-4 py-1.5", isPricingLoading && "animate-pulse")}>
+                <Lock className="h-3 w-3 text-[#6B6B70]" />
+                <span className="text-[11px] text-[#6B6B70]">
                   {isPricingLoading ? "Syncing with Stripe..." : "Secured by Stripe"}
                 </span>
               </div>
             </div>
 
             {billingCycle === "yearly" && (
-              <div className="mt-3 text-xs text-zinc-500">
+              <div className="mt-3 text-xs text-[#6B6B70]">
                 Annual plans renew yearly. Monthly credits still reset every billing cycle.
               </div>
             )}
@@ -367,7 +371,7 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
             )}
           </DialogHeader>
 
-          <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-3">
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
             {plans.map((plan, index) => {
               const Icon = plan.icon
               const price = plan.id === "free" ? "$0" : formatCurrency(plan.amount, plan.currency)
@@ -386,68 +390,69 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
                   initial="hidden"
                   animate="visible"
                   variants={cardVariants}
-                  whileHover={{ y: -3, transition: { duration: 0.2, ease: "easeOut" } }}
+                  whileHover={{ y: -2, transition: { duration: 0.2, ease: "easeOut" } }}
+                  whileTap={{ scale: 0.98 }}
                   className={cn(
-                    "relative flex flex-col rounded-2xl p-6",
+                    "relative flex flex-col rounded-2xl p-5",
                     plan.badge && [
-                      "bg-zinc-900",
-                      "shadow-[0_0_0_1px_rgba(251,191,36,0.2),0_8px_32px_-12px_rgba(0,0,0,0.6),0_0_40px_-12px_rgba(251,191,36,0.12)]",
-                      "scale-[1.03] z-10",
+                      "bg-[#0E0E10]",
+                      "shadow-[0_0_0_1px_rgba(251,191,36,0.15),0_4px_24px_-8px_rgba(0,0,0,0.5),0_0_32px_-12px_rgba(251,191,36,0.1)]",
+                      "scale-[1.02] z-10",
                     ],
                     !plan.badge && plan.id === "proplus" && [
-                      "border border-white/[0.08] bg-zinc-900/50",
+                      "border border-white/[0.06] bg-[#0E0E10]",
                       "shadow-[0_4px_20px_-8px_rgba(0,0,0,0.4)]",
                     ],
                     plan.id === "free" && [
-                      "border border-white/[0.06] bg-white/[0.02]",
+                      "border border-white/[0.04] bg-[#0E0E10]",
                     ],
                   )}
                 >
                   {plan.badge && (
                     <>
                       <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-24 h-6 bg-amber-500/20 blur-xl rounded-full" />
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-4 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-black shadow-[0_0_12px_-4px_rgba(251,191,36,0.3)]">
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#E7E7E9] px-4 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-[#0A0A0C] shadow-none">
                         {plan.badge}
                       </div>
                     </>
                   )}
 
-                  <div className={cn("mb-6", plan.badge && "mt-4")}>
+                  <div className={cn("mb-5", plan.badge && "mt-4")}>
                     <div className="mb-3 flex items-center gap-3">
                       {Icon && plan.bg && plan.color && (
                         <div className={cn("rounded-xl p-2", plan.bg)}>
                           <Icon className={cn("h-5 w-5", plan.color)} />
                         </div>
                       )}
-                      <h3 className="text-lg font-semibold text-white">{plan.name}</h3>
+                      <h3 className="text-base font-semibold text-white">{plan.name}</h3>
                     </div>
                     <div className="flex items-baseline gap-1.5">
-                      <span className="text-4xl font-bold tracking-tight text-white">{price}</span>
+                      <span className="text-3xl font-bold tracking-tight text-white">{price}</span>
                       {plan.id !== "free" && (
-                        <span className="text-sm text-zinc-500">
+                        <span className="text-sm text-[#6B6B70]">
                           /{billingCycle === "monthly" ? "month" : "year"}
                         </span>
                       )}
                     </div>
-                    <p className="mt-3 text-sm leading-relaxed text-zinc-400">
+                    <p className="mt-3 text-sm leading-relaxed text-[#9B9B9F]">
                       {plan.description}
                     </p>
-                    <p className="mt-2 text-xs text-zinc-500">{sublabel}</p>
+                    <p className="mt-2 text-xs text-[#6B6B70]">{sublabel}</p>
                   </div>
 
-                  <div className="mb-8 flex-1 space-y-3.5">
+                  <div className="mb-6 flex-1 space-y-2.5">
                     {plan.features.map((feature) => (
                       <div key={feature} className="flex items-start gap-3">
                         <div className={cn(
                           "mt-0.5 rounded-full p-0.5 flex-shrink-0",
-                          plan.badge ? "bg-amber-500/20" : "bg-white/10"
+                          plan.badge ? "bg-amber-500/20" : "bg-[#1B1B1F]"
                         )}>
                           <Check className={cn(
                             "h-3 w-3",
-                            plan.badge ? "text-amber-400" : "text-white"
+                            plan.badge ? "text-amber-400" : "text-[#E7E7E9]"
                           )} />
                         </div>
-                        <span className="text-sm leading-tight text-zinc-300">{feature}</span>
+                        <span className="text-sm leading-tight text-[#E7E7E9]">{feature}</span>
                       </div>
                     ))}
                   </div>
@@ -455,10 +460,10 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
                   <Button
                     variant={plan.badge ? "default" : "outline"}
                     className={cn(
-                      "w-full rounded-xl py-5 text-sm font-semibold",
+                      "w-full rounded-xl text-sm font-semibold",
                       plan.badge
-                        ? "border-none bg-white text-black hover:bg-zinc-200 shadow-[0_4px_20px_-8px_rgba(255,255,255,0.15)]"
-                        : "border-white/20 bg-transparent text-white hover:border-white/30 hover:bg-white/5"
+                        ? "border-none bg-[#E7E7E9] text-[#0A0A0C] hover:bg-white shadow-[0_4px_20px_-8px_rgba(255,255,255,0.15)]"
+                        : "border-white/[0.08] text-[#E7E7E9] hover:bg-[#1B1B1F] hover:border-white/[0.12]"
                     )}
                     disabled={plan.id === "free" || plan.isCurrentTier || isLoading !== null || !plan.isConfiguredForCycle}
                     onClick={() => {
@@ -485,15 +490,15 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
             })}
           </div>
 
-          <div className="mt-10 rounded-3xl border border-white/[0.06] bg-white/[0.02] p-6 sm:p-8">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="mt-8 rounded-2xl border border-white/[0.04] bg-[#0E0E10] p-5 sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h3 className="text-xl font-semibold tracking-tight text-white">Need extra credits?</h3>
-                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400">
+                <h3 className="text-lg font-semibold tracking-tight text-white">Need extra credits?</h3>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#9B9B9F]">
                   Buy a one-time credit pack when you need extra generations. Top-up credits do not expire with your monthly billing cycle.
                 </p>
               </div>
-              <div className="flex items-center gap-2 text-xs text-zinc-500">
+              <div className="flex items-center gap-2 text-xs text-[#6B6B70]">
                 <Lock className="h-3 w-3" />
                 {isTopupLoading ? "Loading..." : "One-time purchases via Stripe"}
               </div>
@@ -503,25 +508,25 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
               {visibleTopupPackages.map((pkg) => (
                 <div
                   key={pkg.id}
-                  className="group rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 transition-colors hover:border-white/[0.12] hover:bg-white/[0.04]"
+                  className="group rounded-2xl border border-white/[0.04] bg-[#0E0E10] p-5 transition-colors hover:border-white/[0.08] hover:bg-[#1B1B1F]"
                 >
-                  <div className="text-[10px] font-medium uppercase tracking-[0.2em] text-zinc-500">
+                  <div className="text-[10px] font-medium uppercase tracking-[0.2em] text-[#6B6B70]">
                     Credit Pack
                   </div>
                   <div className="mt-4 text-3xl font-bold tracking-tight text-white">
                     {pkg.credits}
-                    <span className="ml-1 text-lg font-normal text-zinc-500">credits</span>
+                    <span className="ml-1 text-lg font-normal text-[#6B6B70]">credits</span>
                   </div>
-                  <p className="mt-2 text-sm text-zinc-400">
+                  <p className="mt-2 text-sm text-[#9B9B9F]">
                     {formatCurrency(pkg.price, "usd")} one-time
                   </p>
-                  <p className="mt-4 text-xs leading-relaxed text-zinc-500">
+                  <p className="mt-4 text-xs leading-relaxed text-[#6B6B70]">
                     {topupDescriptions[pkg.id] ?? "Extra credits without changing your plan."}
                   </p>
 
                   <Button
                     variant="outline"
-                    className="mt-6 w-full rounded-xl border-white/20 bg-transparent text-white hover:border-white/30 hover:bg-white/5"
+                    className="mt-6 w-full rounded-xl border-white/[0.08] text-[#E7E7E9] hover:bg-[#1B1B1F] hover:border-white/[0.12]"
                     disabled={isLoading !== null || !pkg.available}
                     onClick={() => {
                       if (pkg.available) {
