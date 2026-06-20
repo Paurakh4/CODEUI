@@ -212,19 +212,19 @@ export function CustomerManagementForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       {readOnlyReason ? (
-        <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90">
+        <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] px-4 py-3 text-sm text-[#9B9B9F]">
           {readOnlyReason}
         </div>
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
-        <label className="space-y-2 text-sm text-muted-foreground">
-          <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Role</span>
+        <label className="space-y-1.5 text-sm">
+          <span className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Role</span>
           <select
             value={role}
             onChange={(event) => setRole(event.target.value as UserRole)}
             disabled={readOnly || isSaving}
-            className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-10 w-full rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] outline-none transition-colors focus:ring-2 focus:ring-white/10 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {availableRoles.map((value) => (
               <option key={value} value={value}>
@@ -234,13 +234,13 @@ export function CustomerManagementForm({
           </select>
         </label>
 
-        <label className="space-y-2 text-sm text-muted-foreground">
-          <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Account Status</span>
+        <label className="space-y-1.5 text-sm">
+          <span className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Account Status</span>
           <select
             value={accountStatus}
             onChange={(event) => setAccountStatus(event.target.value as AccountStatus)}
             disabled={readOnly || isSaving}
-            className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-10 w-full rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] outline-none transition-colors focus:ring-2 focus:ring-white/10 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {accountStatuses.map((value) => (
               <option key={value} value={value}>
@@ -250,13 +250,13 @@ export function CustomerManagementForm({
           </select>
         </label>
 
-        <label className="space-y-2 text-sm text-muted-foreground">
-          <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Subscription Tier</span>
+        <label className="space-y-1.5 text-sm">
+          <span className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Subscription Tier</span>
           <select
             value={subscriptionTier}
             onChange={(event) => setSubscriptionTier(event.target.value as SubscriptionTier)}
             disabled={readOnly || isSaving}
-            className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-10 w-full rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] outline-none transition-colors focus:ring-2 focus:ring-white/10 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {subscriptionTiers.map((value) => (
               <option key={value} value={value}>
@@ -266,8 +266,8 @@ export function CustomerManagementForm({
           </select>
         </label>
 
-        <label className="space-y-2 text-sm text-muted-foreground">
-          <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Monthly Credits</span>
+        <label className="space-y-1.5 text-sm">
+          <span className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Monthly Credits</span>
           <Input
             type="number"
             min={0}
@@ -275,12 +275,12 @@ export function CustomerManagementForm({
             value={monthlyCredits}
             onChange={(event) => setMonthlyCredits(event.target.value)}
             disabled={readOnly || isSaving}
-            className="h-10 rounded-xl border-border bg-background text-foreground"
+            className="h-10 rounded-lg border border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
           />
         </label>
 
-        <label className="space-y-2 text-sm text-muted-foreground">
-          <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Top-up Credits</span>
+        <label className="space-y-1.5 text-sm">
+          <span className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Top-up Credits</span>
           <Input
             type="number"
             min={0}
@@ -288,42 +288,42 @@ export function CustomerManagementForm({
             value={topupCredits}
             onChange={(event) => setTopupCredits(event.target.value)}
             disabled={readOnly || isSaving}
-            className="h-10 rounded-xl border-border bg-background text-foreground"
+            className="h-10 rounded-lg border border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
           />
         </label>
       </div>
 
-      <label className="space-y-2 text-sm text-muted-foreground">
-        <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Admin Notes</span>
+      <label className="space-y-1.5 text-sm">
+        <span className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Admin Notes</span>
         <Textarea
           value={adminNotes}
           onChange={(event) => setAdminNotes(event.target.value)}
           disabled={readOnly || isSaving}
-          className="min-h-28 rounded-lg border-border bg-background text-foreground"
+          className="min-h-28 rounded-lg border border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9] placeholder:text-[#9B9B9F]/50"
           placeholder="Internal notes about this customer account"
         />
       </label>
 
-      <label className="space-y-2 text-sm text-muted-foreground">
-        <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Audit Reason</span>
+      <label className="space-y-1.5 text-sm">
+        <span className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Audit Reason</span>
         <Input
           value={reason}
           onChange={(event) => setReason(event.target.value)}
           disabled={readOnly || isSaving}
-          className="h-10 rounded-xl border-border bg-background text-foreground"
+          className="h-10 rounded-lg border border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9] placeholder:text-[#9B9B9F]/50"
           placeholder="Why are you making this change?"
         />
       </label>
 
       <div className="flex items-center justify-between gap-4">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-[#9B9B9F]">
           Changes are written to the admin audit log and applied immediately.
         </p>
 
         <Button
           type="submit"
           disabled={readOnly || isSaving || !hasChanges}
-          className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
+          className="rounded-lg bg-[#E7E7E9] text-[#0E0E10] hover:bg-white"
         >
           {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           Save Customer

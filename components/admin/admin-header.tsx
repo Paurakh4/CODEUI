@@ -30,18 +30,18 @@ export function AdminHeader({ user }: AdminHeaderProps) {
   const breadcrumb = formatBreadcrumb(pathname)
 
   return (
-    <header className="flex h-14 items-center justify-between gap-4 border-b bg-background px-4">
+    <header className="flex h-12 items-center justify-between gap-4 border-b border-white/[0.04] bg-background px-4">
       <div className="flex items-center gap-3">
-        <SidebarTrigger className="-ml-1" />
-        <span className="hidden text-sm text-muted-foreground sm:inline-block">
+        <SidebarTrigger className="-ml-1 text-[#9B9B9F] hover:text-[#E7E7E9] hover:bg-[#1B1B1F] rounded-lg" />
+        <span className="hidden text-sm text-[#9B9B9F] sm:inline-block">
           {breadcrumb}
         </span>
       </div>
       <div className="flex items-center gap-2">
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
-          className="gap-2 text-muted-foreground"
+          className="gap-2 text-[#9B9B9F] hover:text-[#E7E7E9] hover:bg-[#1B1B1F]"
           onClick={() => window.dispatchEvent(new CustomEvent("open-command-palette"))}
         >
           <Command className="h-3.5 w-3.5" />
@@ -50,14 +50,14 @@ export function AdminHeader({ user }: AdminHeaderProps) {
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-muted-foreground"
+          className="h-8 w-8 text-[#9B9B9F] hover:text-[#E7E7E9] hover:bg-[#1B1B1F]"
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           aria-label="Toggle theme"
         >
           <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
           <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
         </Button>
-        <span className="rounded-md border px-2 py-0.5 text-xs text-muted-foreground">
+        <span className="rounded-md border border-white/[0.04] bg-[#1B1B1F] px-2 py-0.5 text-xs text-[#9B9B9F]">
           {user.role}
         </span>
         <UserMenu />

@@ -101,7 +101,7 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
                 <ShieldCheck className="h-5 w-5" />
                 <div className="flex flex-col">
                   <span className="text-sm font-semibold">Admin</span>
-                  <span className="text-xs text-muted-foreground">Back Office</span>
+                  <span className="text-xs text-[#9B9B9F]">Back Office</span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -110,7 +110,7 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[11px] font-medium tracking-[0.05em] text-[#9B9B9F]/60 uppercase">Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => {
@@ -124,7 +124,7 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
                         {item.label === "Feedback" &&
                         feedbackUnreadCount !== null &&
                         feedbackUnreadCount > 0 ? (
-                          <SidebarMenuBadge className="bg-primary text-primary-foreground">
+                          <SidebarMenuBadge className="border border-white/[0.04] bg-[#1B1B1F] text-[#E7E7E9]">
                             {feedbackUnreadCount > 99 ? "99+" : feedbackUnreadCount}
                           </SidebarMenuBadge>
                         ) : null}
@@ -141,7 +141,7 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
-              <Link href="/dashboard">
+              <Link href="/dashboard" className="text-[#9B9B9F] hover:text-[#E7E7E9]">
                 <ArrowLeft className="h-4 w-4" />
                 <span>Exit to Dashboard</span>
               </Link>

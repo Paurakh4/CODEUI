@@ -51,16 +51,16 @@ export function BillingResyncButton({ userId, disabled = false }: BillingResyncB
     <div className="space-y-2">
       <Button
         type="button"
-        variant="outline"
+        variant="ghost"
         size="sm"
         disabled={disabled || isLoading}
-        className="text-muted-foreground"
+        className="text-[#9B9B9F] hover:text-[#E7E7E9] hover:bg-[#1B1B1F]"
         onClick={handleClick}
       >
         {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
         Resync
       </Button>
-      {error ? <p className="max-w-48 text-xs text-amber-200">{error}</p> : null}
+      {error ? <p className="max-w-48 text-xs text-[#9B9B9F]">{error}</p> : null}
     </div>
   )
 }

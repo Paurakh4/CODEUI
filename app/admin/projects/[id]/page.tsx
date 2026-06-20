@@ -55,7 +55,7 @@ export default async function AdminProjectDetailPage({ params }: ProjectDetailPa
     <div className="flex flex-col gap-6">
       <Link
         href="/admin/projects"
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        className="inline-flex items-center gap-2 text-sm text-[#9B9B9F] transition-colors hover:text-[#E7E7E9]"
       >
         <ArrowLeft className="h-4 w-4" />
         Back to projects
@@ -63,10 +63,10 @@ export default async function AdminProjectDetailPage({ params }: ProjectDetailPa
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#E7E7E9]">
             {detail.project.emoji || "🎨"} {detail.project.name}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-[#9B9B9F]">
             Owned by {detail.owner.name} · {detail.owner.email}
           </p>
         </div>
@@ -105,12 +105,12 @@ export default async function AdminProjectDetailPage({ params }: ProjectDetailPa
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-        <section className="rounded-lg border p-5">
+        <section className="rounded-lg border border-white/[0.04] p-5">
           <div className="flex items-center gap-3">
-            <ShieldCheck className="h-5 w-5 text-muted-foreground" />
+            <ShieldCheck className="h-5 w-5 text-[#9B9B9F]" />
             <div>
-              <p className="text-xs text-muted-foreground">Management</p>
-              <h2 className="text-sm font-medium">Metadata and privacy</h2>
+              <p className="text-xs text-[#9B9B9F]">Management</p>
+              <h2 className="text-sm font-medium text-[#E7E7E9]">Metadata and privacy</h2>
             </div>
           </div>
           <div className="mt-5">
@@ -125,37 +125,37 @@ export default async function AdminProjectDetailPage({ params }: ProjectDetailPa
           </div>
         </section>
 
-        <section className="rounded-lg border p-5">
+        <section className="rounded-lg border border-white/[0.04] p-5">
           <div className="flex items-center gap-3">
-            <FolderKanban className="h-5 w-5 text-muted-foreground" />
+            <FolderKanban className="h-5 w-5 text-[#9B9B9F]" />
             <div>
-              <p className="text-xs text-muted-foreground">Owner Snapshot</p>
-              <h2 className="text-sm font-medium">Account context</h2>
+              <p className="text-xs text-[#9B9B9F]">Owner Snapshot</p>
+              <h2 className="text-sm font-medium text-[#E7E7E9]">Account context</h2>
             </div>
           </div>
           <div className="mt-5 space-y-3">
-            <div className="rounded-lg border bg-muted/50 p-4">
-              <p className="text-xs text-muted-foreground">Owner</p>
-              <p className="mt-1 font-medium">{detail.owner.name}</p>
-              <p className="text-sm text-muted-foreground">{detail.owner.email}</p>
+            <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-4">
+              <p className="text-xs text-[#9B9B9F]">Owner</p>
+              <p className="mt-1 font-medium text-[#E7E7E9]">{detail.owner.name}</p>
+              <p className="text-sm text-[#9B9B9F]">{detail.owner.email}</p>
             </div>
-            <div className="rounded-lg border bg-muted/50 p-4">
-              <p className="text-xs text-muted-foreground">Access</p>
-              <p className="mt-1 font-medium">
+            <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-4">
+              <p className="text-xs text-[#9B9B9F]">Access</p>
+              <p className="mt-1 font-medium text-[#E7E7E9]">
                 {formatRoleLabel(detail.owner.role)} · {detail.owner.accountStatus}
               </p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-[#9B9B9F]">
                 {formatSubscriptionTierLabel(detail.owner.tier)}
               </p>
             </div>
-            <div className="rounded-lg border bg-muted/50 p-4">
-              <p className="text-xs text-muted-foreground">Media Mix</p>
-              <p className="mt-1 font-medium">
+            <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-4">
+              <p className="text-xs text-[#9B9B9F]">Media Mix</p>
+              <p className="mt-1 font-medium text-[#E7E7E9]">
                 {formatNumber(detail.stats.imageCount)} images ·{" "}
                 {formatNumber(detail.stats.videoCount)} videos ·{" "}
                 {formatNumber(detail.stats.audioCount)} audio
               </p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-[#9B9B9F]">
                 Updated {new Date(detail.project.updatedAt).toLocaleString()}
               </p>
             </div>
@@ -164,30 +164,30 @@ export default async function AdminProjectDetailPage({ params }: ProjectDetailPa
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-        <section className="rounded-lg border p-5">
+        <section className="rounded-lg border border-white/[0.04] p-5">
           <div className="flex items-center gap-3">
-            <MessageSquareText className="h-5 w-5 text-muted-foreground" />
+            <MessageSquareText className="h-5 w-5 text-[#9B9B9F]" />
             <div>
-              <p className="text-xs text-muted-foreground">Conversation</p>
-              <h2 className="text-sm font-medium">Recent chat log</h2>
+              <p className="text-xs text-[#9B9B9F]">Conversation</p>
+              <h2 className="text-sm font-medium text-[#E7E7E9]">Recent chat log</h2>
             </div>
           </div>
           <div className="mt-5 space-y-2">
             {detail.recentMessages.length === 0 ? (
-              <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+              <div className="rounded-lg border border-dashed border-white/[0.04] px-4 py-8 text-center text-sm text-[#9B9B9F]">
                 No embedded project messages yet.
               </div>
             ) : (
               detail.recentMessages.map((message, index) => (
                 <div
                   key={`${message.createdAt.toISOString()}-${index}`}
-                  className="rounded-lg border bg-muted/50 px-4 py-3"
+                  className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] px-4 py-3"
                 >
                   <div className="flex items-center justify-between gap-4">
                     <Badge variant="outline" className="text-[10px]">
                       {message.role}
                     </Badge>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-[#9B9B9F]">
                       {new Date(message.createdAt).toLocaleString()}
                     </p>
                   </div>
@@ -200,38 +200,38 @@ export default async function AdminProjectDetailPage({ params }: ProjectDetailPa
           </div>
         </section>
 
-        <section className="rounded-lg border p-5">
+        <section className="rounded-lg border border-white/[0.04] p-5">
           <div className="flex items-center gap-3">
-            <FileCode2 className="h-5 w-5 text-muted-foreground" />
+            <FileCode2 className="h-5 w-5 text-[#9B9B9F]" />
             <div>
-              <p className="text-xs text-muted-foreground">Recovery State</p>
-              <h2 className="text-sm font-medium">Recent checkpoints</h2>
+              <p className="text-xs text-[#9B9B9F]">Recovery State</p>
+              <h2 className="text-sm font-medium text-[#E7E7E9]">Recent checkpoints</h2>
             </div>
           </div>
           <div className="mt-5 space-y-2">
             {detail.recentCheckpoints.length === 0 ? (
-              <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+              <div className="rounded-lg border border-dashed border-white/[0.04] px-4 py-8 text-center text-sm text-[#9B9B9F]">
                 No checkpoints stored yet.
               </div>
             ) : (
               detail.recentCheckpoints.map((checkpoint) => (
                 <div
                   key={checkpoint.id}
-                  className="rounded-lg border bg-muted/50 px-4 py-3"
+                  className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] px-4 py-3"
                 >
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <p className="text-sm font-medium">Checkpoint #{checkpoint.seq}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-[#9B9B9F]">
                         {checkpoint.kind} · {checkpoint.trigger}
                       </p>
                     </div>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-[#9B9B9F]">
                       {new Date(checkpoint.createdAt).toLocaleString()}
                     </p>
                   </div>
                   {checkpoint.description ? (
-                    <p className="mt-2 text-sm text-muted-foreground">{checkpoint.description}</p>
+                    <p className="mt-2 text-sm text-[#9B9B9F]">{checkpoint.description}</p>
                   ) : null}
                 </div>
               ))
@@ -241,12 +241,12 @@ export default async function AdminProjectDetailPage({ params }: ProjectDetailPa
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-        <section className="rounded-lg border p-5">
+        <section className="rounded-lg border border-white/[0.04] p-5">
           <div className="flex items-center gap-3">
-            <Image className="h-5 w-5 text-muted-foreground" />
+            <Image className="h-5 w-5 text-[#9B9B9F]" />
             <div>
-              <p className="text-xs text-muted-foreground">Media</p>
-              <h2 className="text-sm font-medium">Recent uploads</h2>
+              <p className="text-xs text-[#9B9B9F]">Media</p>
+              <h2 className="text-sm font-medium text-[#E7E7E9]">Recent uploads</h2>
             </div>
           </div>
           <div className="mt-5 space-y-2">

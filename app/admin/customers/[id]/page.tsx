@@ -56,7 +56,7 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
     <div className="flex flex-col gap-6">
       <Link
         href="/admin/customers"
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        className="inline-flex items-center gap-2 text-sm text-[#9B9B9F] transition-colors hover:text-[#E7E7E9]"
       >
         <ArrowLeft className="h-4 w-4" />
         Back to customers
@@ -64,8 +64,8 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{detail.customer.name}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{detail.customer.email}</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-[#E7E7E9]">{detail.customer.name}</h1>
+          <p className="mt-1 text-sm text-[#9B9B9F]">{detail.customer.email}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">{formatRoleLabel(detail.customer.role)}</Badge>
@@ -73,8 +73,8 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
           <Badge
             className={
               detail.customer.accountStatus === "active"
-                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                : "bg-red-500/10 text-red-600 dark:text-red-400"
+                ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                : "border border-red-500/20 bg-red-500/10 text-red-300"
             }
           >
             {detail.customer.accountStatus}
@@ -109,12 +109,12 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-        <section className="rounded-lg border p-5">
+        <section className="rounded-lg border border-white/[0.04] p-5">
           <div className="flex items-center gap-3">
-            <ShieldCheck className="h-5 w-5 text-muted-foreground" />
+            <ShieldCheck className="h-5 w-5 text-[#9B9B9F]" />
             <div>
-              <p className="text-xs text-muted-foreground">Management</p>
-              <h2 className="text-sm font-medium">Role, status, tier, and credits</h2>
+              <p className="text-xs text-[#9B9B9F]">Management</p>
+              <h2 className="text-sm font-medium text-[#E7E7E9]">Role, status, tier, and credits</h2>
             </div>
           </div>
           <div className="mt-5">
@@ -133,36 +133,36 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
           </div>
         </section>
 
-        <section className="rounded-lg border p-5">
+        <section className="rounded-lg border border-white/[0.04] p-5">
           <div className="flex items-center gap-3">
-            <CreditCard className="h-5 w-5 text-muted-foreground" />
+            <CreditCard className="h-5 w-5 text-[#9B9B9F]" />
             <div>
-              <p className="text-xs text-muted-foreground">Account Snapshot</p>
-              <h2 className="text-sm font-medium">Subscription and preferences</h2>
+              <p className="text-xs text-[#9B9B9F]">Account Snapshot</p>
+              <h2 className="text-sm font-medium text-[#E7E7E9]">Subscription and preferences</h2>
             </div>
           </div>
           <div className="mt-5 space-y-3">
-            <div className="rounded-lg border bg-muted/50 p-4">
-              <p className="text-xs text-muted-foreground">Subscription</p>
-              <p className="mt-1 font-medium">{detail.customer.subscription.tierName}</p>
-              <p className="mt-0.5 text-sm text-muted-foreground">
+            <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-4">
+              <p className="text-xs text-[#9B9B9F]">Subscription</p>
+              <p className="mt-1 font-medium text-[#E7E7E9]">{detail.customer.subscription.tierName}</p>
+              <p className="mt-0.5 text-sm text-[#9B9B9F]">
                 {formatNumber(detail.customer.subscription.monthlyAllowance)} monthly allowance
               </p>
             </div>
-            <div className="rounded-lg border bg-muted/50 p-4">
-              <p className="text-xs text-muted-foreground">Default Model</p>
-              <p className="mt-1 font-medium">
+            <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-4">
+              <p className="text-xs text-[#9B9B9F]">Default Model</p>
+              <p className="mt-1 font-medium text-[#E7E7E9]">
                 {detail.customer.preferences.defaultModel || "Not set"}
               </p>
             </div>
-            <div className="rounded-lg border bg-muted/50 p-4">
-              <p className="text-xs text-muted-foreground">Privacy</p>
-              <p className="mt-1 font-medium">
+            <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-4">
+              <p className="text-xs text-[#9B9B9F]">Privacy</p>
+              <p className="mt-1 font-medium text-[#E7E7E9]">
                 {detail.customer.preferences.privateProjectsByDefault
                   ? "Private projects by default"
                   : "Public projects allowed by default"}
               </p>
-              <p className="mt-0.5 text-sm text-muted-foreground">
+              <p className="mt-0.5 text-sm text-[#9B9B9F]">
                 Marketing {detail.customer.preferences.marketingEmails ? "on" : "off"} · Updates{" "}
                 {detail.customer.preferences.productUpdates ? "on" : "off"}
               </p>
@@ -172,31 +172,31 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-        <section className="rounded-lg border p-5">
+        <section className="rounded-lg border border-white/[0.04] p-5">
           <div className="flex items-center gap-3">
-            <FolderKanban className="h-5 w-5 text-muted-foreground" />
+            <FolderKanban className="h-5 w-5 text-[#9B9B9F]" />
             <div>
-              <p className="text-xs text-muted-foreground">Projects</p>
-              <h2 className="text-sm font-medium">Recent workspaces</h2>
+              <p className="text-xs text-[#9B9B9F]">Projects</p>
+              <h2 className="text-sm font-medium text-[#E7E7E9]">Recent workspaces</h2>
             </div>
           </div>
           <div className="mt-5 space-y-2">
             {detail.recentProjects.length === 0 ? (
-              <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+              <div className="rounded-lg border border-dashed border-white/[0.04] px-4 py-8 text-center text-sm text-[#9B9B9F]">
                 No projects yet.
               </div>
             ) : (
               detail.recentProjects.map((project) => (
                 <div
                   key={project.id}
-                  className="rounded-lg border bg-muted/50 px-4 py-3"
+                  className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] px-4 py-3"
                 >
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">
+                      <p className="truncate text-sm font-medium text-[#E7E7E9]">
                         {project.emoji || "🎨"} {project.name}
                       </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-[#9B9B9F]">
                         Updated {new Date(project.updatedAt).toLocaleString()}
                       </p>
                     </div>

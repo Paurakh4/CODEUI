@@ -61,10 +61,10 @@ export default async function AdminOverviewPage() {
   ]
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-2xl font-semibold tracking-tight text-[#E7E7E9]">Overview</h1>
+        <p className="mt-1 text-sm text-[#9B9B9F]">
           System metrics across users, projects, and infrastructure.
         </p>
       </div>
@@ -76,12 +76,12 @@ export default async function AdminOverviewPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-        <section className="rounded-lg border">
-          <div className="flex items-center justify-between border-b px-5 py-4">
-            <h2 className="text-sm font-medium">Recent Users</h2>
+        <section className="rounded-lg border border-white/[0.04]">
+          <div className="flex items-center justify-between border-b border-white/[0.04] px-5 py-4">
+            <h2 className="text-sm font-medium text-[#E7E7E9]">Recent Users</h2>
             <Link
               href="/admin/customers"
-              className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              className="flex items-center gap-1 text-sm text-[#9B9B9F] transition-colors hover:text-[#E7E7E9]"
             >
               View all
               <ArrowRight className="h-3.5 w-3.5" />
@@ -90,34 +90,34 @@ export default async function AdminOverviewPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="px-5 py-3 font-medium text-muted-foreground" scope="col">User</th>
-                  <th className="px-5 py-3 font-medium text-muted-foreground" scope="col">Role</th>
-                  <th className="px-5 py-3 font-medium text-muted-foreground" scope="col">Status</th>
-                  <th className="px-5 py-3 font-medium text-muted-foreground" scope="col">Tier</th>
-                  <th className="px-5 py-3 font-medium text-muted-foreground" scope="col">Created</th>
+                <tr className="border-b border-white/[0.04] bg-[#1B1B1F]">
+                  <th className="px-5 py-3 font-medium text-[#9B9B9F]" scope="col">User</th>
+                  <th className="px-5 py-3 font-medium text-[#9B9B9F]" scope="col">Role</th>
+                  <th className="px-5 py-3 font-medium text-[#9B9B9F]" scope="col">Status</th>
+                  <th className="px-5 py-3 font-medium text-[#9B9B9F]" scope="col">Tier</th>
+                  <th className="px-5 py-3 font-medium text-[#9B9B9F]" scope="col">Created</th>
                 </tr>
               </thead>
               <tbody>
                 {overview.recentUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-12 text-center text-muted-foreground">
+                    <td colSpan={5} className="px-5 py-12 text-center text-[#9B9B9F]">
                       No users found.
                     </td>
                   </tr>
                 ) : (
                   overview.recentUsers.map((user) => (
-                    <tr key={user.id} className="border-b transition-colors hover:bg-muted/50">
+                    <tr key={user.id} className="border-b border-white/[0.04] transition-colors hover:bg-[#1B1B1F]">
                       <td className="px-5 py-3">
                         <Link
                           href={`/admin/customers/${user.id}`}
-                          className="font-medium text-foreground transition-colors hover:text-primary"
+                          className="font-medium text-[#E7E7E9] transition-colors hover:text-white"
                         >
                           {user.name || "Unnamed"}
                         </Link>
-                        <div className="text-xs text-muted-foreground">{user.email}</div>
+                        <div className="text-xs text-[#9B9B9F]">{user.email}</div>
                       </td>
-                      <td className="px-5 py-3 text-muted-foreground">
+                      <td className="px-5 py-3 text-[#9B9B9F]">
                         <Badge variant="secondary" className="text-[10px]">
                           {user.role}
                         </Badge>
@@ -140,8 +140,8 @@ export default async function AdminOverviewPage() {
                           {user.accountStatus}
                         </span>
                       </td>
-                      <td className="px-5 py-3 text-xs text-muted-foreground">{user.tier}</td>
-                      <td className="px-5 py-3 text-xs text-muted-foreground">
+                      <td className="px-5 py-3 text-xs text-[#9B9B9F]">{user.tier}</td>
+                      <td className="px-5 py-3 text-xs text-[#9B9B9F]">
                         {new Date(user.createdAt).toLocaleDateString()}
                       </td>
                     </tr>
@@ -153,8 +153,8 @@ export default async function AdminOverviewPage() {
         </section>
 
         <div className="flex flex-col gap-6">
-          <section className="rounded-lg border p-5">
-            <h2 className="text-sm font-medium">Subscriptions</h2>
+          <section className="rounded-lg border border-white/[0.04] p-5">
+            <h2 className="text-sm font-medium text-[#E7E7E9]">Subscriptions</h2>
             <div className="mt-4 space-y-4">
               {(["free", "pro", "proplus"] as const).map((tier) => {
                 const count = overview.subscriptionBreakdown[tier]
@@ -163,14 +163,14 @@ export default async function AdminOverviewPage() {
                 return (
                   <div key={tier} className="space-y-1.5">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">
+                      <span className="text-[#9B9B9F]">
                         {tier === "proplus" ? "Pro Plus" : tier.charAt(0).toUpperCase() + tier.slice(1)}
                       </span>
                       <span className="font-medium tabular-nums">
                         {formatNumber(count)} ({pct}%)
                       </span>
                     </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#1B1B1F]">
                       <div
                         className="h-full rounded-full bg-foreground/20"
                         style={{ width: `${pct}%` }}
@@ -183,8 +183,8 @@ export default async function AdminOverviewPage() {
           </section>
 
           {overview.topModels.length > 0 ? (
-            <section className="rounded-lg border p-5">
-              <h2 className="text-sm font-medium">Top Models</h2>
+            <section className="rounded-lg border border-white/[0.04] p-5">
+              <h2 className="text-sm font-medium text-[#E7E7E9]">Top Models</h2>
               <div className="mt-4 space-y-2">
                 {overview.topModels.map((model) => {
                   const max = overview.topModels[0].count
@@ -192,12 +192,12 @@ export default async function AdminOverviewPage() {
                   return (
                     <div key={model.modelId} className="space-y-1">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="truncate text-muted-foreground">{model.modelId}</span>
-                        <span className="tabular-nums text-xs text-muted-foreground">
+                        <span className="truncate text-[#9B9B9F]">{model.modelId}</span>
+                        <span className="tabular-nums text-xs text-[#9B9B9F]">
                           {formatNumber(model.count)}
                         </span>
                       </div>
-                      <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+                      <div className="h-1 w-full overflow-hidden rounded-full bg-[#1B1B1F]">
                         <div
                           className="h-full rounded-full bg-foreground/20"
                           style={{ width: `${pct}%` }}

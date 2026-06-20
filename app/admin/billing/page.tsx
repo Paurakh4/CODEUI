@@ -55,8 +55,8 @@ export default async function AdminBillingPage({ searchParams }: BillingPageProp
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Billing</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-2xl font-semibold tracking-tight text-[#E7E7E9]">Billing</h1>
+        <p className="mt-1 text-sm text-[#9B9B9F]">
           Stripe health, subscription state, and recovery controls.
         </p>
       </div>
@@ -84,17 +84,17 @@ export default async function AdminBillingPage({ searchParams }: BillingPageProp
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-        <section className="rounded-lg border p-5">
+        <section className="rounded-lg border border-white/[0.04] p-5">
           <div className="flex items-center gap-3">
-            <AlertTriangle className="h-5 w-5 text-muted-foreground" />
+            <AlertTriangle className="h-5 w-5 text-[#9B9B9F]" />
             <div>
-              <p className="text-xs text-muted-foreground">Health</p>
-              <h2 className="text-sm font-medium">Stripe configuration</h2>
+              <p className="text-xs text-[#9B9B9F]">Health</p>
+              <h2 className="text-sm font-medium text-[#E7E7E9]">Stripe configuration</h2>
             </div>
           </div>
           <div className="mt-4 space-y-3">
-            <div className="rounded-lg border bg-muted/50 p-4">
-              <p className="text-xs text-muted-foreground">Server Issues</p>
+            <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-4">
+              <p className="text-xs text-[#9B9B9F]">Server Issues</p>
               {data.pricingHealth.serverIssues.length === 0 ? (
                 <p className="mt-1 text-sm text-emerald-600 dark:text-emerald-400">
                   No Stripe server issues detected.
@@ -107,8 +107,8 @@ export default async function AdminBillingPage({ searchParams }: BillingPageProp
                 ))
               )}
             </div>
-            <div className="rounded-lg border bg-muted/50 p-4">
-              <p className="text-xs text-muted-foreground">Webhook Issues</p>
+            <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-4">
+              <p className="text-xs text-[#9B9B9F]">Webhook Issues</p>
               {data.pricingHealth.webhookIssues.length === 0 ? (
                 <p className="mt-1 text-sm text-emerald-600 dark:text-emerald-400">
                   No Stripe webhook issues detected.
@@ -124,38 +124,38 @@ export default async function AdminBillingPage({ searchParams }: BillingPageProp
           </div>
         </section>
 
-        <section className="rounded-lg border p-5">
+        <section className="rounded-lg border border-white/[0.04] p-5">
           <div className="flex items-center gap-3">
-            <CreditCard className="h-5 w-5 text-muted-foreground" />
+            <CreditCard className="h-5 w-5 text-[#9B9B9F]" />
             <div>
-              <p className="text-xs text-muted-foreground">Prices</p>
-              <h2 className="text-sm font-medium">Configured checkout targets</h2>
+              <p className="text-xs text-[#9B9B9F]">Prices</p>
+              <h2 className="text-sm font-medium text-[#E7E7E9]">Configured checkout targets</h2>
             </div>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {data.pricingHealth.subscriptionPrices.map((price) => (
               <div key={price.key} className="rounded-lg border bg-muted/50 p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium">{price.label}</p>
+                  <p className="text-sm font-medium text-[#E7E7E9]">{price.label}</p>
                   <Badge
                     className={
                       price.configured
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                        : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                        ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                        : "border border-amber-500/20 bg-amber-500/10 text-amber-300"
                     }
                   >
                     {price.configured ? "Configured" : "Missing"}
                   </Badge>
                 </div>
-                <p className="mt-2 break-all text-xs text-muted-foreground">
+                <p className="mt-2 break-all text-xs text-[#9B9B9F]">
                   {price.priceId || "No price id"}
                 </p>
               </div>
             ))}
             {data.pricingHealth.topupPrices.map((price) => (
-              <div key={price.key} className="rounded-lg border bg-muted/50 p-4">
+              <div key={price.key} className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium">Top-up {price.label}</p>
+                  <p className="text-sm font-medium text-[#E7E7E9]">Top-up {price.label}</p>
                   <Badge
                     className={
                       price.configured
@@ -166,7 +166,7 @@ export default async function AdminBillingPage({ searchParams }: BillingPageProp
                     {price.configured ? "Configured" : "Missing"}
                   </Badge>
                 </div>
-                <p className="mt-2 break-all text-xs text-muted-foreground">
+                <p className="mt-2 break-all text-xs text-[#9B9B9F]">
                   {price.priceId || "No price id"}
                 </p>
               </div>
@@ -175,28 +175,28 @@ export default async function AdminBillingPage({ searchParams }: BillingPageProp
         </section>
       </div>
 
-      <section className="rounded-lg border">
-        <div className="border-b px-5 py-4">
+      <section className="rounded-lg border border-white/[0.04]">
+        <div className="border-b border-white/[0.04] px-5 py-4">
           <form method="GET" className="grid gap-4 xl:grid-cols-[1.5fr_repeat(4,auto)] xl:items-end">
             <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">Search</label>
+              <label className="text-[11px] font-medium text-[#9B9B9F]">Search</label>
               <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9B9B9F]" />
                 <input
                   type="search"
                   name="q"
                   defaultValue={data.filters.search}
                   placeholder="Search customer name or email"
-                  className="h-9 w-full rounded-lg border bg-background pl-9 pr-3 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="h-9 w-full rounded-lg border border-white/[0.04] bg-[#0E0E10] pl-9 pr-3 text-sm text-[#E7E7E9] placeholder:text-[#9B9B9F]/50 focus:outline-none focus:ring-2 focus:ring-white/10"
                 />
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">Tier</label>
+              <label className="text-[11px] font-medium text-[#9B9B9F]">Tier</label>
               <select
                 name="tier"
                 defaultValue={data.filters.tier}
-                className="h-9 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="h-9 rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] focus:outline-none focus:ring-2 focus:ring-white/10"
               >
                 <option value="all">All tiers</option>
                 <option value="free">Free</option>
@@ -205,11 +205,11 @@ export default async function AdminBillingPage({ searchParams }: BillingPageProp
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">Status</label>
+              <label className="text-[11px] font-medium text-[#9B9B9F]">Status</label>
               <select
                 name="status"
                 defaultValue={data.filters.accountStatus}
-                className="h-9 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="h-9 rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] focus:outline-none focus:ring-2 focus:ring-white/10"
               >
                 <option value="all">All statuses</option>
                 <option value="active">Active</option>
@@ -217,11 +217,11 @@ export default async function AdminBillingPage({ searchParams }: BillingPageProp
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">Stripe Link</label>
+              <label className="text-[11px] font-medium text-[#9B9B9F]">Stripe Link</label>
               <select
                 name="link"
                 defaultValue={data.filters.linkStatus}
-                className="h-9 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="h-9 rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] focus:outline-none focus:ring-2 focus:ring-white/10"
               >
                 <option value="all">All</option>
                 <option value="linked">Linked</option>
@@ -229,11 +229,11 @@ export default async function AdminBillingPage({ searchParams }: BillingPageProp
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">Page Size</label>
+              <label className="text-[11px] font-medium text-[#9B9B9F]">Page Size</label>
               <select
                 name="pageSize"
                 defaultValue={String(data.filters.pageSize)}
-                className="h-9 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="h-9 rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] focus:outline-none focus:ring-2 focus:ring-white/10"
               >
                 {ADMIN_BILLING_PAGE_SIZES.map((size) => (
                   <option key={size} value={size}>
@@ -245,13 +245,13 @@ export default async function AdminBillingPage({ searchParams }: BillingPageProp
             <div className="flex items-center gap-2">
               <button
                 type="submit"
-                className="inline-flex h-9 items-center justify-center rounded-lg bg-primary px-4 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                className="inline-flex h-9 items-center justify-center rounded-lg bg-[#E7E7E9] px-4 text-xs font-medium text-[#0E0E10] transition-colors hover:bg-white"
               >
                 Apply
               </button>
               <Link
                 href="/admin/billing"
-                className="inline-flex h-9 items-center justify-center rounded-lg border px-4 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent"
+                className="inline-flex h-9 items-center justify-center rounded-lg border border-white/[0.04] px-4 text-xs font-medium text-[#9B9B9F] transition-colors hover:bg-[#1B1B1F] hover:text-[#E7E7E9]"
               >
                 Reset
               </Link>
@@ -274,7 +274,7 @@ export default async function AdminBillingPage({ searchParams }: BillingPageProp
             <TableBody>
               {data.accounts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="py-12 text-center text-[#9B9B9F]">
                     No accounts matched the current billing filters.
                   </TableCell>
                 </TableRow>
@@ -283,10 +283,10 @@ export default async function AdminBillingPage({ searchParams }: BillingPageProp
                   <TableRow key={account.id}>
                     <TableCell className="py-3">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-foreground">
+                        <p className="truncate text-sm font-medium text-[#E7E7E9]">
                           {account.name}
                         </p>
-                        <p className="truncate text-xs text-muted-foreground">{account.email}</p>
+                        <p className="truncate text-xs text-[#9B9B9F]">{account.email}</p>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -294,16 +294,16 @@ export default async function AdminBillingPage({ searchParams }: BillingPageProp
                         <p className="text-sm font-medium">{account.subscription.tierName}</p>
                         <div className="mt-1 flex items-center gap-2">
                           {account.accountStatus === "suspended" ? (
-                            <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                            <Badge className="border border-amber-500/20 bg-amber-500/10 text-amber-300">
                               Suspended
                             </Badge>
                           ) : null}
                           {account.subscription.stripeSubscriptionId ? (
-                            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                            <Badge className="border border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
                               Linked
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="text-muted-foreground">
+                            <Badge variant="outline" className="text-[#9B9B9F]">
                               Unlinked
                             </Badge>
                           )}
@@ -311,7 +311,7 @@ export default async function AdminBillingPage({ searchParams }: BillingPageProp
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="max-w-[200px] space-y-0.5 text-xs text-muted-foreground">
+                      <div className="max-w-[200px] space-y-0.5 text-xs text-[#9B9B9F]">
                         <p className="truncate">
                           Customer: {account.subscription.stripeCustomerId || "-"}
                         </p>
@@ -322,16 +322,16 @@ export default async function AdminBillingPage({ searchParams }: BillingPageProp
                     </TableCell>
                     <TableCell>
                       <div>
-                        <p className="font-medium tabular-nums">
+                        <p className="font-medium tabular-nums text-[#E7E7E9]">
                           {formatNumber(account.monthlyCredits + account.topupCredits)}
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-[#9B9B9F]">
                           {formatNumber(account.monthlyCredits)} monthly ·{" "}
                           {formatNumber(account.topupCredits)} top-up
                         </p>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="text-sm text-[#9B9B9F]">
                       {account.subscription.currentPeriodEnd
                         ? new Date(account.subscription.currentPeriodEnd).toLocaleDateString()
                         : "Not linked"}
@@ -348,18 +348,18 @@ export default async function AdminBillingPage({ searchParams }: BillingPageProp
           </Table>
         </div>
 
-        <div className="flex items-center justify-between border-t px-5 py-3">
-          <p className="text-xs text-muted-foreground">
+        <div className="flex items-center justify-between border-t border-white/[0.04] px-5 py-3">
+          <p className="text-xs text-[#9B9B9F]">
             Page {data.pagination.page} of {data.pagination.totalPages}
           </p>
           <div className="flex gap-2">
             <Link
               href={buildBillingHref(data.filters, Math.max(1, data.pagination.page - 1))}
               aria-disabled={!data.pagination.hasPreviousPage}
-              className={`inline-flex h-8 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors ${
+              className={`inline-flex h-8 items-center justify-center rounded-md border border-white/[0.04] px-3 text-xs font-medium transition-colors ${
                 data.pagination.hasPreviousPage
-                  ? "text-foreground hover:bg-accent"
-                  : "pointer-events-none text-muted-foreground/50"
+                  ? "text-[#E7E7E9] hover:bg-[#1B1B1F]"
+                  : "pointer-events-none text-[#9B9B9F]/50"
               }`}
             >
               Previous
@@ -367,10 +367,10 @@ export default async function AdminBillingPage({ searchParams }: BillingPageProp
             <Link
               href={buildBillingHref(data.filters, data.pagination.page + 1)}
               aria-disabled={!data.pagination.hasNextPage}
-              className={`inline-flex h-8 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors ${
+              className={`inline-flex h-8 items-center justify-center rounded-md border border-white/[0.04] px-3 text-xs font-medium transition-colors ${
                 data.pagination.hasNextPage
-                  ? "text-foreground hover:bg-accent"
-                  : "pointer-events-none text-muted-foreground/50"
+                  ? "text-[#E7E7E9] hover:bg-[#1B1B1F]"
+                  : "pointer-events-none text-[#9B9B9F]/50"
               }`}
             >
               Next

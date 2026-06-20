@@ -52,8 +52,8 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-2xl font-semibold tracking-tight text-[#E7E7E9]">Projects</h1>
+        <p className="mt-1 text-sm text-[#9B9B9F]">
           Cross-user project oversight and cleanup.
         </p>
       </div>
@@ -68,28 +68,28 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
         <StatCard title="Public" value={formatNumber(result.summary.publicProjects)} />
       </div>
 
-      <section className="rounded-lg border">
-        <div className="border-b px-5 py-4">
+      <section className="rounded-lg border border-white/[0.04]">
+        <div className="border-b border-white/[0.04] px-5 py-4">
           <form method="GET" className="grid gap-4 xl:grid-cols-[1.5fr_repeat(4,auto)] xl:items-end">
             <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">Search</label>
+              <label className="text-[11px] font-medium text-[#9B9B9F]">Search</label>
               <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9B9B9F]" />
                 <input
                   type="search"
                   name="q"
                   defaultValue={result.filters.search}
                   placeholder="Search project name or owner"
-                  className="h-9 w-full rounded-lg border bg-background pl-9 pr-3 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="h-9 w-full rounded-lg border border-white/[0.04] bg-[#0E0E10] pl-9 pr-3 text-sm text-[#E7E7E9] placeholder:text-[#9B9B9F]/50 focus:outline-none focus:ring-2 focus:ring-white/10"
                 />
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">Visibility</label>
+              <label className="text-[11px] font-medium text-[#9B9B9F]">Visibility</label>
               <select
                 name="visibility"
                 defaultValue={result.filters.visibility}
-                className="h-9 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="h-9 rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] focus:outline-none focus:ring-2 focus:ring-white/10"
               >
                 <option value="all">All</option>
                 <option value="private">Private</option>
@@ -97,11 +97,11 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">Owner Role</label>
+              <label className="text-[11px] font-medium text-[#9B9B9F]">Owner Role</label>
               <select
                 name="ownerRole"
                 defaultValue={result.filters.ownerRole}
-                className="h-9 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="h-9 rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] focus:outline-none focus:ring-2 focus:ring-white/10"
               >
                 <option value="all">All roles</option>
                 <option value="user">User</option>
@@ -113,11 +113,11 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">Owner Status</label>
+              <label className="text-[11px] font-medium text-[#9B9B9F]">Owner Status</label>
               <select
                 name="ownerStatus"
                 defaultValue={result.filters.ownerStatus}
-                className="h-9 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="h-9 rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] focus:outline-none focus:ring-2 focus:ring-white/10"
               >
                 <option value="all">All statuses</option>
                 <option value="active">Active</option>
@@ -125,11 +125,11 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">Page Size</label>
+              <label className="text-[11px] font-medium text-[#9B9B9F]">Page Size</label>
               <select
                 name="pageSize"
                 defaultValue={String(result.filters.pageSize)}
-                className="h-9 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="h-9 rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] focus:outline-none focus:ring-2 focus:ring-white/10"
               >
                 {ADMIN_PROJECT_PAGE_SIZES.map((size) => (
                   <option key={size} value={size}>
@@ -141,13 +141,13 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
             <div className="flex items-center gap-2">
               <button
                 type="submit"
-                className="inline-flex h-9 items-center justify-center rounded-lg bg-primary px-4 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                className="inline-flex h-9 items-center justify-center rounded-lg bg-[#E7E7E9] px-4 text-xs font-medium text-[#0E0E10] transition-colors hover:bg-white"
               >
                 Apply
               </button>
               <Link
                 href="/admin/projects"
-                className="inline-flex h-9 items-center justify-center rounded-lg border px-4 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent"
+                className="inline-flex h-9 items-center justify-center rounded-lg border border-white/[0.04] px-4 text-xs font-medium text-[#9B9B9F] transition-colors hover:bg-[#1B1B1F] hover:text-[#E7E7E9]"
               >
                 Reset
               </Link>
@@ -179,10 +179,10 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
                   <TableRow key={project.id}>
                     <TableCell className="py-3">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-foreground">
+                        <p className="truncate text-sm font-medium text-[#E7E7E9]">
                           {project.emoji || "🎨"} {project.name}
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-[#9B9B9F]">
                           {formatNumber(project.messageCount)} messages ·{" "}
                           {formatNumber(project.checkpointCount)} checkpoints ·{" "}
                           {formatNumber(project.mediaCount)} assets
@@ -191,13 +191,13 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
                     </TableCell>
                     <TableCell>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-foreground">
+                        <p className="truncate text-sm font-medium text-[#E7E7E9]">
                           {project.owner.name}
                         </p>
-                        <p className="truncate text-xs text-muted-foreground">
+                        <p className="truncate text-xs text-[#9B9B9F]">
                           {project.owner.email}
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-[#9B9B9F]">
                           {formatRoleLabel(project.owner.role)} ·{" "}
                           {formatSubscriptionTierLabel(project.owner.tier)}
                         </p>
@@ -223,13 +223,13 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
                         ) : null}
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="text-sm text-[#9B9B9F]">
                       {new Date(project.updatedAt).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
                       <Link
                         href={`/admin/projects/${project.id}`}
-                        className="inline-flex items-center gap-1 text-sm font-medium text-foreground transition-colors hover:text-primary"
+                        className="inline-flex items-center gap-1 text-sm font-medium text-[#E7E7E9] transition-colors hover:text-white"
                       >
                         Open
                         <ArrowRight className="h-3.5 w-3.5" />
@@ -242,8 +242,8 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
           </Table>
         </div>
 
-        <div className="flex items-center justify-between border-t px-5 py-3">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex items-center justify-between border-t border-white/[0.04] px-5 py-3">
+          <div className="flex items-center gap-2 text-xs text-[#9B9B9F]">
             <FolderKanban className="h-3.5 w-3.5" />
             Page {result.pagination.page} of {result.pagination.totalPages}
           </div>
@@ -251,10 +251,10 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
             <Link
               href={buildProjectsHref(result.filters, Math.max(1, result.pagination.page - 1))}
               aria-disabled={!result.pagination.hasPreviousPage}
-              className={`inline-flex h-8 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors ${
+              className={`inline-flex h-8 items-center justify-center rounded-md border border-white/[0.04] px-3 text-xs font-medium transition-colors ${
                 result.pagination.hasPreviousPage
-                  ? "text-foreground hover:bg-accent"
-                  : "pointer-events-none text-muted-foreground/50"
+                  ? "text-[#E7E7E9] hover:bg-[#1B1B1F]"
+                  : "pointer-events-none text-[#9B9B9F]/50"
               }`}
             >
               Previous
@@ -262,10 +262,10 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
             <Link
               href={buildProjectsHref(result.filters, result.pagination.page + 1)}
               aria-disabled={!result.pagination.hasNextPage}
-              className={`inline-flex h-8 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors ${
+              className={`inline-flex h-8 items-center justify-center rounded-md border border-white/[0.04] px-3 text-xs font-medium transition-colors ${
                 result.pagination.hasNextPage
-                  ? "text-foreground hover:bg-accent"
-                  : "pointer-events-none text-muted-foreground/50"
+                  ? "text-[#E7E7E9] hover:bg-[#1B1B1F]"
+                  : "pointer-events-none text-[#9B9B9F]/50"
               }`}
             >
               Next

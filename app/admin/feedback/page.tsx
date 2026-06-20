@@ -23,8 +23,8 @@ export default async function AdminFeedbackPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Feedback</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-2xl font-semibold tracking-tight text-[#E7E7E9]">Feedback</h1>
+        <p className="mt-1 text-sm text-[#9B9B9F]">
           Live review queue for user-submitted product feedback.
         </p>
       </div>
@@ -37,8 +37,11 @@ export default async function AdminFeedbackPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Badge variant="secondary">Live SSE stream enabled</Badge>
-        <Badge variant="outline">
+        <Badge variant="secondary" className="border border-white/[0.04] bg-[#1B1B1F] text-[#E7E7E9]">
+          <span className="mr-1 inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+          Live SSE stream
+        </Badge>
+        <Badge variant="outline" className="text-[#9B9B9F]">
           {canManageFeedback ? "Can update status" : "Read-only access"}
         </Badge>
       </div>

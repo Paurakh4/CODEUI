@@ -64,7 +64,7 @@ const responseEmailStatusLabels: Record<FeedbackEmailDeliveryStatus, string> = {
 }
 
 const responseEmailStatusClassNames: Record<FeedbackEmailDeliveryStatus, string> = {
-  "not-requested": "border-border bg-muted/50 text-muted-foreground",
+  "not-requested": "border-white/[0.04] bg-[#1B1B1F]/50 text-[#9B9B9F]",
   sent: "border-emerald-500/30 bg-emerald-500/10 text-emerald-100",
   skipped: "border-amber-500/30 bg-amber-500/10 text-amber-100",
   failed: "border-red-500/30 bg-red-500/10 text-red-100",
@@ -73,7 +73,7 @@ const responseEmailStatusClassNames: Record<FeedbackEmailDeliveryStatus, string>
 const typeBadgeClassNames = {
   bug: "border-red-500/30 bg-red-500/10 text-red-100",
   feature: "border-violet-500/30 bg-violet-500/10 text-violet-100",
-  general: "border-border bg-muted/50 text-muted-foreground",
+  general: "border-white/[0.04] bg-[#1B1B1F]/50 text-[#9B9B9F]",
 } as const
 
 function formatTimestamp(value: string) {
@@ -337,30 +337,30 @@ export function AdminFeedbackCenter({
   return (
     <div className="space-y-6">
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <article className="rounded-lg border border-border bg-card p-5">
-          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Unread</p>
-          <p className="mt-3 text-3xl font-semibold text-foreground">{data.summary.unreadCount}</p>
-          <p className="mt-2 text-sm text-muted-foreground">New feedback waiting for review</p>
+        <article className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-5">
+          <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Unread</p>
+          <p className="mt-3 text-3xl font-semibold text-[#E7E7E9]">{data.summary.unreadCount}</p>
+          <p className="mt-2 text-sm text-[#9B9B9F]">New feedback waiting for review</p>
         </article>
-        <article className="rounded-lg border border-border bg-card p-5">
-          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Read</p>
-          <p className="mt-3 text-3xl font-semibold text-foreground">{data.summary.readCount}</p>
-          <p className="mt-2 text-sm text-muted-foreground">Opened but not yet closed out</p>
+        <article className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-5">
+          <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Read</p>
+          <p className="mt-3 text-3xl font-semibold text-[#E7E7E9]">{data.summary.readCount}</p>
+          <p className="mt-2 text-sm text-[#9B9B9F]">Opened but not yet closed out</p>
         </article>
-        <article className="rounded-lg border border-border bg-card p-5">
-          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Responded</p>
-          <p className="mt-3 text-3xl font-semibold text-foreground">{data.summary.respondedCount}</p>
-          <p className="mt-2 text-sm text-muted-foreground">Handled items kept for reference</p>
+        <article className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-5">
+          <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Responded</p>
+          <p className="mt-3 text-3xl font-semibold text-[#E7E7E9]">{data.summary.respondedCount}</p>
+          <p className="mt-2 text-sm text-[#9B9B9F]">Handled items kept for reference</p>
         </article>
-        <article className="rounded-lg border border-border bg-card p-5">
-          <div className="flex items-center gap-2 text-foreground">
+        <article className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-5">
+          <div className="flex items-center gap-2 text-[#E7E7E9]">
             <BellRing className="h-4 w-4" />
-            <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Live Feed</p>
+            <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Live Feed</p>
           </div>
-          <p className="mt-3 text-lg font-semibold text-foreground">
+          <p className="mt-3 text-lg font-semibold text-[#E7E7E9]">
             {liveMessage || "Waiting for the next submission"}
           </p>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-2 text-sm text-[#9B9B9F]">
             {isRefreshing
               ? "Refreshing the admin queue..."
               : "Stream stays connected while this page is open."}
@@ -368,7 +368,7 @@ export function AdminFeedbackCenter({
         </article>
       </section>
 
-      <section className="rounded-lg border border-border bg-card p-6">
+      <section className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-6">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-wrap items-center gap-3">
             {ADMIN_FEEDBACK_STATUS_FILTERS.map((status) => {
@@ -388,12 +388,12 @@ export function AdminFeedbackCenter({
                   className={cn(
                     "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition-colors",
                     isActive
-                      ? "border-primary/30 bg-primary/10 text-foreground"
-                      : "border-border bg-muted/50 text-muted-foreground hover:border-border hover:bg-muted",
+                      ? "border-white/10 bg-[#1B1B1F] text-[#E7E7E9]"
+                      : "border-white/[0.04] bg-transparent text-[#9B9B9F] hover:border-white/10 hover:bg-[#1B1B1F]",
                   )}
                 >
                   <span>{statusLabels[status]}</span>
-                  <Badge className="border-transparent bg-muted text-foreground hover:bg-muted">
+                  <Badge className="border-transparent bg-[#1B1B1F] text-[#E7E7E9] hover:bg-[#1B1B1F]">
                     {getStatusCount(data, status)}
                   </Badge>
                 </button>
@@ -402,8 +402,8 @@ export function AdminFeedbackCenter({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Page Size</span>
+            <label className="flex items-center gap-2 text-sm text-[#9B9B9F]">
+              <span className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Page Size</span>
               <select
                 value={String(filters.pageSize)}
                 onChange={(event) =>
@@ -413,7 +413,7 @@ export function AdminFeedbackCenter({
                     pageSize: Number(event.target.value) as AdminFeedbackQuery["pageSize"],
                   }))
                 }
-                className="h-10 rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
+                className="h-10 rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] outline-none transition-colors focus:ring-2 focus:ring-white/10"
               >
                 {ADMIN_FEEDBACK_PAGE_SIZES.map((size) => (
                   <option key={size} value={size}>
@@ -425,10 +425,10 @@ export function AdminFeedbackCenter({
 
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               onClick={() => void refreshSnapshot(filters)}
               disabled={isRefreshing}
-              className="border-border bg-muted/50 text-foreground hover:bg-muted"
+              className="text-[#9B9B9F] hover:text-[#E7E7E9] hover:bg-[#1B1B1F]"
             >
               {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
               Refresh
@@ -437,30 +437,30 @@ export function AdminFeedbackCenter({
         </div>
 
         {errorMessage ? (
-          <div className="mt-4 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+          <div className="mt-4 rounded-lg border border-white/[0.04] bg-[#1B1B1F] px-4 py-3 text-sm text-[#9B9B9F]">
             {errorMessage}
           </div>
         ) : null}
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <div className="rounded-lg border border-border bg-card p-4 sm:p-6">
-          <div className="mb-4 flex items-center justify-between gap-4 border-b border-border pb-4">
+        <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 sm:p-6">
+          <div className="mb-4 flex items-center justify-between gap-4 border-b border-white/[0.04] pb-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Queue</p>
-              <h2 className="mt-1 text-xl font-semibold text-foreground">Recent feedback submissions</h2>
+              <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Queue</p>
+              <h2 className="mt-1 text-xl font-semibold text-[#E7E7E9]">Recent feedback submissions</h2>
             </div>
-            <Badge className="border-primary/30 bg-primary/10 text-foreground hover:bg-primary/10">
+            <Badge className="border border-white/[0.04] bg-[#1B1B1F] text-[#E7E7E9]">
               {data.pagination.totalFeedback} visible
             </Badge>
           </div>
 
           <div className="space-y-3">
             {data.feedback.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-border bg-muted px-6 py-10 text-center">
-                <MessageSquare className="mx-auto h-8 w-8 text-muted-foreground" />
-                <p className="mt-4 text-lg font-medium text-foreground">No feedback in this status yet.</p>
-                <p className="mt-2 text-sm text-muted-foreground">
+              <div className="rounded-lg border border-dashed border-white/[0.04] bg-[#0E0E10] px-6 py-10 text-center">
+                <MessageSquare className="mx-auto h-8 w-8 text-[#9B9B9F]" />
+                <p className="mt-4 text-lg font-medium text-[#E7E7E9]">No feedback in this status yet.</p>
+                <p className="mt-2 text-sm text-[#9B9B9F]">
                   Switch filters or wait for the next live submission.
                 </p>
               </div>
@@ -476,14 +476,14 @@ export function AdminFeedbackCenter({
                     className={cn(
                       "w-full rounded-lg border px-5 py-4 text-left transition-all",
                       isSelected
-                        ? "border-primary/30 bg-primary/10 ring-1 ring-primary/20"
-                        : "border-border bg-muted/50 hover:border-foreground/20 hover:bg-muted",
+                        ? "border-white/10 bg-[#1B1B1F] ring-1 ring-white/10"
+                        : "border-white/[0.04] bg-[#0E0E10] hover:border-white/10 hover:bg-[#1B1B1F]",
                     )}
                   >
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-base font-semibold text-foreground">{feedback.user.name}</p>
+                          <p className="text-base font-semibold text-[#E7E7E9]">{feedback.user.name}</p>
                           <Badge className={cn("hover:bg-inherit", typeBadgeClassNames[feedback.type])}>
                             {typeLabels[feedback.type]}
                           </Badge>
@@ -491,16 +491,16 @@ export function AdminFeedbackCenter({
                             {statusLabels[feedback.status]}
                           </Badge>
                         </div>
-                        <p className="mt-1 text-sm text-muted-foreground">{feedback.user.email}</p>
-                        <p className="mt-3 line-clamp-2 text-sm leading-6 text-muted-foreground">{feedback.preview}</p>
+                        <p className="mt-1 text-sm text-[#9B9B9F]">{feedback.user.email}</p>
+                        <p className="mt-3 line-clamp-2 text-sm leading-6 text-[#9B9B9F]">{feedback.preview}</p>
                         {feedback.pathname ? (
-                          <p className="mt-3 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                          <p className="mt-3 text-xs uppercase tracking-[0.16em] text-[#9B9B9F]">
                             {feedback.pathname}
                           </p>
                         ) : null}
                       </div>
 
-                      <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                      <div className="flex shrink-0 items-center gap-2 text-xs text-[#9B9B9F]">
                         {feedback.status === "new" ? (
                           <span className="relative flex h-2 w-2">
                             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-80" />
@@ -516,8 +516,8 @@ export function AdminFeedbackCenter({
             )}
           </div>
 
-          <div className="mt-4 flex items-center justify-between gap-4 border-t border-border pt-4">
-            <p className="text-sm text-muted-foreground">
+          <div className="mt-4 flex items-center justify-between gap-4 border-t border-white/[0.04] pt-4">
+            <p className="text-sm text-[#9B9B9F]">
               Page {data.pagination.page} of {data.pagination.totalPages}
             </p>
 
@@ -532,7 +532,7 @@ export function AdminFeedbackCenter({
                   }))
                 }
                 disabled={!data.pagination.hasPreviousPage}
-                className="border-border bg-muted/50 text-foreground hover:bg-muted"
+                className="border border-white/[0.04] bg-transparent text-[#9B9B9F] hover:bg-[#1B1B1F] hover:text-[#E7E7E9]"
               >
                 Previous
               </Button>
@@ -546,7 +546,7 @@ export function AdminFeedbackCenter({
                   }))
                 }
                 disabled={!data.pagination.hasNextPage}
-                className="border-border bg-muted/50 text-foreground hover:bg-muted"
+                className="border border-white/[0.04] bg-transparent text-[#9B9B9F] hover:bg-[#1B1B1F] hover:text-[#E7E7E9]"
               >
                 Next
               </Button>
@@ -554,14 +554,14 @@ export function AdminFeedbackCenter({
           </div>
         </div>
 
-        <div className="rounded-lg border border-border bg-card p-6">
+        <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-6">
           {selectedFeedback ? (
             <div className="space-y-6">
-              <div className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex flex-col gap-4 border-b border-white/[0.04] pb-5 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Details</p>
-                  <h2 className="mt-1 text-2xl font-semibold text-foreground">{selectedFeedback.user.name}</h2>
-                  <p className="mt-2 text-sm text-muted-foreground">{selectedFeedback.user.email}</p>
+                  <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Details</p>
+                  <h2 className="mt-1 text-2xl font-semibold text-[#E7E7E9]">{selectedFeedback.user.name}</h2>
+                  <p className="mt-2 text-sm text-[#9B9B9F]">{selectedFeedback.user.email}</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -575,55 +575,55 @@ export function AdminFeedbackCenter({
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-lg border border-border bg-muted/50 p-4">
-                  <div className="flex items-center gap-2 text-foreground">
+                <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-4">
+                  <div className="flex items-center gap-2 text-[#E7E7E9]">
                     <Clock3 className="h-4 w-4" />
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Submitted</p>
+                    <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Submitted</p>
                   </div>
-                  <time dateTime={selectedFeedback.createdAt} className="mt-3 block text-sm font-medium text-foreground">
+                  <time dateTime={selectedFeedback.createdAt} className="mt-3 block text-sm font-medium text-[#E7E7E9]">
                     {formatTimestamp(selectedFeedback.createdAt)}
                   </time>
                 </div>
 
-                <div className="rounded-lg border border-border bg-muted/50 p-4">
-                  <div className="flex items-center gap-2 text-foreground">
+                <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-4">
+                  <div className="flex items-center gap-2 text-[#E7E7E9]">
                     <UserRound className="h-4 w-4" />
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Context</p>
+                    <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Context</p>
                   </div>
-                  <p className="mt-3 text-sm font-medium text-foreground">
+                  <p className="mt-3 text-sm font-medium text-[#E7E7E9]">
                     {selectedFeedback.pathname || "No page context was attached."}
                   </p>
                 </div>
               </div>
 
-              <div className="rounded-lg border border-border bg-muted p-5">
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Full Message</p>
+              <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-5">
+                <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Full Message</p>
                 <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-[#E5E7EB]">
                   {selectedFeedback.message}
                 </p>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-lg border border-border bg-muted/50 p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Read Timestamp</p>
-                  <p className="mt-3 text-sm font-medium text-foreground">
+                <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-4">
+                  <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Read Timestamp</p>
+                  <p className="mt-3 text-sm font-medium text-[#E7E7E9]">
                     {selectedFeedback.readAt ? formatTimestamp(selectedFeedback.readAt) : "Unread"}
                   </p>
                 </div>
 
-                <div className="rounded-lg border border-border bg-muted/50 p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Responded Timestamp</p>
-                  <p className="mt-3 text-sm font-medium text-foreground">
+                <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-4">
+                  <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Responded Timestamp</p>
+                  <p className="mt-3 text-sm font-medium text-[#E7E7E9]">
                     {selectedFeedback.respondedAt
                       ? formatTimestamp(selectedFeedback.respondedAt)
                       : "Not marked responded"}
                   </p>
                 </div>
 
-                <div className="rounded-lg border border-border bg-muted/50 p-4 sm:col-span-2">
-                  <div className="flex items-center gap-2 text-foreground">
+                <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-4 sm:col-span-2">
+                  <div className="flex items-center gap-2 text-[#E7E7E9]">
                     <Mail className="h-4 w-4" />
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Reply Delivery</p>
+                    <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Reply Delivery</p>
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <Badge
@@ -635,7 +635,7 @@ export function AdminFeedbackCenter({
                       {responseEmailStatusLabels[selectedFeedback.responseEmail.status]}
                     </Badge>
                   </div>
-                  <p className="mt-3 text-sm font-medium text-foreground">
+                  <p className="mt-3 text-sm font-medium text-[#E7E7E9]">
                     {selectedFeedback.responseEmail.sentAt
                       ? formatTimestamp(selectedFeedback.responseEmail.sentAt)
                       : selectedFeedback.responseEmail.recipient || "No reply email has been attempted yet."}
@@ -648,9 +648,9 @@ export function AdminFeedbackCenter({
                 </div>
               </div>
 
-              <div className="rounded-lg border border-border bg-muted/50 p-5">
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Internal Note</p>
-                <p className="mt-2 text-sm text-muted-foreground">
+              <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-5">
+                <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Internal Note</p>
+                <p className="mt-2 text-sm text-[#9B9B9F]">
                   Private context for the admin team. This is never sent to the user.
                 </p>
                 <Textarea
@@ -658,13 +658,13 @@ export function AdminFeedbackCenter({
                   onChange={(event) => setAdminNoteDraft(event.target.value)}
                   disabled={!canManageFeedback || statusBeingApplied !== null}
                   placeholder="Capture follow-up context, triage notes, or the next action for the team..."
-                  className="mt-4 min-h-[120px] border-border bg-background text-foreground placeholder:text-[#6B7280]"
+                  className="mt-4 min-h-[120px] border border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9] placeholder:text-[#9B9B9F]/50"
                 />
               </div>
 
-              <div className="rounded-lg border border-border bg-muted/50 p-5">
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Response Draft</p>
-                <p className="mt-2 text-sm text-muted-foreground">
+              <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-5">
+                <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Response Draft</p>
+                <p className="mt-2 text-sm text-[#9B9B9F]">
                   Save a reply with the feedback item, and optionally send it as an email when you mark the item responded.
                 </p>
                 <Textarea
@@ -672,10 +672,10 @@ export function AdminFeedbackCenter({
                   onChange={(event) => setResponseMessageDraft(event.target.value)}
                   disabled={!canManageFeedback || statusBeingApplied !== null}
                   placeholder="Write the response you want associated with this feedback..."
-                  className="mt-4 min-h-[160px] border-border bg-background text-foreground placeholder:text-[#6B7280]"
+                  className="mt-4 min-h-[160px] border border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9] placeholder:text-[#9B9B9F]/50"
                 />
 
-                <label className="mt-4 flex items-start gap-3 rounded-lg border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
+                <label className="mt-4 flex items-start gap-3 rounded-lg border border-white/[0.04] bg-[#0E0E10] px-4 py-3 text-sm text-[#9B9B9F]">
                   <input
                     type="checkbox"
                     checked={sendEmail}
@@ -689,16 +689,16 @@ export function AdminFeedbackCenter({
                 </label>
               </div>
 
-              <div className="rounded-lg border border-border bg-muted/50 p-5">
+              <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-5">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Actions</p>
-                    <p className="mt-2 text-sm text-muted-foreground">
+                    <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Actions</p>
+                    <p className="mt-2 text-sm text-[#9B9B9F]">
                       Update the review state, keep internal notes, and optionally send a reply without leaving the live queue.
                     </p>
                   </div>
                   {!canManageFeedback ? (
-                    <Badge variant="outline" className="border-border text-muted-foreground">
+                    <Badge variant="outline" className="border-white/[0.04] text-[#9B9B9F]">
                       Read only
                     </Badge>
                   ) : null}
@@ -707,14 +707,14 @@ export function AdminFeedbackCenter({
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => void updateFeedbackStatus("new")}
                     disabled={
                       !canManageFeedback ||
                       statusBeingApplied !== null ||
                       selectedFeedback.status === "new"
                     }
-                    className="border-border bg-muted/50 text-foreground hover:bg-muted"
+                    className="text-[#9B9B9F] hover:text-[#E7E7E9] hover:bg-[#1B1B1F]"
                   >
                     {statusBeingApplied === "new" ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -725,14 +725,14 @@ export function AdminFeedbackCenter({
                   </Button>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => void updateFeedbackStatus("read")}
                     disabled={
                       !canManageFeedback ||
                       statusBeingApplied !== null ||
                       selectedFeedback.status === "read"
                     }
-                    className="border-border bg-muted/50 text-foreground hover:bg-muted"
+                    className="text-[#9B9B9F] hover:text-[#E7E7E9] hover:bg-[#1B1B1F]"
                   >
                     {statusBeingApplied === "read" ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -749,7 +749,7 @@ export function AdminFeedbackCenter({
                       statusBeingApplied !== null ||
                       (selectedFeedback.status === "responded" && !hasDraftChanges)
                     }
-                    className="bg-primary text-primary-foreground hover:bg-primary/90"
+                    className="bg-[#E7E7E9] text-[#0E0E10] hover:bg-white"
                   >
                     {statusBeingApplied === "responded" ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -762,10 +762,10 @@ export function AdminFeedbackCenter({
               </div>
             </div>
           ) : (
-            <div className="flex h-full min-h-[420px] flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted px-8 text-center">
-              <MessageSquare className="h-10 w-10 text-muted-foreground" />
-              <p className="mt-4 text-xl font-semibold text-foreground">Select feedback to inspect it.</p>
-              <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
+            <div className="flex h-full min-h-[420px] flex-col items-center justify-center rounded-lg border border-dashed border-white/[0.04] bg-[#0E0E10] px-8 text-center">
+              <MessageSquare className="h-10 w-10 text-[#9B9B9F]" />
+              <p className="mt-4 text-xl font-semibold text-[#E7E7E9]">Select feedback to inspect it.</p>
+              <p className="mt-2 max-w-sm text-sm leading-6 text-[#9B9B9F]">
                 New submissions will stream in here automatically while the admin dashboard stays open.
               </p>
             </div>

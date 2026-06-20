@@ -53,34 +53,34 @@ export default async function AdminCustomersPage({ searchParams }: CustomersPage
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Customers</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-2xl font-semibold tracking-tight text-[#E7E7E9]">Customers</h1>
+        <p className="mt-1 text-sm text-[#9B9B9F]">
           {formatNumber(result.summary.filteredUsers)} total users
         </p>
       </div>
 
-      <div className="rounded-lg border">
-        <div className="border-b px-5 py-3">
+      <div className="rounded-lg border border-white/[0.04]">
+        <div className="border-b border-white/[0.04] px-5 py-3">
           <form method="GET" className="flex items-center gap-3">
             <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#9B9B9F]" />
               <input
                 type="search"
                 name="q"
                 placeholder="Search users..."
                 defaultValue={result.filters.search}
-                className="h-9 w-full rounded-lg border bg-background pl-9 pr-3 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+                className="h-9 w-full rounded-lg border border-white/[0.04] bg-[#0E0E10] pl-9 pr-3 text-sm text-[#E7E7E9] placeholder:text-[#9B9B9F]/50 focus:outline-none focus:ring-2 focus:ring-white/10"
               />
             </div>
             <button
               type="submit"
-              className="inline-flex h-9 items-center justify-center rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              className="inline-flex h-9 items-center justify-center rounded-lg bg-[#E7E7E9] px-3 text-xs font-medium text-[#0E0E10] transition-colors hover:bg-white"
             >
               Search
             </button>
             <Link
               href="/admin/customers"
-              className="inline-flex h-9 items-center justify-center rounded-lg border px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent"
+              className="inline-flex h-9 items-center justify-center rounded-lg border border-white/[0.04] px-3 text-xs font-medium text-[#9B9B9F] transition-colors hover:bg-[#1B1B1F] hover:text-[#E7E7E9]"
             >
               Reset
             </Link>
@@ -110,17 +110,17 @@ export default async function AdminCustomersPage({ searchParams }: CustomersPage
                   <TableRow key={user.id}>
                     <TableCell className="py-3">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-xs font-medium text-muted-foreground">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[#1B1B1F] text-xs font-medium text-[#9B9B9F]">
                           {user.name?.charAt(0) || "U"}
                         </div>
                         <div>
                           <Link
                             href={`/admin/customers/${user.id}`}
-                            className="text-sm font-medium text-foreground hover:text-primary"
+                            className="text-sm font-medium text-[#E7E7E9] hover:text-white"
                           >
                             {user.name || "Unnamed User"}
                           </Link>
-                          <p className="text-xs text-muted-foreground">{user.email}</p>
+                          <p className="text-xs text-[#9B9B9F]">{user.email}</p>
                         </div>
                       </div>
                     </TableCell>
@@ -153,7 +153,7 @@ export default async function AdminCustomersPage({ searchParams }: CustomersPage
                     <TableCell>
                       <Link
                         href={`/admin/customers/${user.id}`}
-                        className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent"
+                        className="flex h-8 w-8 items-center justify-center rounded-md text-[#9B9B9F] transition-colors hover:bg-[#1B1B1F]"
                         aria-label={`View ${user.name || "user"}`}
                       >
                         <ArrowRight className="h-4 w-4" />
@@ -167,18 +167,18 @@ export default async function AdminCustomersPage({ searchParams }: CustomersPage
         </div>
 
         {result.pagination.totalPages > 1 && (
-          <div className="flex items-center justify-between border-t px-5 py-3">
-            <p className="text-xs text-muted-foreground">
+          <div className="flex items-center justify-between border-t border-white/[0.04] px-5 py-3">
+            <p className="text-xs text-[#9B9B9F]">
               Page {result.pagination.page} of {result.pagination.totalPages}
             </p>
             <div className="flex gap-2">
               <Link
                 href={buildCustomersHref(filters, Math.max(1, result.pagination.page - 1))}
                 aria-disabled={!result.pagination.hasPreviousPage}
-                className={`inline-flex h-8 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors ${
+                className={`inline-flex h-8 items-center justify-center rounded-md border border-white/[0.04] px-3 text-xs font-medium transition-colors ${
                   result.pagination.hasPreviousPage
-                    ? "text-foreground hover:bg-accent"
-                    : "pointer-events-none text-muted-foreground/50"
+                    ? "text-[#E7E7E9] hover:bg-[#1B1B1F]"
+                    : "pointer-events-none text-[#9B9B9F]/50"
                 }`}
               >
                 Previous
@@ -186,10 +186,10 @@ export default async function AdminCustomersPage({ searchParams }: CustomersPage
               <Link
                 href={buildCustomersHref(filters, result.pagination.page + 1)}
                 aria-disabled={!result.pagination.hasNextPage}
-                className={`inline-flex h-8 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors ${
+                className={`inline-flex h-8 items-center justify-center rounded-md border border-white/[0.04] px-3 text-xs font-medium transition-colors ${
                   result.pagination.hasNextPage
-                    ? "text-foreground hover:bg-accent"
-                    : "pointer-events-none text-muted-foreground/50"
+                    ? "text-[#E7E7E9] hover:bg-[#1B1B1F]"
+                    : "pointer-events-none text-[#9B9B9F]/50"
                 }`}
               >
                 Next

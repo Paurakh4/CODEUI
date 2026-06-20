@@ -28,10 +28,10 @@ export function AdminNavItem({ item }: AdminNavItemProps) {
     <Link
       href={item.href}
       className={cn(
-        "flex items-center justify-between gap-3 rounded-lg px-4 py-2.5 text-sm transition-colors",
+        "flex items-center justify-between gap-3 rounded-lg px-4 py-2.5 text-sm transition-colors duration-150",
         isActive
-          ? "bg-accent text-accent-foreground"
-          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+          ? "bg-[#1B1B1F] text-[#E7E7E9]"
+          : "text-[#9B9B9F] hover:bg-[#1B1B1F] hover:text-[#E7E7E9]",
       )}
     >
       <div className="flex items-center gap-3">
@@ -39,7 +39,7 @@ export function AdminNavItem({ item }: AdminNavItemProps) {
         <span>{item.label}</span>
       </div>
       {showBadge ? (
-        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-medium text-primary-foreground">
+        <span className="flex h-5 min-w-5 items-center justify-center rounded-full border border-white/[0.04] bg-[#1B1B1F] px-1.5 text-[10px] font-medium text-[#E7E7E9]">
           {badgeLabel}
         </span>
       ) : null}

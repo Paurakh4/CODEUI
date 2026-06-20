@@ -50,8 +50,8 @@ export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Audit Log</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-2xl font-semibold tracking-tight text-[#E7E7E9]">Audit Log</h1>
+        <p className="mt-1 text-sm text-[#9B9B9F]">
           Admin-side change history across customers, projects, billing, and model policy.
         </p>
       </div>
@@ -73,28 +73,28 @@ export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
         />
       </div>
 
-      <section className="rounded-lg border">
-        <div className="border-b px-5 py-4">
+      <section className="rounded-lg border border-white/[0.04]">
+        <div className="border-b border-white/[0.04] px-5 py-4">
           <form method="GET" className="grid gap-4 xl:grid-cols-[1.5fr_repeat(2,auto)] xl:items-end">
             <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">Search</label>
+              <label className="text-[11px] font-medium text-[#9B9B9F]">Search</label>
               <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9B9B9F]" />
                 <input
                   type="search"
                   name="q"
                   defaultValue={data.filters.search}
                   placeholder="Search action, actor email, target, or reason"
-                  className="h-9 w-full rounded-lg border bg-background pl-9 pr-3 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="h-9 w-full rounded-lg border border-white/[0.04] bg-[#0E0E10] pl-9 pr-3 text-sm text-[#E7E7E9] placeholder:text-[#9B9B9F]/50 focus:outline-none focus:ring-2 focus:ring-white/10"
                 />
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">Target Type</label>
+              <label className="text-[11px] font-medium text-[#9B9B9F]">Target Type</label>
               <select
                 name="targetType"
                 defaultValue={data.filters.targetType}
-                className="h-9 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="h-9 rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] focus:outline-none focus:ring-2 focus:ring-white/10"
               >
                 <option value="all">All targets</option>
                 <option value="user">User</option>
@@ -103,11 +103,11 @@ export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">Page Size</label>
+              <label className="text-[11px] font-medium text-[#9B9B9F]">Page Size</label>
               <select
                 name="pageSize"
                 defaultValue={String(data.filters.pageSize)}
-                className="h-9 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="h-9 rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] focus:outline-none focus:ring-2 focus:ring-white/10"
               >
                 {ADMIN_AUDIT_PAGE_SIZES.map((size) => (
                   <option key={size} value={size}>
@@ -119,13 +119,13 @@ export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
             <div className="flex items-center gap-2">
               <button
                 type="submit"
-                className="inline-flex h-9 items-center justify-center rounded-lg bg-primary px-4 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                className="inline-flex h-9 items-center justify-center rounded-lg bg-[#E7E7E9] px-4 text-xs font-medium text-[#0E0E10] transition-colors hover:bg-white"
               >
                 Apply
               </button>
               <Link
                 href="/admin/audit"
-                className="inline-flex h-9 items-center justify-center rounded-lg border px-4 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent"
+                className="inline-flex h-9 items-center justify-center rounded-lg border border-white/[0.04] px-4 text-xs font-medium text-[#9B9B9F] transition-colors hover:bg-[#1B1B1F] hover:text-[#E7E7E9]"
               >
                 Reset
               </Link>
@@ -157,7 +157,7 @@ export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
                     <TableCell className="py-3">
                       <div>
                         <p className="text-sm font-medium">{entry.action}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-[#9B9B9F]">
                           {entry.permission || "No permission tag"}
                         </p>
                       </div>
@@ -165,7 +165,7 @@ export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
                     <TableCell>
                       <div>
                         <p className="text-sm font-medium">{entry.actorEmail}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-[#9B9B9F]">
                           {formatRoleLabel(entry.actorRole)}
                         </p>
                       </div>
@@ -176,16 +176,16 @@ export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
                           {entry.targetType}
                         </Badge>
                         {entry.targetId ? (
-                          <p className="mt-1 max-w-[200px] truncate text-xs text-muted-foreground">
+                          <p className="mt-1 max-w-[200px] truncate text-xs text-[#9B9B9F]">
                             {entry.targetId}
                           </p>
                         ) : null}
                       </div>
                     </TableCell>
-                    <TableCell className="max-w-[280px] text-sm text-muted-foreground">
+                    <TableCell className="max-w-[280px] text-sm text-[#9B9B9F]">
                       {entry.reason || "-"}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="text-sm text-[#9B9B9F]">
                       {new Date(entry.createdAt).toLocaleString()}
                     </TableCell>
                   </TableRow>
@@ -195,8 +195,8 @@ export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
           </Table>
         </div>
 
-        <div className="flex items-center justify-between border-t px-5 py-3">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex items-center justify-between border-t border-white/[0.04] px-5 py-3">
+          <div className="flex items-center gap-2 text-xs text-[#9B9B9F]">
             <Database className="h-3.5 w-3.5" />
             Page {data.pagination.page} of {data.pagination.totalPages}
           </div>
@@ -204,10 +204,10 @@ export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
             <Link
               href={buildAuditHref(data.filters, Math.max(1, data.pagination.page - 1))}
               aria-disabled={!data.pagination.hasPreviousPage}
-              className={`inline-flex h-8 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors ${
+              className={`inline-flex h-8 items-center justify-center rounded-md border border-white/[0.04] px-3 text-xs font-medium transition-colors ${
                 data.pagination.hasPreviousPage
-                  ? "text-foreground hover:bg-accent"
-                  : "pointer-events-none text-muted-foreground/50"
+                  ? "text-[#E7E7E9] hover:bg-[#1B1B1F]"
+                  : "pointer-events-none text-[#9B9B9F]/50"
               }`}
             >
               Previous
@@ -215,10 +215,10 @@ export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
             <Link
               href={buildAuditHref(data.filters, data.pagination.page + 1)}
               aria-disabled={!data.pagination.hasNextPage}
-              className={`inline-flex h-8 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors ${
+              className={`inline-flex h-8 items-center justify-center rounded-md border border-white/[0.04] px-3 text-xs font-medium transition-colors ${
                 data.pagination.hasNextPage
-                  ? "text-foreground hover:bg-accent"
-                  : "pointer-events-none text-muted-foreground/50"
+                  ? "text-[#E7E7E9] hover:bg-[#1B1B1F]"
+                  : "pointer-events-none text-[#9B9B9F]/50"
               }`}
             >
               Next

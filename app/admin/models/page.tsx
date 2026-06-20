@@ -22,8 +22,8 @@ export default async function AdminModelsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Models</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-2xl font-semibold tracking-tight text-[#E7E7E9]">Models</h1>
+        <p className="mt-1 text-sm text-[#9B9B9F]">
           Runtime model catalog — add models, set visible names, and control default routing.
         </p>
       </div>
@@ -49,12 +49,12 @@ export default async function AdminModelsPage() {
         />
       </div>
 
-      <section className="rounded-lg border p-5">
+      <section className="rounded-lg border border-white/[0.04] p-5">
         <div className="flex items-center gap-3">
-          <Bot className="h-5 w-5 text-muted-foreground" />
+          <Bot className="h-5 w-5 text-[#9B9B9F]" />
           <div>
-            <p className="text-xs text-muted-foreground">Model Catalog</p>
-            <h2 className="text-sm font-medium">Catalog, availability, and default routing</h2>
+            <p className="text-xs text-[#9B9B9F]">Model Catalog</p>
+            <h2 className="text-sm font-medium text-[#E7E7E9]">Catalog, availability, and default routing</h2>
           </div>
           <Badge variant="secondary" className="ml-auto">
             {session.user.role}

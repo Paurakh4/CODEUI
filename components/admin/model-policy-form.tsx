@@ -257,7 +257,7 @@ export function ModelPolicyForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       {readOnlyReason ? (
-        <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90">
+        <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] px-4 py-3 text-sm text-[#9B9B9F]">
           {readOnlyReason}
         </div>
       ) : null}
@@ -268,7 +268,7 @@ export function ModelPolicyForm({
           <p className="text-sm font-medium">
             {catalogModels.length} model{catalogModels.length !== 1 ? "s" : ""}
           </p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-[#9B9B9F]">
             {enabledModelIds.length} enabled · Default: {defaultModelName}
           </p>
         </div>
@@ -284,7 +284,7 @@ export function ModelPolicyForm({
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border">
+      <div className="rounded-lg border border-white/[0.04]">
         <Table>
           <TableHeader>
             <TableRow>
@@ -305,7 +305,7 @@ export function ModelPolicyForm({
 
               return (
                 <Fragment key={model.id}>
-                  <TableRow className={isExpanded ? "bg-muted/30" : undefined}>
+                    <TableRow className={isExpanded ? "bg-[#1B1B1F]" : undefined}>
                     <TableCell>
                       <input
                         type="radio"
@@ -314,7 +314,7 @@ export function ModelPolicyForm({
                         checked={selectedDefaultModelId === model.id}
                         onChange={() => setSelectedDefaultModelId(model.id)}
                         disabled={!isEnabled || readOnly || isSaving}
-                        className="h-4 w-4 border-border text-primary accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        className="h-4 w-4 border-white/[0.04] text-[#E7E7E9] accent-[#E7E7E9] disabled:cursor-not-allowed disabled:opacity-50"
                       />
                     </TableCell>
                     <TableCell>
@@ -327,13 +327,13 @@ export function ModelPolicyForm({
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-medium text-foreground">{model.name}</span>
-                        <span className="text-xs text-muted-foreground">{model.id}</span>
+                        <span className="text-xs text-[#9B9B9F]">{model.id}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="hidden text-muted-foreground md:table-cell">
+                    <TableCell className="hidden text-[#9B9B9F] md:table-cell">
                       {model.provider}
                     </TableCell>
-                    <TableCell className="hidden text-muted-foreground md:table-cell">
+                    <TableCell className="hidden text-[#9B9B9F] md:table-cell">
                       {formatContextLength(model.contextLength)}
                     </TableCell>
                     <TableCell>
@@ -386,7 +386,7 @@ export function ModelPolicyForm({
                         <button
                           type="button"
                           onClick={() => setExpandedModelId(isExpanded ? null : model.id)}
-                          className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent"
+                          className="rounded-lg p-1.5 text-[#9B9B9F] transition-colors hover:bg-[#1B1B1F]"
                         >
                           {isExpanded ? (
                             <ChevronDown className="h-4 w-4" />
@@ -409,22 +409,22 @@ export function ModelPolicyForm({
                   </TableRow>
                   {isExpanded ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="bg-muted/20 p-4">
+                      <TableCell colSpan={7} className="bg-[#0E0E10] p-4">
                         <div className="grid gap-4 md:grid-cols-2">
                           <div className="space-y-2">
-                            <Label className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                            <Label className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">
                               Visible Name
                             </Label>
                             <Input
                               value={model.name}
                               onChange={(e) => updateModel(model.id, { name: e.target.value })}
                               disabled={readOnly || isSaving}
-                              className="h-10 rounded-xl"
+                              className="h-10 rounded-lg border border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
                             />
                           </div>
                           {model.isCustom ? (
                             <div className="space-y-2">
-                              <Label className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                              <Label className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">
                                 Provider
                               </Label>
                               <Input
@@ -433,13 +433,13 @@ export function ModelPolicyForm({
                                   updateModel(model.id, { provider: e.target.value })
                                 }
                                 disabled={readOnly || isSaving}
-                                className="h-10 rounded-xl"
+                                className="h-10 rounded-lg border border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
                               />
                             </div>
                           ) : null}
                           {model.isCustom ? (
                             <div className="space-y-2">
-                              <Label className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                              <Label className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">
                                 Context Window
                               </Label>
                               <Input
@@ -452,13 +452,13 @@ export function ModelPolicyForm({
                                   })
                                 }
                                 disabled={readOnly || isSaving}
-                                className="h-10 rounded-xl"
+                                className="h-10 rounded-lg border border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
                               />
                             </div>
                           ) : null}
                           {model.isCustom ? (
                             <div className="space-y-2 md:col-span-2">
-                              <Label className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                              <Label className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">
                                 Description
                               </Label>
                               <Textarea
@@ -467,15 +467,15 @@ export function ModelPolicyForm({
                                   updateModel(model.id, { description: e.target.value })
                                 }
                                 disabled={readOnly || isSaving}
-                                className="min-h-20 rounded-xl"
+                                className="min-h-20 rounded-lg border border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
                               />
                             </div>
                           ) : model.description ? (
                             <div className="space-y-2 md:col-span-2">
-                              <Label className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                            <Label className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">
                                 Description
                               </Label>
-                              <p className="text-sm text-muted-foreground">{model.description}</p>
+                              <p className="text-sm text-[#9B9B9F]">{model.description}</p>
                             </div>
                           ) : null}
                           <div className="flex flex-wrap items-center gap-4 md:col-span-2">
@@ -489,7 +489,7 @@ export function ModelPolicyForm({
                                     supportsReasoning: e.target.checked,
                                   })
                                 }
-                                className="h-4 w-4 rounded border-border bg-background text-primary"
+                                className="h-4 w-4 rounded border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
                               />
                               Reasoning
                             </label>
@@ -501,7 +501,7 @@ export function ModelPolicyForm({
                                 onChange={(e) =>
                                   updateModel(model.id, { isFast: e.target.checked })
                                 }
-                                className="h-4 w-4 rounded border-border bg-background text-primary"
+                                className="h-4 w-4 rounded border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
                               />
                               Fast
                             </label>
@@ -513,7 +513,7 @@ export function ModelPolicyForm({
                                 onChange={(e) =>
                                   updateModel(model.id, { isNewModel: e.target.checked })
                                 }
-                                className="h-4 w-4 rounded border-border bg-background text-primary"
+                                className="h-4 w-4 rounded border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
                               />
                               New badge
                             </label>
@@ -530,12 +530,12 @@ export function ModelPolicyForm({
       </div>
 
       {/* Prompt Enhance Model */}
-      <div className="rounded-lg border bg-muted/10 p-4 space-y-3">
+      <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F]/50 p-4 space-y-3">
         <div className="space-y-1">
-          <Label className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+          <Label className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">
             Prompt Enhance Model
           </Label>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-[#9B9B9F]">
             Always used to rewrite user prompts via the &quot;Enhance&quot; button.
             This is independent of the user-selected generation model and the
             global default. Sourced from <code>PROMPT_ENHANCE_MODEL</code> when
@@ -547,7 +547,7 @@ export function ModelPolicyForm({
             value={selectedPromptEnhanceModelId}
             onChange={(e) => setSelectedPromptEnhanceModelId(e.target.value)}
             disabled={readOnly || isSaving}
-            className="h-10 min-w-[260px] rounded-xl border border-border bg-background px-3 text-sm"
+            className="h-10 min-w-[260px] rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9]"
           >
             {catalogModels.map((model) => (
               <option key={model.id} value={model.id} disabled={!model.enabled}>
@@ -555,42 +555,42 @@ export function ModelPolicyForm({
               </option>
             ))}
           </select>
-          <span className="text-xs text-muted-foreground">
-            Active: <span className="font-medium text-foreground">{promptEnhanceModelName}</span>
+          <span className="text-xs text-[#9B9B9F]">
+            Active: <span className="font-medium text-[#E7E7E9]">{promptEnhanceModelName}</span>
           </span>
         </div>
       </div>
 
       {/* Audit Reason */}
-      <div className="space-y-2">
-        <Label className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+      <div className="space-y-1.5">
+        <Label className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">
           Audit Reason
         </Label>
         <Input
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           disabled={readOnly || isSaving}
-          className="h-10 rounded-xl"
+          className="h-10 rounded-lg border border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9] placeholder:text-[#9B9B9F]/50"
           placeholder="Why are you changing the model catalog?"
         />
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90">
+        <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] px-4 py-3 text-sm text-[#9B9B9F]">
           {error}
         </div>
       ) : null}
 
       {/* Save */}
       <div className="flex items-center justify-between gap-4">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-[#9B9B9F]">
           Enabled models drive the public model API, AI route validation, and authenticated user
           defaults.
         </p>
         <Button
           type="submit"
           disabled={readOnly || isSaving || !hasChanges}
-          className="rounded-xl"
+          className="rounded-lg bg-[#E7E7E9] text-[#0E0E10] hover:bg-white"
         >
           {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           Save Model Policy

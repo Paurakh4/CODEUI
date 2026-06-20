@@ -391,43 +391,43 @@ export function AddModelSheet({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2 space-y-2">
-                <Label className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                <Label className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">
                   Model ID
                 </Label>
                 <Input
                   value={newModel.id}
                   onChange={(e) => setNewModel((c) => ({ ...c, id: e.target.value }))}
                   disabled={readOnly}
-                  className="h-10 rounded-xl"
+                  className="h-10 rounded-lg border border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
                   placeholder="openai/gpt-5-mini"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                <Label className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">
                   Visible Name
                 </Label>
                 <Input
                   value={newModel.name}
                   onChange={(e) => setNewModel((c) => ({ ...c, name: e.target.value }))}
                   disabled={readOnly}
-                  className="h-10 rounded-xl"
+                  className="h-10 rounded-lg border border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
                   placeholder="GPT-5 Mini"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                <Label className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">
                   Provider
                 </Label>
                 <Input
                   value={newModel.provider}
                   onChange={(e) => setNewModel((c) => ({ ...c, provider: e.target.value }))}
                   disabled={readOnly}
-                  className="h-10 rounded-xl"
+                  className="h-10 rounded-lg border border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
                   placeholder="OpenAI"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                <Label className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">
                   Context Window
                 </Label>
                 <Input
@@ -436,19 +436,19 @@ export function AddModelSheet({
                   value={newModel.contextLength}
                   onChange={(e) => setNewModel((c) => ({ ...c, contextLength: e.target.value }))}
                   disabled={readOnly}
-                  className="h-10 rounded-xl"
+                  className="h-10 rounded-lg border border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
                   placeholder="128000"
                 />
               </div>
               <div className="col-span-2 space-y-2">
-                <Label className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                <Label className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">
                   Description
                 </Label>
                 <Textarea
                   value={newModel.description}
                   onChange={(e) => setNewModel((c) => ({ ...c, description: e.target.value }))}
                   disabled={readOnly}
-                  className="min-h-20 rounded-xl"
+                  className="min-h-20 rounded-lg border border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
                   placeholder="Short description shown in the selector"
                 />
               </div>
@@ -461,7 +461,7 @@ export function AddModelSheet({
                   checked={newModel.enabled}
                   disabled={readOnly}
                   onChange={(e) => setNewModel((c) => ({ ...c, enabled: e.target.checked }))}
-                  className="h-4 w-4 rounded border-border bg-background text-primary"
+                  className="h-4 w-4 rounded border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
                 />
                 Enabled on save
               </label>
@@ -471,7 +471,7 @@ export function AddModelSheet({
                   checked={newModel.makeDefault}
                   disabled={readOnly}
                   onChange={(e) => setNewModel((c) => ({ ...c, makeDefault: e.target.checked }))}
-                  className="h-4 w-4 rounded border-border bg-background text-primary"
+                  className="h-4 w-4 rounded border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
                 />
                 Make default
               </label>
@@ -481,7 +481,7 @@ export function AddModelSheet({
                   checked={newModel.supportsReasoning}
                   disabled={readOnly}
                   onChange={(e) => setNewModel((c) => ({ ...c, supportsReasoning: e.target.checked }))}
-                  className="h-4 w-4 rounded border-border bg-background text-primary"
+                  className="h-4 w-4 rounded border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
                 />
                 Reasoning
               </label>
@@ -491,7 +491,7 @@ export function AddModelSheet({
                   checked={newModel.isFast}
                   disabled={readOnly}
                   onChange={(e) => setNewModel((c) => ({ ...c, isFast: e.target.checked }))}
-                  className="h-4 w-4 rounded border-border bg-background text-primary"
+                  className="h-4 w-4 rounded border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
                 />
                 Fast
               </label>
@@ -501,7 +501,7 @@ export function AddModelSheet({
                   checked={newModel.isNewModel}
                   disabled={readOnly}
                   onChange={(e) => setNewModel((c) => ({ ...c, isNewModel: e.target.checked }))}
-                  className="h-4 w-4 rounded border-border bg-background text-primary"
+                  className="h-4 w-4 rounded border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
                 />
                 New badge
               </label>
@@ -520,12 +520,12 @@ export function AddModelSheet({
             {error ? <p className="text-xs text-amber-200">{error}</p> : null}
           </div>
 
-          <div className="border-t border-border" />
+          <div className="border-t border-white/[0.04]" />
 
           {/* PxRoute presets */}
           <div className="space-y-4">
             <h3 className="text-sm font-medium">PxRoute Presets</h3>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-[#9B9B9F]">
               Add the MidRelay-backed PxRoute models with the configured provider tag.
             </p>
 
@@ -547,8 +547,8 @@ export function AddModelSheet({
                         {model.isFast ? <Badge variant="outline">Fast</Badge> : null}
                         {alreadyAdded ? <Badge variant="outline">Already added</Badge> : null}
                       </div>
-                      <p className="truncate text-xs text-muted-foreground">{model.id}</p>
-                      <p className="text-xs text-muted-foreground">{model.description}</p>
+                      <p className="truncate text-xs text-[#9B9B9F]">{model.id}</p>
+                      <p className="text-xs text-[#9B9B9F]">{model.description}</p>
                     </div>
                   </div>
                 )
@@ -571,7 +571,7 @@ export function AddModelSheet({
           {/* OpenRouter import */}
           <div className="space-y-4">
             <h3 className="text-sm font-medium">Import from OpenRouter</h3>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-[#9B9B9F]">
               Search, filter, and batch add OpenRouter models.
             </p>
 
@@ -676,12 +676,12 @@ export function AddModelSheet({
                                     <Badge variant="outline">Already added</Badge>
                                   ) : null}
                                 </div>
-                                <p className="text-xs text-muted-foreground">{model.id}</p>
-                                <p className="text-xs text-muted-foreground">
+                                <p className="text-xs text-[#9B9B9F]">{model.id}</p>
+                                <p className="text-xs text-[#9B9B9F]">
                                   {model.provider} · {formatContextLength(model.contextLength)} context
                                 </p>
                                 {model.description ? (
-                                  <p className="line-clamp-2 text-xs text-muted-foreground">
+                                  <p className="line-clamp-2 text-xs text-[#9B9B9F]">
                                     {model.description}
                                   </p>
                                 ) : null}
