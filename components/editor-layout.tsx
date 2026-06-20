@@ -32,7 +32,7 @@ import { validatePromptScope } from "@/lib/prompt-scope"
 import { isFullDocumentRecoveryMode, isPatchRepairRecoveryMode, resolveRecoveryMode, type RecoveryMode } from "@/lib/recovery-mode"
 import { dedupeAdjacentAssistantMessages } from "@/lib/utils/chat-message-dedupe"
 import { cn } from "@/lib/utils"
-import { convertHtmlToReactComponent, sanitizeFileName } from "@/lib/utils/export"
+import { convertHtmlToReactComponent, generateExportPrompt, sanitizeFileName } from "@/lib/utils/export"
 import { deriveProjectNameFromPrompt, isDefaultProjectName, normalizeProjectName } from "@/lib/utils/project-name"
 import {
   Dialog,
@@ -72,7 +72,7 @@ function useDebouncedCallback<T extends (...args: Parameters<T>) => void>(
 
 type ViewMode = "preview" | "design" | "code"
 type DeviceMode = "desktop" | "tablet" | "mobile"
-type ExportFormat = "html" | "react"
+type ExportFormat = "html" | "react" | "prompt"
 type CheckpointKind = "auto" | "manual" | "restore"
 type CheckpointTrigger = "before-ai" | "after-ai" | "manual-save" | "restore"
 
@@ -2504,9 +2504,22 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     try {
       if (exportFormat === "html") {
         downloadFile(htmlContent, `${safeFileName}.html`, "text/html")
-      } else {
+      } else if (exportFormat === "react") {
         const reactComponent = convertHtmlToReactComponent(htmlContent, projectName)
         downloadFile(reactComponent, `${safeFileName}.tsx`, "text/plain")
+      } else {
+        const prompt = generateExportPrompt(htmlContent, {
+          primaryColor: state.primaryColor,
+          secondaryColor: state.secondaryColor,
+          theme: state.theme,
+        })
+        navigator.clipboard.writeText(prompt)
+        toast({
+          title: "Prompt copied",
+          description: "Paste this prompt in your favorite AI agent to recreate this UI.",
+        })
+        setIsExportModalOpen(false)
+        return
       }
 
       toast({
@@ -2522,7 +2535,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         variant: "destructive",
       })
     }
-  }, [downloadFile, exportFormat, htmlContent, projectName, toast])
+  }, [downloadFile, exportFormat, htmlContent, projectName, state, toast])
 
   const handleSaveCheckpoint = useCallback(async () => {
     const description = viewMode === "design"
@@ -3260,7 +3273,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
             <DialogHeader>
               <DialogTitle>Export project</DialogTitle>
               <DialogDescription className="text-zinc-400">
-                Choose a format for your download.
+                Choose a format for your download, or generate a prompt to recreate this UI.
               </DialogDescription>
             </DialogHeader>
 
@@ -3290,6 +3303,19 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                 <p className="text-sm font-medium text-zinc-100">React (.tsx)</p>
                 <p className="text-xs text-zinc-400 mt-1">Best-effort JSX conversion from your current HTML and styles.</p>
               </button>
+
+              <button
+                onClick={() => setExportFormat("prompt")}
+                className={cn(
+                  "w-full rounded-lg border p-3 text-left transition-colors",
+                  exportFormat === "prompt"
+                    ? "border-white/[0.10] bg-white/[0.04]"
+                    : "border-white/[0.04] bg-transparent hover:bg-white/[0.03]"
+                )}
+              >
+                <p className="text-sm font-medium text-zinc-100">Generate Prompt</p>
+                <p className="text-xs text-zinc-400 mt-1">Creates a detailed prompt to recreate this UI in any AI agent.</p>
+              </button>
             </div>
 
             <DialogFooter>
@@ -3303,7 +3329,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                 onClick={handleConfirmExport}
                 className="h-9 px-3 rounded-md bg-zinc-100 text-zinc-900 hover:bg-zinc-200 transition-colors"
               >
-                Export {exportFormat === "react" ? "TSX" : "HTML"}
+                {exportFormat === "prompt" ? "Copy Prompt" : exportFormat === "react" ? "Export TSX" : "Export HTML"}
               </button>
             </DialogFooter>
           </DialogContent>
