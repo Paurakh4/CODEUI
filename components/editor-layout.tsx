@@ -640,6 +640,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   // Chat State
   const [messages, setMessages] = useState<Message[]>([])
   const [thinkingExpanded, setThinkingExpanded] = useState(true)
+  const [expandedUserMessages, setExpandedUserMessages] = useState<Set<string>>(new Set())
   const hasProcessedInitialPrompt = useRef(false)
   const initialPromptStartTimerRef = useRef<number | null>(null)
   const lastUserPromptRef = useRef("")
@@ -654,7 +655,18 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   const activeThinkingScrollRef = useRef<HTMLDivElement | null>(null)
   const thinkingScrollFrameRef = useRef<number | null>(null)
   const designDiscoveryRequestRef = useRef(0)
-  
+
+  const toggleUserMessage = useCallback((id: string) => {
+    setExpandedUserMessages((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const LONG_USER_MSG_THRESHOLD = 200
+
   // Sync initialModel with global store
   useEffect(() => {
     if (initialModel) {
@@ -3009,7 +3021,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                 type="text"
                 value={projectName}
                 onChange={(e) => setProjectName(e.target.value)}
-                className="bg-transparent text-xs font-medium text-zinc-200 focus:outline-none focus:ring-1 focus:ring-zinc-700 rounded px-1 -ml-1"
+                className="bg-transparent text-xs font-medium text-zinc-200 focus:outline-none focus:ring-1 focus:ring-white/[0.08] rounded px-1 -ml-1"
               />
               {hasUnsavedChanges && (
                 <span className="w-1.5 h-1.5 bg-orange-500 rounded-full" title="Unsaved changes" />
@@ -3020,7 +3032,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           <div className="flex items-center gap-0.5">
             <button
               onClick={() => setSidebarOpen(false)}
-              className="p-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors"
+              className="p-1 text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] rounded-md transition-colors"
               title="Collapse sidebar"
               aria-label="Collapse sidebar"
             >
@@ -3028,7 +3040,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
             </button>
             <button
               onClick={handleResetChat}
-              className="p-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors"
+              className="p-1 text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] rounded-md transition-colors"
               title="Reset Chat"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -3054,7 +3066,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                   <button
                     key={i}
                     onClick={() => handleSend(prompt)}
-                    className="w-full text-left text-[11px] text-zinc-400 hover:text-zinc-200 bg-zinc-900 hover:bg-zinc-800 rounded-md px-2.5 py-1.5 transition-colors"
+                    className="w-full text-left text-[11px] text-zinc-400 hover:text-zinc-200 bg-white/[0.03] hover:bg-white/[0.04] rounded-md px-2.5 py-1.5 transition-colors"
                   >
                     {prompt.slice(0, 60)}...
                   </button>
@@ -3098,20 +3110,40 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                             </button>
                           </div>
                         </div>
+                      ) : message.role === "user" && message.content.length > LONG_USER_MSG_THRESHOLD ? (
+                        <div className="space-y-1.5">
+                          <p className={cn(
+                            "text-xs whitespace-pre-wrap",
+                            !expandedUserMessages.has(message.id) && "line-clamp-3"
+                          )}>
+                            {message.content}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => toggleUserMessage(message.id)}
+                            className="flex items-center gap-1 text-[11px] text-zinc-500 transition-colors hover:text-zinc-300"
+                          >
+                            {expandedUserMessages.has(message.id) ? (
+                              <><ChevronUp className="w-3 h-3" /> Show less</>
+                            ) : (
+                              <><ChevronDown className="w-3 h-3" /> Show more</>
+                            )}
+                          </button>
+                        </div>
                       ) : (
                         <p className="text-xs whitespace-pre-wrap">{message.content}</p>
-                      )} 
+                      )}
                     </div>
                   </div>
                   
                   {/* Thinking panel for assistant */}
                   {message.role === "assistant" && message.thinkingContent && (
-                    <div className="ml-1">
+                    <div className="ml-2">
                       <div
                         className={cn(
-                          "max-w-[90%] rounded-lg text-left transition-colors",
+                          "max-w-[85%] text-left transition-all",
                           thinkingExpanded
-                            ? "flex h-[250px] w-full flex-col overflow-hidden border border-zinc-800 bg-zinc-900 shadow-[inset_0_18px_24px_-24px_rgba(0,0,0,0.9),inset_0_-18px_24px_-24px_rgba(0,0,0,0.9)]"
+                            ? "flex max-h-[160px] w-full flex-col overflow-hidden rounded-lg bg-zinc-900/50 pl-3"
                             : "w-fit"
                         )}
                       >
@@ -3121,10 +3153,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                           aria-expanded={thinkingExpanded}
                           aria-controls={thinkingPanelId}
                           className={cn(
-                            "flex items-center gap-1 text-[11px] transition-colors",
-                            thinkingExpanded
-                              ? "w-full border-b border-zinc-800/80 px-2.5 py-2 text-zinc-500 hover:bg-zinc-800/40 hover:text-zinc-300"
-                              : "text-zinc-500 hover:text-zinc-400"
+                            "flex items-center gap-1 text-[11px] text-zinc-500 transition-colors hover:text-zinc-300",
+                            thinkingExpanded ? "pt-2 pb-1.5" : ""
                           )}
                         >
                           {thinkingExpanded ? (
@@ -3135,16 +3165,12 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                           Thinking
                         </button>
                         {thinkingExpanded ? (
-                          <div className="relative min-h-0 flex-1 overflow-hidden bg-zinc-900">
-                            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-5 bg-gradient-to-b from-zinc-900 via-zinc-900/90 to-transparent" />
-                            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-5 bg-gradient-to-t from-zinc-900 via-zinc-900/90 to-transparent" />
-                            <div
-                              id={thinkingPanelId}
-                              ref={isStreamingThinking ? activeThinkingScrollRef : undefined}
-                              className="h-full overflow-y-auto overscroll-contain px-2.5 pb-4 pt-3 text-[11px] leading-5 text-zinc-500 whitespace-pre-wrap [scrollbar-gutter:stable]"
-                            >
-                              {message.thinkingContent}
-                            </div>
+                          <div
+                            id={thinkingPanelId}
+                            ref={isStreamingThinking ? activeThinkingScrollRef : undefined}
+                            className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2.5 pr-1 text-xs leading-5 text-zinc-500 whitespace-pre-wrap"
+                          >
+                            {message.thinkingContent}
                           </div>
                         ) : null}
                       </div>
@@ -3244,8 +3270,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                 className={cn(
                   "w-full rounded-lg border p-3 text-left transition-colors",
                   exportFormat === "html"
-                    ? "border-zinc-500 bg-zinc-900"
-                    : "border-zinc-800 bg-zinc-950 hover:bg-zinc-900"
+                    ? "border-white/[0.10] bg-white/[0.04]"
+                    : "border-white/[0.04] bg-transparent hover:bg-white/[0.03]"
                 )}
               >
                 <p className="text-sm font-medium text-zinc-100">HTML</p>
@@ -3257,8 +3283,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                 className={cn(
                   "w-full rounded-lg border p-3 text-left transition-colors",
                   exportFormat === "react"
-                    ? "border-zinc-500 bg-zinc-900"
-                    : "border-zinc-800 bg-zinc-950 hover:bg-zinc-900"
+                    ? "border-white/[0.10] bg-white/[0.04]"
+                    : "border-white/[0.04] bg-transparent hover:bg-white/[0.03]"
                 )}
               >
                 <p className="text-sm font-medium text-zinc-100">React (.tsx)</p>
@@ -3269,7 +3295,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
             <DialogFooter>
               <button
                 onClick={() => setIsExportModalOpen(false)}
-                className="h-9 px-3 rounded-md border border-zinc-800 text-zinc-300 hover:bg-zinc-900 transition-colors"
+                className="h-9 px-3 rounded-md border border-white/[0.06] text-zinc-400 hover:bg-white/[0.04] transition-colors"
               >
                 Cancel
               </button>
@@ -3294,7 +3320,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         />
 
         {/* Canvas/Editor Area */}
-        <div className="flex-1 min-h-0 overflow-y-auto bg-zinc-900">
+        <div className="flex-1 min-h-0 overflow-hidden bg-white/[0.02]">
           {renderContent()}
         </div>
       </div>

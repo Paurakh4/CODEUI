@@ -256,7 +256,7 @@ export function AI_Prompt({
 
     return (
         <div className="w-full">
-            <div className="bg-black/5 dark:bg-white/5 rounded-lg p-0.5">
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] overflow-hidden">
                 <div className="relative">
                     <div className="relative flex flex-col">
                         <div
@@ -270,7 +270,7 @@ export function AI_Prompt({
                                     ? "What can I do for you? Type a UI prompt to unlock Prompt Enhance."
                                     : "What can I do for you?"}
                                 className={cn(
-                                    "w-full rounded-md rounded-b-none px-2.5 py-1.5 pr-10 bg-black/5 dark:bg-white/5 border-none dark:text-white placeholder:text-black/70 dark:placeholder:text-white/70 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 text-xs",
+                                    "w-full px-2.5 py-2 pr-10 bg-transparent border-none text-zinc-100 placeholder:text-zinc-500 resize-none focus-visible:ring-0 focus-visible:ring-offset-0 text-xs",
                                     "min-h-[52px]"
                                 )}
                                 ref={textareaRef}
@@ -309,7 +309,7 @@ export function AI_Prompt({
                             ) : null}
                         </div>
 
-                        <div className="h-9 bg-black/5 dark:bg-white/5 rounded-b-lg flex items-center">
+                        <div className="h-9 bg-white/[0.02] border-t border-white/[0.04] flex items-center">
                             <div className="absolute left-1.5 right-1.5 bottom-1.5 flex items-center justify-between">
                                 <div className="flex items-center gap-1">
                                     <DropdownMenu>
@@ -381,7 +381,7 @@ export function AI_Prompt({
                                             ))}
                                         </DropdownMenuContent>
                                     </DropdownMenu>
-                                    <div className="h-3 w-px bg-black/10 dark:bg-white/10" />
+                                    <div className="h-3 w-px bg-white/[0.06]" />
                                     <label
                                         className={cn(
                                             "rounded-md p-1 bg-black/5 dark:bg-white/5",

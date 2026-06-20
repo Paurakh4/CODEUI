@@ -290,25 +290,25 @@ function IconButton({
           aria-pressed={active}
           className={cn(
             "inline-flex items-center justify-center rounded-md transition-all duration-150",
-            "focus:outline-none focus-visible:ring-1 focus-visible:ring-stone-400/60",
+            "focus:outline-none focus-visible:ring-1 focus-visible:ring-white/[0.08]",
             size === "sm" ? "h-6 w-6" : "h-7 w-7",
             disabled && "cursor-not-allowed opacity-40",
             !disabled && variant === "default" && [
               active
-                ? "bg-stone-100 text-stone-900 shadow-sm"
-                : "text-stone-400 hover:bg-stone-800/70 hover:text-stone-100 active:scale-[0.96]",
+                ? "bg-white/[0.08] text-zinc-100"
+                : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200 active:scale-[0.96]",
             ],
             !disabled && variant === "ghost" && [
               active
-                ? "text-stone-100"
-                : "text-stone-400 hover:bg-stone-800/60 hover:text-stone-100 active:scale-[0.96]",
+                ? "text-zinc-100"
+                : "text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200 active:scale-[0.96]",
             ]
           )}
         >
           {icon}
         </button>
       </TooltipTrigger>
-      <TooltipContent side="top" className="bg-stone-100 text-stone-900 text-[10px] font-medium px-2 py-1">
+      <TooltipContent side="top" className="bg-zinc-800 text-zinc-200 text-[10px] font-medium px-2 py-1">
         {tooltip}
       </TooltipContent>
     </Tooltip>
@@ -327,7 +327,7 @@ function FieldLabel({ label, onReset, hasValue, className, rightSlot }: FieldLab
   return (
     <div className={cn("flex items-center justify-between gap-2 min-h-[14px]", className)}>
       <div className="flex items-center gap-1 min-w-0">
-        <label className="text-[10.5px] font-medium uppercase tracking-wide text-stone-500 truncate">
+        <label className="text-[10.5px] font-medium uppercase tracking-wide text-zinc-400 truncate">
           {label}
         </label>
         {onReset && hasValue && (
@@ -337,12 +337,12 @@ function FieldLabel({ label, onReset, hasValue, className, rightSlot }: FieldLab
                 type="button"
                 onClick={onReset}
                 aria-label={`Reset ${label}`}
-                className="flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded text-stone-600 opacity-0 transition-all hover:bg-stone-800/80 hover:text-stone-200 group-hover/field:opacity-100 focus-visible:opacity-100 focus:outline-none"
+                className="flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded text-zinc-600 opacity-0 transition-all hover:bg-white/[0.06] hover:text-zinc-200 group-hover/field:opacity-100 focus-visible:opacity-100 focus:outline-none"
               >
                 <RotateCcw className="h-2.5 w-2.5" strokeWidth={2.5} />
               </button>
             </TooltipTrigger>
-            <TooltipContent side="top" className="bg-stone-100 text-stone-900 text-[10px] font-medium px-2 py-1">
+            <TooltipContent side="top" className="bg-zinc-800 text-zinc-200 text-[10px] font-medium px-2 py-1">
               Reset to default
             </TooltipContent>
           </Tooltip>
@@ -381,7 +381,7 @@ function SegmentedControl<T extends string = string>({
       )}
       <div
         className={cn(
-          "flex items-center gap-0.5 rounded-md border border-stone-800/80 bg-stone-900/60 p-0.5",
+          "flex items-center gap-0.5 rounded-md border border-white/[0.06] bg-white/[0.03] p-0.5",
           size === "sm" ? "h-7" : "h-8"
         )}
       >
@@ -399,8 +399,8 @@ function SegmentedControl<T extends string = string>({
                 "focus:outline-none focus-visible:ring-1 focus-visible:ring-stone-400/60",
                 size === "sm" ? "h-6 px-1.5" : "h-7 px-2",
                 isActive
-                  ? "bg-stone-100 text-stone-900 shadow-sm"
-                  : "text-stone-400 hover:bg-stone-800/70 hover:text-stone-100"
+                  ? "bg-white/[0.08] text-zinc-100"
+                  : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200"
               )}
             >
               {opt.icon}
@@ -437,7 +437,7 @@ function PresetChips({ values, activeValue, onSelect, label }: PresetChipsProps)
   return (
     <div className="flex flex-col gap-1.5">
       {label && (
-        <label className="text-[10.5px] font-medium uppercase tracking-wide text-stone-500">
+        <label className="text-[10.5px] font-medium uppercase tracking-wide text-zinc-400">
           {label}
         </label>
       )}
@@ -454,8 +454,8 @@ function PresetChips({ values, activeValue, onSelect, label }: PresetChipsProps)
                 "h-6 rounded-full px-2.5 text-[10.5px] font-medium tracking-wide transition-all duration-150",
                 "focus:outline-none focus-visible:ring-1 focus-visible:ring-stone-400/60",
                 isActive
-                  ? "bg-stone-100 text-stone-900 shadow-sm"
-                  : "bg-stone-800/60 text-stone-400 hover:bg-stone-800 hover:text-stone-100 border border-stone-700/40"
+                  ? "bg-white/[0.08] text-zinc-100"
+                  : "bg-white/[0.03] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200 border border-white/[0.04]"
               )}
             >
               {preset.label}
@@ -555,11 +555,11 @@ function NumberInput({
       )}
       <div
         className={cn(
-          "group flex h-7 items-center rounded-md border border-stone-800/80 bg-stone-900/60",
+          "group flex h-7 items-center rounded-md border border-white/[0.06] bg-white/[0.03]",
           "transition-colors duration-150",
           isFocused
-            ? "border-stone-500/70 bg-stone-900 ring-1 ring-stone-500/30"
-            : "hover:border-stone-700"
+            ? "border-white/[0.10] bg-white/[0.04] ring-1 ring-white/[0.06]"
+            : "hover:border-white/[0.08]"
         )}
       >
         {showStepper && (
@@ -567,7 +567,7 @@ function NumberInput({
             type="button"
             onClick={() => handleStep(-1)}
             aria-label="Decrease"
-            className="flex h-full w-5 flex-shrink-0 items-center justify-center rounded-l-md text-stone-500 hover:bg-stone-800/80 hover:text-stone-200 transition-colors"
+            className="flex h-full w-5 flex-shrink-0 items-center justify-center rounded-l-md text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-200 transition-colors"
           >
             <Minus className="h-3 w-3" strokeWidth={2.5} />
           </button>
@@ -609,7 +609,7 @@ function NumberInput({
           )}
         />
         {unit && (
-          <span className="pr-1 text-[9.5px] font-semibold uppercase tracking-wider text-stone-500">
+          <span className="pr-1 text-[9.5px] font-semibold uppercase tracking-wider text-zinc-500">
             {unit}
           </span>
         )}
@@ -650,7 +650,7 @@ function UnitToggle({ unit, units = SUPPORTED_UNITS, onChange, inline = false }:
             type="button"
             onClick={handleClick}
             tabIndex={-1}
-            className="flex h-full flex-shrink-0 items-center px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-stone-400 transition-colors hover:bg-stone-800/80 hover:text-stone-100"
+            className="flex h-full flex-shrink-0 items-center px-1.5 text-[9.5px] font-semibold uppercase tracking-wider text-zinc-400 transition-colors hover:bg-white/[0.04] hover:text-zinc-200"
           >
             {unit === "%" ? "%" : unit}
           </button>
@@ -668,7 +668,7 @@ function UnitToggle({ unit, units = SUPPORTED_UNITS, onChange, inline = false }:
         <button
           type="button"
           onClick={handleClick}
-          className="h-7 min-w-[34px] flex-shrink-0 rounded-md border border-stone-800/80 bg-stone-900/60 px-1.5 text-[10px] font-semibold uppercase tracking-wider text-stone-300 transition-colors hover:border-stone-700 hover:bg-stone-800/80"
+          className="h-7 min-w-[34px] flex-shrink-0 rounded-md border border-white/[0.06] bg-white/[0.03] px-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-300 transition-colors hover:border-white/[0.08] hover:bg-white/[0.04]"
         >
           {unit === "%" ? "%" : unit}
         </button>
@@ -732,15 +732,15 @@ function DimensionControl({
         hasValue={!!onReset && hasValue}
         rightSlot={
           isKeyword && typeof value === "string" ? (
-            <span className="text-[10px] font-mono text-stone-400 truncate">{value}</span>
+            <span className="text-[10px] font-mono text-zinc-500 truncate">{value}</span>
           ) : undefined
         }
       />
       <div
         className={cn(
-          "group flex h-7 w-full min-w-0 items-center rounded-md border border-stone-800/80 bg-stone-900/60",
-          "transition-colors duration-150 hover:border-stone-700",
-          "focus-within:border-stone-500/70 focus-within:bg-stone-900 focus-within:ring-1 focus-within:ring-stone-500/30"
+          "group flex h-7 w-full min-w-0 items-center rounded-md border border-white/[0.06] bg-white/[0.03]",
+          "transition-colors duration-150 hover:border-white/[0.08]",
+          "focus-within:border-white/[0.10] focus-within:bg-white/[0.04] focus-within:ring-1 focus-within:ring-white/[0.06]"
         )}
       >
         {showStepper && (
@@ -748,7 +748,7 @@ function DimensionControl({
             type="button"
             onClick={() => handleNumberCommit(Math.max(0, numeric - 1))}
             aria-label="Decrease"
-            className="flex h-full w-5 flex-shrink-0 items-center justify-center rounded-l-md text-stone-500 hover:bg-stone-800/80 hover:text-stone-200 transition-colors"
+            className="flex h-full w-5 flex-shrink-0 items-center justify-center rounded-l-md text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-200 transition-colors"
           >
             <Minus className="h-3 w-3" strokeWidth={2.5} />
           </button>
@@ -765,7 +765,7 @@ function DimensionControl({
             type="button"
             onClick={() => handleNumberCommit(numeric + 1)}
             aria-label="Increase"
-            className="flex h-full w-5 flex-shrink-0 items-center justify-center rounded-r-md text-stone-500 hover:bg-stone-800/80 hover:text-stone-200 transition-colors"
+            className="flex h-full w-5 flex-shrink-0 items-center justify-center rounded-r-md text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-200 transition-colors"
           >
             <Plus className="h-3 w-3" strokeWidth={2.5} />
           </button>
@@ -839,7 +839,7 @@ function DimensionNumberInput({ value, placeholder, onChange, onCommit }: Dimens
           ;(e.target as HTMLInputElement).blur()
         }
       }}
-      className="min-w-0 flex-1 bg-transparent px-1.5 text-center text-[11.5px] font-mono text-stone-100 placeholder:text-stone-600 focus:outline-none"
+      className="min-w-0 flex-1 bg-transparent px-1.5 text-center text-[11.5px] font-mono text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
     />
   )
 }
@@ -937,26 +937,26 @@ function Slider({
                     ;(e.target as HTMLInputElement).blur()
                   }
                 }}
-                className="h-6 w-12 rounded-md border border-stone-800/80 bg-stone-900/60 px-1 text-right text-[11px] font-mono text-stone-100 outline-none transition-colors focus:border-stone-500/70 focus:bg-stone-900"
+                className="h-6 w-12 rounded-md border border-white/[0.06] bg-white/[0.03] px-1 text-right text-[11px] font-mono text-zinc-100 outline-none transition-colors focus:border-white/[0.10] focus:bg-white/[0.04]"
               />
               {!!unit && (
-                <span className="text-[10px] font-medium uppercase text-stone-500">{unit}</span>
+                <span className="text-[10px] font-medium uppercase text-zinc-500">{unit}</span>
               )}
             </div>
           )}
         </div>
       )}
-      <div className="relative h-1.5 rounded-full bg-stone-800">
+      <div className="relative h-1.5 rounded-full bg-white/[0.06]">
         <div
           className={cn(
             "absolute left-0 top-0 h-full rounded-full transition-all",
-            isDragging ? "bg-stone-100 duration-75" : "bg-stone-300 duration-150"
+            isDragging ? "bg-white/[0.15] duration-75" : "bg-white/[0.20] duration-150"
           )}
           style={{ width: `${percentage}%` }}
         />
         <div
           className={cn(
-            "absolute top-1/2 h-3 w-3 -translate-y-1/2 -translate-x-1/2 rounded-full border-2 border-stone-100 bg-stone-900 transition-shadow",
+            "absolute top-1/2 h-3 w-3 -translate-y-1/2 -translate-x-1/2 rounded-full border-2 border-white/[0.08] bg-zinc-950 transition-shadow",
             isDragging ? "shadow-[0_0_0_4px_rgba(245,245,244,0.15)]" : "shadow-sm"
           )}
           style={{ left: `${percentage}%` }}
@@ -2143,10 +2143,10 @@ export function StylePanel({
         className={cn(
           "relative z-[61]",
           "w-[316px] max-h-[640px] flex flex-col overflow-hidden",
-          "rounded-xl border border-stone-800/80",
-          "bg-stone-950/95 backdrop-blur-xl",
+          "rounded-xl border border-white/[0.06]",
+          "bg-zinc-950/90 backdrop-blur-xl",
           "shadow-2xl shadow-black/60",
-          "ring-1 ring-white/5",
+          "ring-1 ring-white/[0.04]",
           "animate-in fade-in slide-in-from-right-4 duration-200",
           isDragging && "cursor-grabbing select-none",
           className
@@ -2160,22 +2160,22 @@ export function StylePanel({
           onPointerCancel={handlePointerCancel}
           style={{ touchAction: "none" }}
           className={cn(
-            "relative flex items-center gap-2 px-3 py-2.5 border-b border-stone-800/80",
-            "bg-gradient-to-b from-stone-900/60 to-transparent",
+            "relative flex items-center gap-2 px-3 py-2.5 border-b border-white/[0.04]",
+            "bg-white/[0.02]",
             isDragging ? "cursor-grabbing" : "cursor-grab"
           )}
         >
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-stone-100 text-stone-900 shadow-sm">
+            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-white/[0.08] text-zinc-200">
               <span className="text-[9px] font-bold uppercase">
                 {selectedElement.type.slice(0, 2)}
               </span>
             </div>
             <div className="flex flex-col min-w-0">
-              <span className="text-[12px] font-semibold text-stone-100 leading-tight truncate">
+              <span className="text-[12px] font-semibold text-zinc-100 leading-tight truncate">
                 {selectedElement.type.toLowerCase()}
               </span>
-              <span className="text-[9.5px] text-stone-500 leading-tight">Element styles</span>
+              <span className="text-[9.5px] text-zinc-500 leading-tight">Element styles</span>
             </div>
           </div>
 
@@ -2196,7 +2196,7 @@ export function StylePanel({
               disabled={!canRedo}
               onClick={onRedo}
             />
-            <div className="mx-1 h-4 w-px bg-stone-800" />
+            <div className="mx-1 h-4 w-px bg-white/[0.04]" />
             <IconButton
               icon={<X className="h-3.5 w-3.5" />}
               tooltip="Close"

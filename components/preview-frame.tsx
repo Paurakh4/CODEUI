@@ -3,7 +3,7 @@
 import { useRef, useEffect, useState, useCallback } from "react"
 import { getElementPropertyFields, type ElementPropertyMap } from "@/lib/design-element-properties"
 import { cn } from "@/lib/utils"
-import { Grip, Loader2, LocateFixed, RefreshCw, X } from "lucide-react"
+import { Loader2, LocateFixed, Move, RefreshCw, X } from "lucide-react"
 import { DeviceMode } from "@/stores/editor-store"
 
 export interface SelectedElementInfo {
@@ -234,7 +234,7 @@ export function PreviewFrame({
   const frameShellClassName = cn(
     "relative flex-none touch-none",
     activeInteraction ? "transition-none" : "transition-all duration-300",
-    hasPreviewShell ? "rounded-[24px] border border-white/5 bg-zinc-950/50 p-3" : "rounded-none border-0 bg-transparent p-0 shadow-none ring-0",
+    hasPreviewShell ? "rounded-[24px] border border-white/[0.04] bg-zinc-950/30 p-3" : "rounded-none border-0 bg-transparent p-0 shadow-none ring-0",
   )
   const frameClassName = cn(
     "bg-white shadow-2xl overflow-hidden",
@@ -1203,12 +1203,14 @@ export function PreviewFrame({
               <button
                 onPointerDown={startMoveInteraction}
                 className={cn(
-                  "absolute left-1/2 -top-12 z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-white/10 bg-zinc-950/80 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-300 shadow-[0_12px_30px_rgba(0,0,0,0.3)] backdrop-blur-sm",
-                  activeInteraction === "move" ? "cursor-grabbing" : "cursor-grab"
+                  "absolute left-1/2 -top-12 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/[0.07] bg-zinc-900/70 px-3.5 py-1.5 text-[11px] font-medium tracking-[0.14em] text-zinc-400 shadow-[0_4px_16px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-md transition-all duration-200",
+                  activeInteraction === "move"
+                    ? "cursor-grabbing border-white/20 bg-zinc-800/80 text-zinc-200 shadow-[0_4px_20px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.06)]"
+                    : "cursor-grab hover:border-white/[0.12] hover:bg-zinc-800/70 hover:text-zinc-200"
                 )}
-                title="Drag preview"
+                title="Drag to reposition preview"
               >
-                <Grip className="h-3.5 w-3.5" />
+                <Move className="h-3.5 w-3.5 opacity-70" />
                 Move
               </button>
             ) : null}

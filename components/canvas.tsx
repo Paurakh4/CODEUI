@@ -127,7 +127,7 @@ export function Canvas({ className }: CanvasProps) {
     <div
       ref={containerRef}
       className={cn(
-        "relative w-full h-full overflow-hidden bg-zinc-900",
+        "relative w-full h-full overflow-hidden bg-zinc-950",
         isPanning ? "cursor-grabbing" : "cursor-grab",
         className
       )}
@@ -141,7 +141,7 @@ export function Canvas({ className }: CanvasProps) {
         className="absolute inset-0 pointer-events-none"
         style={{
           backgroundImage: `
-            radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 0)
+            radial-gradient(circle at 1px 1px, rgba(255,255,255,0.04) 1px, transparent 0)
           `,
           backgroundSize: `${20 * scale}px ${20 * scale}px`,
           backgroundPosition: `${position.x}px ${position.y}px`,
@@ -158,18 +158,16 @@ export function Canvas({ className }: CanvasProps) {
         }}
       >
         {/* Main Artboard */}
-        <div className="w-full h-full bg-[#18181b] rounded-lg shadow-2xl overflow-hidden">
-          {/* Artboard content - can be replaced with actual design elements */}
-          <div className="w-full h-full flex items-center justify-center bg-[#111111] border-10 border-zinc-700/40 rounded-2xl">
-            <div className="text-center space-y-4">
-              <div className="text-zinc-400 text-lg font-medium">
+        <div className="w-full h-full bg-zinc-900/50 rounded-lg shadow-2xl overflow-hidden">
+          {/* Artboard content */}
+          <div className="w-full h-full flex items-center justify-center bg-zinc-950 border border-white/[0.04] rounded-2xl">
+            <div className="text-center space-y-3">
+              <div className="text-zinc-500 text-base font-medium">
                 Canvas
               </div>
-              <div className="text-zinc-300 text-sm max-w-md mx-auto">
-                <p>• Scroll/Two-finger drag to pan</p>
-                <p>• Pinch or Ctrl + scroll to zoom</p>
-                <p>• Alt + drag to pan</p>
-                <p>• Ctrl + 0 to reset view</p>
+              <div className="text-zinc-600 text-xs max-w-md mx-auto space-y-1">
+                <p>Scroll to pan · Pinch or Ctrl + scroll to zoom</p>
+                <p>Alt + drag to pan · Ctrl + 0 to reset</p>
               </div>
             </div>
           </div>
@@ -177,13 +175,8 @@ export function Canvas({ className }: CanvasProps) {
       </div>
 
       {/* Zoom indicator */}
-      <div className="absolute bottom-4 right-4 bg-zinc-800/80 backdrop-blur-sm rounded-lg px-3 py-1.5 text-xs text-zinc-300 font-medium">
+      <div className="absolute bottom-4 right-4 bg-white/[0.04] backdrop-blur-sm rounded-md px-2.5 py-1 text-[11px] text-zinc-500 font-medium">
         {Math.round(scale * 100)}%
-      </div>
-
-      {/* Position indicator (for debugging, can be removed) */}
-      <div className="absolute bottom-4 left-4 bg-zinc-800/80 backdrop-blur-sm rounded-lg px-3 py-1.5 text-xs text-zinc-400 font-mono">
-        x: {Math.round(position.x)} y: {Math.round(position.y)}
       </div>
     </div>
   )

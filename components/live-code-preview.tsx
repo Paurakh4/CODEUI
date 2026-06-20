@@ -86,11 +86,11 @@ export function LiveCodePreview({ code, className }: LiveCodePreviewProps) {
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-xl border border-zinc-800/60 bg-[#050505] shadow-lg",
+        "overflow-hidden rounded-xl border border-white/[0.06] bg-zinc-950 shadow-lg",
         className,
       )}
     >
-      <div className="flex items-center justify-between border-b border-zinc-800/60 bg-zinc-900/60 px-3 py-2">
+      <div className="flex items-center justify-between border-b border-white/[0.04] bg-white/[0.02] px-3 py-2">
         <div className="flex items-center gap-2">
           <span className="relative flex h-1.5 w-1.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70" />

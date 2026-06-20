@@ -68,8 +68,8 @@ export function ModelSelector({
           size="sm"
           disabled={disabled || isLoading}
           className={cn(
-            "h-8 gap-2 bg-zinc-900 border-zinc-800 hover:bg-zinc-800",
-            "text-zinc-300 hover:text-zinc-100"
+            "h-8 gap-2 bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.04]",
+            "text-zinc-400 hover:text-zinc-200"
           )}
         >
           <ModelIcon model={currentModel} />
@@ -81,12 +81,12 @@ export function ModelSelector({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
-        className="w-[280px] bg-zinc-950 border-zinc-800"
+        className="w-[280px] bg-zinc-950 border-white/[0.06]"
       >
         <DropdownMenuLabel className="text-zinc-400 text-xs">
           AI Models
         </DropdownMenuLabel>
-        <DropdownMenuSeparator className="bg-zinc-800" />
+        <DropdownMenuSeparator className="bg-white/[0.04]" />
         
         {enabledModels.map((model) => (
           <DropdownMenuItem
@@ -97,8 +97,8 @@ export function ModelSelector({
             }}
             className={cn(
               "flex items-start gap-3 py-2.5 cursor-pointer",
-              "focus:bg-zinc-800 focus:text-zinc-100",
-              selectedModel === model.id && "bg-zinc-800/50"
+              "focus:bg-white/[0.04] focus:text-zinc-100",
+              selectedModel === model.id && "bg-white/[0.03]"
             )}
           >
             <div className="mt-0.5">

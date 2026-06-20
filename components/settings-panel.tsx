@@ -73,8 +73,8 @@ export function SettingsPanel({
           </Button>
         )}
       </SheetTrigger>
-      <SheetContent className="w-[360px] bg-zinc-950 border-zinc-800 p-0">
-        <SheetHeader className="p-4 border-b border-zinc-800">
+      <SheetContent className="w-[360px] bg-zinc-950 border-white/[0.06] p-0">
+        <SheetHeader className="p-4 border-b border-white/[0.04]">
           <SheetTitle className="text-zinc-100 flex items-center gap-2">
             <Settings className="w-5 h-5" />
             Settings
@@ -85,13 +85,13 @@ export function SettingsPanel({
           {/* Theme Toggle */}
           <div className="space-y-3">
             <Label className="text-sm font-medium text-zinc-200">Theme</Label>
-            <div className="flex items-center gap-2 p-1 bg-zinc-900 rounded-lg border border-zinc-800">
+            <div className="flex items-center gap-2 p-1 bg-white/[0.03] rounded-lg border border-white/[0.06]">
               <button
                 onClick={() => onThemeChange("light")}
                 className={cn(
                   "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm transition-colors",
                   theme === "light"
-                    ? "bg-zinc-800 text-zinc-100"
+                    ? "bg-white/[0.06] text-zinc-100"
                     : "text-zinc-500 hover:text-zinc-300"
                 )}
               >
@@ -103,7 +103,7 @@ export function SettingsPanel({
                 className={cn(
                   "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm transition-colors",
                   theme === "dark"
-                    ? "bg-zinc-800 text-zinc-100"
+                    ? "bg-white/[0.06] text-zinc-100"
                     : "text-zinc-500 hover:text-zinc-300"
                 )}
               >
@@ -118,7 +118,7 @@ export function SettingsPanel({
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium text-zinc-200">Primary Color</Label>
               <div
-                className="w-6 h-6 rounded-md border border-zinc-700"
+                className="w-6 h-6 rounded-md border border-white/[0.06]"
                 style={{
                   backgroundColor:
                     TAILWIND_COLORS.find((c) => c.name === primaryColor)?.value,
@@ -149,7 +149,7 @@ export function SettingsPanel({
                 Secondary Color
               </Label>
               <div
-                className="w-6 h-6 rounded-md border border-zinc-700"
+                className="w-6 h-6 rounded-md border border-white/[0.06]"
                 style={{
                   backgroundColor:
                     TAILWIND_COLORS.find((c) => c.name === secondaryColor)?.value,

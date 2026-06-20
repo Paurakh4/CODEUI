@@ -42,7 +42,7 @@ export function DesignDiscoveryBlock({
   const isLastQuestion = currentQuestionIndex >= totalQuestions - 1
 
   return (
-    <div className="max-w-[90%] rounded-lg border border-zinc-800 bg-zinc-950/70 px-3 py-2.5 text-zinc-100 backdrop-blur-sm">
+    <div className="max-w-[90%] rounded-lg border border-white/[0.06] bg-zinc-950/80 px-3 py-2.5 text-zinc-100 backdrop-blur-sm">
       <div className="flex items-start gap-2">
         <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/5 text-zinc-200">
           {isLoading || isSubmitting ? (
@@ -68,7 +68,7 @@ export function DesignDiscoveryBlock({
           </div>
 
           {isLoading || !question ? (
-            <div className="rounded-md border border-dashed border-zinc-800 bg-black/20 px-2 py-3 text-xs text-zinc-500">
+            <div className="rounded-md border border-dashed border-white/[0.06] bg-white/[0.02] px-2 py-3 text-xs text-zinc-500">
               Looking for the smallest set of design questions that will materially improve the result.
             </div>
           ) : (
@@ -93,8 +93,8 @@ export function DesignDiscoveryBlock({
                       className={cn(
                         "rounded-md border px-2.5 py-1.5 text-left transition-colors",
                         isSelected
-                          ? "border-zinc-500 bg-zinc-800 text-zinc-50"
-                          : "border-zinc-800 bg-zinc-900/60 text-zinc-300 hover:border-zinc-700 hover:bg-zinc-900",
+                          ? "border-white/[0.10] bg-white/[0.06] text-zinc-100"
+                          : "border-white/[0.06] bg-white/[0.03] text-zinc-400 hover:border-white/[0.08] hover:bg-white/[0.04]",
                       )}
                     >
                       <span className="block text-xs font-medium">{option.label}</span>
@@ -145,7 +145,7 @@ export function DesignDiscoveryBlock({
                       size="sm"
                       onClick={onSkip}
                       disabled={isSubmitting}
-                      className="text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+                      className="text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-100"
                     >
                       Skip
                     </Button>
@@ -162,7 +162,7 @@ export function DesignDiscoveryBlock({
                   className={cn(
                     isLastQuestion
                       ? "bg-zinc-100 text-zinc-950 hover:bg-zinc-200"
-                      : "text-zinc-300 hover:bg-zinc-900 hover:text-zinc-100",
+                      : "text-zinc-300 hover:bg-white/[0.04] hover:text-zinc-100",
                   )}
                 >
                   {isLastQuestion ? (

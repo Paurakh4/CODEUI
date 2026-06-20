@@ -197,27 +197,27 @@ export function TopNav({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="h-8 flex items-center px-2 bg-[#0a0a0a]">
+      <div className="h-9 flex items-center px-3 bg-zinc-950 border-b border-white/[0.04]">
         {/* Left Section */}
-        <div className="flex items-center gap-1 flex-1">
+        <div className="flex items-center gap-1.5 flex-1">
           {/* Sidebar Toggle */}
           {!sidebarOpen && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
-                  className="p-1 h-5 hover:bg-zinc-800 rounded-md text-zinc-400 hover:text-zinc-200 transition-colors"
+                  className="p-1 h-6 hover:bg-white/[0.04] rounded-md text-zinc-400 hover:text-zinc-200 transition-colors"
                   onClick={onToggleSidebar}
                   aria-label="Open sidebar"
                 >
-                  <PanelLeft className="w-3 h-3" />
+                  <PanelLeft className="w-3.5 h-3.5" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom">Open sidebar</TooltipContent>
             </Tooltip>
           )}
 
-          {/* View Mode Tabs */}
-          <div className="flex items-center bg-zinc-900 rounded-md p-0.5 border border-zinc-800">
+          {/* View Mode Tabs — ghost style */}
+          <div className="flex items-center gap-0.5">
             {tabs.map((tab) => {
               const Icon = tab.icon
               const isActive = viewMode === tab.id
@@ -227,14 +227,14 @@ export function TopNav({
                     <button
                       onClick={() => onViewModeChange?.(tab.id)}
                       className={`
-                        flex items-center gap-1 px-1.5 py-1 h-5 rounded text-[11px] font-medium transition-all
+                        flex items-center gap-1.5 px-2 py-1 h-7 rounded-md text-[12px] font-medium transition-all
                         ${isActive
-                          ? "bg-zinc-800 text-zinc-100 shadow-sm"
-                          : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                          ? "bg-white/[0.06] text-zinc-100"
+                          : "text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04]"
                         }
                       `}
                     >
-                      <Icon className="w-3 h-3" />
+                      <Icon className="w-3.5 h-3.5" />
                       <span className="hidden sm:inline">{tab.label}</span>
                     </button>
                   </TooltipTrigger>
@@ -246,18 +246,18 @@ export function TopNav({
             })}
           </div>
 
-          {/* Action Buttons */}
-          <div className="hidden sm:flex items-center bg-zinc-900 rounded-md p-0.5 border border-zinc-800">
+          {/* Action Buttons — flat icon group */}
+          <div className="hidden sm:flex items-center gap-0.5 ml-1 pl-2 border-l border-white/[0.04]">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   onClick={onSave}
                   aria-label="Save checkpoint"
-                  className={`p-1 h-5 hover:bg-zinc-800 rounded transition-colors ${
+                  className={`p-1.5 h-7 hover:bg-white/[0.04] rounded-md transition-colors ${
                     hasUnsavedChanges ? "text-orange-400" : "text-zinc-500 hover:text-zinc-300"
                   }`}
                 >
-                  <Save className="w-3 h-3" />
+                  <Save className="w-3.5 h-3.5" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
@@ -271,9 +271,9 @@ export function TopNav({
                   onClick={onUndo}
                   disabled={!canUndo}
                   aria-label="Undo"
-                  className="p-1 h-5 hover:bg-zinc-800 rounded text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-zinc-500"
+                  className="p-1.5 h-7 hover:bg-white/[0.04] rounded-md text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-zinc-500"
                 >
-                  <Undo className="w-3 h-3" />
+                  <Undo className="w-3.5 h-3.5" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom">Undo (⌘Z)</TooltipContent>
@@ -285,9 +285,9 @@ export function TopNav({
                   onClick={onRedo}
                   disabled={!canRedo}
                   aria-label="Redo"
-                  className="p-1 h-5 hover:bg-zinc-800 rounded text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-zinc-500"
+                  className="p-1.5 h-7 hover:bg-white/[0.04] rounded-md text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-zinc-500"
                 >
-                  <Redo className="w-3 h-3" />
+                  <Redo className="w-3.5 h-3.5" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom">Redo (⌘⇧Z)</TooltipContent>
@@ -298,30 +298,28 @@ export function TopNav({
                 <button
                   onClick={onHistoryOpen}
                   aria-label="Open history"
-                  className="p-1 h-5 hover:bg-zinc-800 rounded text-zinc-500 hover:text-zinc-300 transition-colors"
+                  className="p-1.5 h-7 hover:bg-white/[0.04] rounded-md text-zinc-500 hover:text-zinc-300 transition-colors"
                 >
-                  <Clock className="w-3 h-3" />
+                  <Clock className="w-3.5 h-3.5" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom">History</TooltipContent>
             </Tooltip>
           </div>
-
-
         </div>
 
         {/* Right Section */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           {/* Credits Display */}
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 onClick={showPricing}
                 aria-label="Open plans and top-up credits"
-                className="flex items-center gap-1.5 bg-zinc-900/50 hover:bg-zinc-900 rounded-full px-2 py-0.5 border border-white/10 transition-colors cursor-pointer group"
+                className="flex items-center gap-1.5 hover:bg-white/[0.04] rounded-full px-2 py-0.5 transition-colors cursor-pointer group"
               >
-                <TierIcon className={cn("w-3 h-3 group-hover:scale-110 transition-transform", tierBadge.color)} />
-                <span className="text-[11px] font-bold text-zinc-100">{userTotalCredits}</span>
+                <TierIcon className={cn("w-3.5 h-3.5 group-hover:scale-110 transition-transform", tierBadge.color)} />
+                <span className="text-[12px] font-medium text-zinc-400 group-hover:text-zinc-200 transition-colors">{userTotalCredits}</span>
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
@@ -330,7 +328,7 @@ export function TopNav({
           </Tooltip>
 
           {/* Device Viewport Switcher */}
-          <div className="hidden md:flex items-center bg-zinc-900 rounded-md p-0.5 border border-zinc-800">
+          <div className="hidden md:flex items-center gap-0.5">
             {viewModes.map((mode) => {
               const Icon = mode.icon
               const isActive = deviceMode === mode.id
@@ -341,14 +339,14 @@ export function TopNav({
                       onClick={() => onDeviceModeChange?.(mode.id)}
                       aria-label={`Switch to ${mode.label.toLowerCase()} viewport`}
                       className={`
-                        p-1 h-5 rounded transition-all
+                        p-1.5 h-7 rounded-md transition-all
                         ${isActive
-                          ? "bg-zinc-800 text-zinc-100 shadow-sm"
-                          : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                          ? "bg-white/[0.06] text-zinc-100"
+                          : "text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04]"
                         }
                       `}
                     >
-                      <Icon className="w-3 h-3" />
+                      <Icon className="w-3.5 h-3.5" />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">{mode.label}</TooltipContent>
@@ -357,25 +355,24 @@ export function TopNav({
             })}
           </div>
 
-          {/* Copy Button */}
+          {/* Copy Button — icon-only ghost */}
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 onClick={handleCopy}
                 aria-label="Copy HTML"
                 className={cn(
-                  "flex items-center gap-1 rounded-md px-1.5 h-6 transition-colors",
+                  "p-1.5 h-7 rounded-md transition-colors",
                   copied
                     ? "bg-emerald-500/10 text-emerald-300"
-                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800",
+                    : "text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04]",
                 )}
               >
                 {copied ? (
-                  <Check className="w-3 h-3 text-green-400" />
+                  <Check className="w-3.5 h-3.5 text-green-400" />
                 ) : (
-                  <Copy className="w-3 h-3" />
+                  <Copy className="w-3.5 h-3.5" />
                 )}
-                {copied && <span className="text-[10px] font-medium leading-none">Copied</span>}
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
@@ -384,17 +381,14 @@ export function TopNav({
           </Tooltip>
 
           {/* Export Button */}
-          <Button
-            variant="outline"
-            size="sm"
+          <button
             onClick={onExport}
             aria-label="Export project"
-            className="h-6 hover:bg-zinc-700 text-[11px] border-zinc-800 px-1.5 sm:px-2"
-            style={{ backgroundColor: '#18181B', borderColor: '#27272A' }}
+            className="inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-[12px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors"
           >
-            <Download className="w-3 h-3 sm:mr-0.5" />
+            <Download className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Export</span>
-          </Button>
+          </button>
 
           {/* Open in New Tab */}
           <Tooltip>
@@ -402,9 +396,9 @@ export function TopNav({
               <button
                 onClick={handleOpenInNewTab}
                 aria-label="Open preview in a new tab"
-                className="p-1 h-5 hover:bg-zinc-800 rounded-md text-zinc-500 hover:text-zinc-300 transition-colors"
+                className="p-1.5 h-7 hover:bg-white/[0.04] rounded-md text-zinc-500 hover:text-zinc-300 transition-colors"
               >
-                <ExternalLink className="w-3 h-3" />
+                <ExternalLink className="w-3.5 h-3.5" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom">Open in new tab</TooltipContent>
@@ -415,9 +409,9 @@ export function TopNav({
               <button
                 onClick={showSettings}
                 aria-label="Open settings"
-                className="p-1 h-5 hover:bg-zinc-800 rounded-md text-zinc-500 hover:text-zinc-300 transition-colors"
+                className="p-1.5 h-7 hover:bg-white/[0.04] rounded-md text-zinc-500 hover:text-zinc-300 transition-colors"
               >
-                <Settings className="w-3 h-3" />
+                <Settings className="w-3.5 h-3.5" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom">Settings</TooltipContent>
