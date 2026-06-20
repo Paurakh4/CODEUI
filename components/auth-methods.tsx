@@ -39,15 +39,15 @@ const appearanceCopy: Record<
     },
   },
   dialog: {
-    divider: "Secure Sector",
-    googleLabel: "AUTHENTICATE",
+    divider: "or",
+    googleLabel: "Continue with Google",
     submitLabel: {
-      signin: "EMAIL ACCESS",
-      register: "CREATE ACCOUNT",
+      signin: "Sign in",
+      register: "Create account",
     },
     toggleLabel: {
-      signin: "Create a local account",
-      register: "Use an existing account",
+      signin: "Create an account",
+      register: "Sign in instead",
     },
   },
 };
@@ -80,20 +80,20 @@ const appearanceStyles: Record<
   },
   dialog: {
     googleButton:
-      "group relative h-12 w-full justify-center gap-3 overflow-hidden rounded-[4px] border border-[#414141]/80 bg-[#141414] px-6 text-[16px] font-bold text-[#ffffff] hover:bg-[#3a3a3a] hover:border-[#faff69]/50 active:text-[#f4f692]",
+      "h-10 w-full justify-center gap-2 rounded-[4px] border border-[#414141]/80 bg-[#141414] px-4 text-[14px] font-semibold text-[#ffffff] hover:bg-[#3a3a3a] hover:border-[#faff69]/50",
     dividerText:
-      "bg-[#0a0a0a] px-4 text-[12px] font-bold uppercase tracking-[1.4px] text-[#a0a0a0]",
+      "bg-[#0a0a0a] px-3 text-[10px] font-medium uppercase tracking-[0.08em] text-[#585858]",
     label:
-      "text-[12px] font-bold uppercase tracking-[1.4px] text-[#a0a0a0]",
+      "text-[11px] font-medium uppercase tracking-[0.08em] text-[#a0a0a0]",
     input:
-      "h-11 rounded-[4px] border-[#414141]/80 bg-[#141414] px-4 text-[#ffffff] placeholder:text-[#666666] focus-visible:border-[#faff69]/60 focus-visible:ring-[#faff69]/15 hover:border-[#666666]",
+      "h-10 rounded-[4px] border-[#414141]/80 bg-[#141414] px-3.5 text-[#ffffff] text-[13px] placeholder:text-[#666666] focus-visible:border-[#faff69]/60 focus-visible:ring-[#faff69]/15 hover:border-[#666666]",
     submitButton:
-      "h-11 w-full rounded-[4px] bg-[#faff69] text-[15px] font-black text-[#151515] hover:bg-[#f2ff31] active:bg-[#dce800]",
+      "h-10 w-full rounded-[4px] bg-[#faff69] text-[14px] font-bold text-[#151515] hover:bg-[#f2ff31] active:bg-[#dce800]",
     toggleButton:
-      "h-auto w-full px-0 text-[13px] font-bold uppercase tracking-[0.08em] text-[#a0a0a0] hover:bg-transparent hover:text-[#faff69]",
+      "h-auto w-full px-0 text-[12px] font-medium uppercase tracking-[0.06em] text-[#a0a0a0] hover:bg-transparent hover:text-[#faff69]",
     feedback:
-      "flex items-start gap-2 rounded-[4px] border border-[#7c3030] bg-[#2b1111] px-3 py-2 text-[13px] text-[#ffb4b4]",
-    hint: "text-[11px] uppercase tracking-[0.08em] text-[#666666]",
+      "flex items-start gap-2 rounded-[4px] border border-[#7c3030] bg-[#2b1111] px-3 py-1.5 text-[12px] text-[#ffb4b4]",
+    hint: "text-[10px] uppercase tracking-[0.06em] text-[#666666]",
   },
 };
 
@@ -189,7 +189,7 @@ export function AuthMethods({
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <Button
         type="button"
         variant={appearance === "dialog" ? "outline" : "default"}
@@ -197,10 +197,7 @@ export function AuthMethods({
         onClick={handleGoogleSignIn}
         disabled={isSubmitting}
       >
-        {appearance === "dialog" ? (
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
-        ) : null}
-        <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24">
+        <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
           <path
             fill="currentColor"
             d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -218,25 +215,25 @@ export function AuthMethods({
             d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
           />
         </svg>
-        <span className="relative">{copy.googleLabel}</span>
+        <span>{copy.googleLabel}</span>
       </Button>
 
       <div className="relative">
         <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t border-border/60 dark:border-white/10" />
+          <span className="w-full border-t border-[#414141]/40" />
         </div>
         <div className="relative flex justify-center">
           <span className={styles.dividerText}>{copy.divider}</span>
         </div>
       </div>
 
-      <form className="space-y-4" onSubmit={handleCredentialsSubmit}>
-        <div className="space-y-2">
+      <form className="space-y-3" onSubmit={handleCredentialsSubmit}>
+        <div className="space-y-1">
           <div className="flex items-center justify-between gap-4">
             <Label htmlFor={`${appearance}-email`} className={styles.label}>
               Email
             </Label>
-            <span className={styles.hint}>8+ character password</span>
+            <span className={styles.hint}>8+ chars</span>
           </div>
           <Input
             id={`${appearance}-email`}
@@ -252,7 +249,7 @@ export function AuthMethods({
           />
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1">
           <Label htmlFor={`${appearance}-password`} className={styles.label}>
             Password
           </Label>
@@ -273,20 +270,20 @@ export function AuthMethods({
           />
         </div>
 
-        {!isRegisterMode ? (
-          <div className="flex justify-end">
+        {isRegisterMode ? null : (
+          <div className="flex justify-end -mt-1.5">
             <Link
               href="/auth/forgot-password"
               className={
                 appearance === "dialog"
-                  ? "text-[12px] font-bold uppercase tracking-[0.08em] text-[#a0a0a0] transition-colors hover:text-[#faff69]"
+                  ? "text-[11px] font-medium tracking-[0.06em] text-[#a0a0a0] transition-colors hover:text-[#faff69]"
                   : "text-sm text-muted-foreground transition-colors hover:text-foreground"
               }
             >
               Forgot password?
             </Link>
           </div>
-        ) : null}
+        )}
 
         {error ? (
           <div className={styles.feedback} role="alert">
@@ -300,7 +297,7 @@ export function AuthMethods({
           className={styles.submitButton}
           disabled={isSubmitting}
         >
-          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
           {copy.submitLabel[mode]}
         </Button>
 

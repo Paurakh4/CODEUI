@@ -640,7 +640,6 @@ export function LandingPage() {
 
           <div className="relative z-10 mx-auto max-w-7xl px-6 py-24 text-center lg:px-8 lg:py-32">
             <div className="reveal inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/70 px-3.5 py-1.5 shadow-[0_12px_24px_rgba(0,0,0,0.03)] dark:border-white/[0.06] dark:bg-white/[0.03] dark:shadow-none">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#b8d457] dark:bg-[#c8ff3c]" />
               <span className="text-[11px] uppercase tracking-wide text-[#66667a] dark:text-[#a0a0b4]" style={{ fontFamily: "var(--font-codeui-mono), monospace" }}>
                 Live preview, design controls, and export in one workflow
               </span>
@@ -939,19 +938,32 @@ export function LandingPage() {
             </div>
 
             <div className="reveal mb-12 flex items-center justify-center gap-3">
-              <span className={`text-sm ${billingAnnual ? "text-[#77778a] dark:text-[#7a7a8e]" : "font-medium text-[#101016] dark:text-white"}`}>Monthly</span>
+              <button
+                type="button"
+                onClick={() => setBillingAnnual(false)}
+                className={`text-sm transition-colors duration-200 ${billingAnnual ? "text-[#77778a] hover:text-[#101016] dark:text-[#7a7a8e] dark:hover:text-white" : "font-semibold text-[#101016] dark:text-white"}`}
+              >
+                Monthly
+              </button>
               <button
                 type="button"
                 onClick={() => setBillingAnnual((value) => !value)}
-                className="relative h-6 w-12 rounded-full bg-black/10 p-0.5 dark:bg-white/[0.08]"
+                className={`relative h-7 w-12 rounded-full p-0.5 transition-colors duration-300 ${billingAnnual ? "bg-[#b8d457]/30 dark:bg-[#c8ff3c]/20" : "bg-black/10 dark:bg-white/[0.08]"}`}
                 aria-label="Toggle billing cycle"
               >
                 <span
-                  className={`block h-5 w-5 rounded-full bg-[#b8d457] transition-transform duration-300 dark:bg-[#c8ff3c] ${billingAnnual ? "translate-x-6" : "translate-x-0"}`}
+                  className={`block h-6 w-6 rounded-full bg-[#b8d457] shadow-[0_2px_6px_rgba(184,212,87,0.4)] transition-all duration-300 dark:bg-[#c8ff3c] dark:shadow-[0_2px_8px_rgba(200,255,60,0.35)] ${billingAnnual ? "translate-x-5" : "translate-x-0"}`}
                 />
               </button>
-              <span className={`text-sm ${billingAnnual ? "font-medium text-[#101016] dark:text-white" : "text-[#77778a] dark:text-[#7a7a8e]"}`}>
-                Annual <span className="text-[11px] text-[#8aa236] dark:text-[#c8ff3c]" style={{ fontFamily: "var(--font-codeui-mono), monospace" }}>best value</span>
+              <button
+                type="button"
+                onClick={() => setBillingAnnual(true)}
+                className={`text-sm transition-colors duration-200 ${billingAnnual ? "font-semibold text-[#101016] dark:text-white" : "text-[#77778a] hover:text-[#101016] dark:text-[#7a7a8e] dark:hover:text-white"}`}
+              >
+                Annual
+              </button>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider transition-all duration-200 ${billingAnnual ? "bg-[#b8d457]/15 text-[#7d952f] dark:bg-[#c8ff3c]/15 dark:text-[#c8ff3c]" : "bg-black/[0.04] text-[#77778a] dark:bg-white/[0.04] dark:text-[#7a7a8e]"}`} style={{ fontFamily: "var(--font-codeui-mono), monospace" }}>
+                best value
               </span>
             </div>
 
@@ -961,12 +973,12 @@ export function LandingPage() {
                   key={plan.id}
                   className={`reveal card-glow relative rounded-[28px] p-7 transition-colors duration-500 lg:p-8 ${index === 1 ? "reveal-delay-1" : index === 2 ? "reveal-delay-2" : ""} ${plan.isHighlighted ? "border border-[#b8d457]/40 bg-[#f3f8de] hover:bg-[#eef5d1] dark:border-[#c8ff3c]/20 dark:bg-[#101016] dark:hover:bg-[#121218]" : "border border-black/6 bg-white/60 hover:bg-white dark:border-white/[0.04] dark:bg-white/[0.03] dark:hover:bg-white/[0.05]"}`}
                 >
-                  {plan.isHighlighted ? (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#b8d457] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#08080a] dark:bg-[#c8ff3c]" style={{ fontFamily: "var(--font-codeui-mono), monospace" }}>
-                      Most popular
-                    </div>
-                  ) : null}
                   <div className={`mb-4 text-[11px] uppercase tracking-[0.15em] ${plan.isHighlighted ? "text-[#7d952f] dark:text-[#c8ff3c]" : "text-[#77778a] dark:text-[#7a7a8e]"}`} style={{ fontFamily: "var(--font-codeui-mono), monospace" }}>
+                    {plan.isHighlighted ? (
+                      <span className="mr-2 inline-block rounded-full bg-[#b8d457] px-2.5 py-0.5 text-[10px] font-bold text-[#08080a] dark:bg-[#c8ff3c]" style={{ fontFamily: "var(--font-codeui-mono), monospace" }}>
+                        Most popular
+                      </span>
+                    ) : null}
                     {plan.name}
                   </div>
                   <div className="mb-2 flex items-baseline gap-1">
@@ -982,7 +994,7 @@ export function LandingPage() {
                   <PrimaryAction
                     isSignedIn={isSignedIn}
                     onSignIn={showSignIn}
-                    className={`mb-7 flex w-full items-center justify-center rounded-xl py-3 text-sm font-semibold transition-colors ${plan.isHighlighted ? "bg-[#b8d457] text-[#08080a] hover:bg-[#a7c44d] dark:bg-[#c8ff3c] dark:hover:bg-[#a3d630]" : "border border-black/10 text-[#101016] hover:bg-white dark:border-white/[0.08] dark:text-[#d4d4e0] dark:hover:bg-white/[0.03]"}`}
+                    className={`mb-7 flex w-full items-center justify-center rounded-xl py-3 text-sm font-semibold transition-colors ${plan.isHighlighted ? "bg-[#b8d457] text-[#08080a] hover:bg-[#a7c44d] dark:bg-[#c8ff3c] dark:hover:bg-[#a3d630]" : plan.id === "proplus" ? "bg-[#101016] text-white hover:bg-[#1a1a24] dark:bg-white dark:text-[#08080a] dark:hover:bg-[#e8e8f0]" : "border border-black/10 text-[#101016] hover:bg-white dark:border-white/[0.08] dark:text-[#d4d4e0] dark:hover:bg-white/[0.03]"}`}
                   >
                     {!isSignedIn ? (plan.id === "free" ? "Get started free" : "Sign in to upgrade") : "Manage in dashboard"}
                   </PrimaryAction>
