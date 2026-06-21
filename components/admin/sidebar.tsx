@@ -25,6 +25,7 @@ import {
   LayoutDashboard,
   MessageSquare,
   ScrollText,
+  Settings2,
   ShieldCheck,
   Users,
 } from "lucide-react"
@@ -38,6 +39,7 @@ const NAV_ITEMS = [
   { label: "Models", href: "/admin/models", icon: Bot },
   { label: "Feedback", href: "/admin/feedback", icon: MessageSquare },
   { label: "Audit", href: "/admin/audit", icon: ScrollText },
+  { label: "Settings", href: "/admin/settings", icon: Settings2 },
 ]
 
 interface AdminSidebarProps {
@@ -52,6 +54,7 @@ interface AdminSidebarProps {
 export function AdminSidebar({ user }: AdminSidebarProps) {
   const pathname = usePathname()
   const canViewFeedback = user.permissions.includes("admin:view-feedback")
+  const canManageSettings = user.permissions.includes("admin:manage-settings")
   const [feedbackUnreadCount, setFeedbackUnreadCount] = useState<number | null>(null)
 
   const syncFeedbackCount = useEffectEvent(async () => {
@@ -81,9 +84,11 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
     }
   }, [canViewFeedback])
 
-  const navItems = NAV_ITEMS.filter(
-    (item) => item.label !== "Feedback" || canViewFeedback,
-  )
+  const navItems = NAV_ITEMS.filter((item) => {
+    if (item.label === "Feedback") return canViewFeedback
+    if (item.label === "Settings") return canManageSettings
+    return true
+  })
 
   function isActive(href: string) {
     return href === "/admin"

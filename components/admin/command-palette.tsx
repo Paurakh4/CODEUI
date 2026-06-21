@@ -18,6 +18,7 @@ import {
   LayoutDashboard,
   MessageSquare,
   ScrollText,
+  Settings2,
   Users,
 } from "lucide-react"
 
@@ -29,6 +30,7 @@ const COMMANDS = [
   { label: "Models", href: "/admin/models", icon: Bot },
   { label: "Feedback", href: "/admin/feedback", icon: MessageSquare },
   { label: "Audit", href: "/admin/audit", icon: ScrollText },
+  { label: "Settings", href: "/admin/settings", icon: Settings2 },
   { label: "Exit to Dashboard", href: "/dashboard", icon: ArrowLeft },
 ]
 

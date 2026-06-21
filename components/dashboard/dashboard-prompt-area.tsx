@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useCallback, useState, type ChangeEvent, type DragEvent } from "react"
+import { useRef, useCallback, useState, useEffect, type ChangeEvent, type DragEvent } from "react"
 import {
   ArrowUp,
   Plus,
@@ -122,9 +122,15 @@ export function DashboardPromptArea({
       return
     }
     textarea.style.height = "44px"
-    const newHeight = Math.max(44, Math.min(textarea.scrollHeight, 160))
+    const newHeight = Math.max(44, Math.min(textarea.scrollHeight, 200))
     textarea.style.height = `${newHeight}px`
   }, [])
+
+  // ponytail: external prompt changes (enhance, etc.) don't trigger onChange,
+  // so we watch the prop and re-adjust.
+  useEffect(() => {
+    adjustHeight()
+  }, [promptValue, adjustHeight])
 
   const addFiles = useCallback(async (files: FileList | File[]) => {
     if (!isVisionCapableModel(selectedModelId)) {
@@ -292,7 +298,7 @@ export function DashboardPromptArea({
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            className="w-full bg-transparent text-[#E7E7E9] text-[14px] font-[500] px-3 py-2 min-h-[44px] max-h-[160px] outline-none resize-none placeholder:text-[#6B6B70] leading-snug"
+            className="w-full bg-transparent text-[#E7E7E9] text-[14px] font-[500] px-3 py-2 min-h-[44px] max-h-[200px] outline-none resize-none placeholder:text-[#6B6B70] leading-snug"
             placeholder="Ask CodeUI to build..."
             rows={1}
           />

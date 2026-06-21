@@ -156,7 +156,7 @@ export function AI_Prompt({
     const fileInputRef = useRef<HTMLInputElement>(null)
     const { textareaRef, adjustHeight } = useAutoResizeTextarea({
         minHeight: 52,
-        maxHeight: 200,
+        maxHeight: 100,
     });
     
     // State for models
@@ -433,7 +433,7 @@ export function AI_Prompt({
 
                         <div
                             className="overflow-y-auto"
-                            style={{ maxHeight: "200px" }}
+                            style={{ maxHeight: "100px" }}
                         >
                             <Textarea
                                 id="ai-input-15"
