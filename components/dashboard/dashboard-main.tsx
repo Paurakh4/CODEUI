@@ -11,6 +11,7 @@ import { useAuthDialog } from "@/components/auth-dialog-provider"
 import { useEditor } from "@/stores/editor-store"
 import type { SubscriptionTier } from "@/lib/pricing"
 import { cn } from "@/lib/utils"
+import { isVisionCapableModel } from "@/lib/ai-models"
 import { useToast } from "@/hooks/use-toast"
 
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
@@ -39,7 +40,7 @@ interface Project {
 }
 
 interface DashboardMainProps {
-  onStart: (prompt?: string, model?: string) => void
+  onStart: (prompt?: string, model?: string, images?: string[]) => void
   isStartingProject?: boolean
   billingSyncState?: "idle" | "processing" | "confirmed" | "failed"
   billingSyncMessage?: string | null
@@ -116,9 +117,22 @@ export function DashboardMain({
     }
   }, [billingSyncState, refreshCredits])
 
-  const handleSend = () => {
+  const handleSend = (images?: Array<{ dataUrl: string }>) => {
     if (!promptValue.trim() || isStartingProject) return
-    onStart(promptValue.trim(), selectedModelId)
+
+    const imageUrls = images?.map((img) => img.dataUrl) ?? []
+
+    // Block non-vision models when images are attached
+    if (imageUrls.length > 0 && !isVisionCapableModel(selectedModelId)) {
+      toast({
+        title: "Pick a vision-capable model",
+        description: "The selected model does not support image input. Switch to Gemini, Claude, GPT, or another vision-capable model.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    onStart(promptValue.trim(), selectedModelId, imageUrls.length > 0 ? imageUrls : undefined)
   }
 
   const handleEnhancePrompt = useCallback(async () => {

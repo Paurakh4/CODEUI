@@ -13,6 +13,7 @@ export interface AIModel {
   description?: string
   contextLength: number
   supportsReasoning?: boolean
+  supportsVision?: boolean
   isFast?: boolean
   isNewModel?: boolean
 }
@@ -51,6 +52,16 @@ export function resolveModelSourceProvider(model?: Pick<AIModel, "provider" | "s
   return model?.provider === "PxRoute" ? PXROUTE_SOURCE_PROVIDER : OPENROUTER_SOURCE_PROVIDER
 }
 
+/**
+ * Check whether a model supports vision/image input.
+ * Resolves from the hardcoded master list first, then falls back to
+ * synthesized metadata for env-configured models.
+ */
+export function isVisionCapableModel(modelId: string): boolean {
+  const model = getModelById(modelId)
+  return model?.supportsVision === true
+}
+
 // All available models (master list)
 const ALL_MODELS: AIModel[] = [
   {
@@ -69,6 +80,7 @@ const ALL_MODELS: AIModel[] = [
     sourceProvider: OPENROUTER_SOURCE_PROVIDER,
     description: "Lightweight Claude for fast, low-cost tasks",
     contextLength: 200000,
+    supportsVision: true,
     isFast: true,
     isNewModel: true,
   },
@@ -88,6 +100,7 @@ const ALL_MODELS: AIModel[] = [
     sourceProvider: OPENROUTER_SOURCE_PROVIDER,
     description: "Free Kimi K2 model",
     contextLength: 128000,
+    supportsVision: true,
   },
   {
     id: "moonshotai/kimi-k2-thinking",
@@ -96,6 +109,7 @@ const ALL_MODELS: AIModel[] = [
     sourceProvider: OPENROUTER_SOURCE_PROVIDER,
     description: "Reasoning-enhanced Kimi",
     contextLength: 128000,
+    supportsVision: true,
     supportsReasoning: true,
   },
   {
@@ -105,6 +119,7 @@ const ALL_MODELS: AIModel[] = [
     sourceProvider: OPENROUTER_SOURCE_PROVIDER,
     description: "GLM 4.7",
     contextLength: 128000,
+    supportsVision: true,
   },
   {
     id: "mistralai/devstral-2512:free",
@@ -122,6 +137,7 @@ const ALL_MODELS: AIModel[] = [
     sourceProvider: OPENROUTER_SOURCE_PROVIDER,
     description: "Latest Gemini model preview",
     contextLength: 2000000,
+    supportsVision: true,
     isFast: true,
     isNewModel: true,
   },
@@ -132,6 +148,7 @@ const ALL_MODELS: AIModel[] = [
     sourceProvider: OPENROUTER_SOURCE_PROVIDER,
     description: "Fast and lightweight Gemini 3.1 preview model",
     contextLength: 1000000,
+    supportsVision: true,
     isFast: true,
     isNewModel: true,
   },
@@ -142,6 +159,7 @@ const ALL_MODELS: AIModel[] = [
     sourceProvider: PXROUTE_SOURCE_PROVIDER,
     description: "Latest flagship Claude via PxRoute",
     contextLength: 200000,
+    supportsVision: true,
     supportsReasoning: true,
     isNewModel: true,
   },
@@ -152,6 +170,7 @@ const ALL_MODELS: AIModel[] = [
     sourceProvider: PXROUTE_SOURCE_PROVIDER,
     description: "Previous flagship Claude via PxRoute",
     contextLength: 200000,
+    supportsVision: true,
     supportsReasoning: true,
   },
   {
@@ -161,6 +180,7 @@ const ALL_MODELS: AIModel[] = [
     sourceProvider: PXROUTE_SOURCE_PROVIDER,
     description: "Older flagship Claude via PxRoute",
     contextLength: 200000,
+    supportsVision: true,
     supportsReasoning: true,
   },
   {
@@ -170,6 +190,7 @@ const ALL_MODELS: AIModel[] = [
     sourceProvider: PXROUTE_SOURCE_PROVIDER,
     description: "Balanced PxRoute default for speed, quality, and cost",
     contextLength: 200000,
+    supportsVision: true,
     supportsReasoning: true,
     isFast: true,
     isNewModel: true,
@@ -181,6 +202,7 @@ const ALL_MODELS: AIModel[] = [
     sourceProvider: PXROUTE_SOURCE_PROVIDER,
     description: "Fast and cheap PxRoute Claude model for high-volume work",
     contextLength: 200000,
+    supportsVision: true,
     isFast: true,
   },
   {
@@ -190,6 +212,7 @@ const ALL_MODELS: AIModel[] = [
     sourceProvider: PXROUTE_SOURCE_PROVIDER,
     description: "Latest GPT model via PxRoute for strong general reasoning",
     contextLength: 400000,
+    supportsVision: true,
     supportsReasoning: true,
     isNewModel: true,
   },
@@ -200,6 +223,7 @@ const ALL_MODELS: AIModel[] = [
     sourceProvider: PXROUTE_SOURCE_PROVIDER,
     description: "Stable GPT flagship via PxRoute",
     contextLength: 400000,
+    supportsVision: true,
     supportsReasoning: true,
   },
   {
@@ -209,6 +233,7 @@ const ALL_MODELS: AIModel[] = [
     sourceProvider: PXROUTE_SOURCE_PROVIDER,
     description: "Code-specialized GPT model via PxRoute",
     contextLength: 400000,
+    supportsVision: true,
     supportsReasoning: true,
   },
 ]

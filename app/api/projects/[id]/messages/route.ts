@@ -64,6 +64,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       role: body.role as "user" | "assistant",
       content: body.content,
       thinkingContent: body.thinkingContent,
+      images: Array.isArray(body.images) ? body.images : undefined,
       createdAt: new Date(),
     };
 

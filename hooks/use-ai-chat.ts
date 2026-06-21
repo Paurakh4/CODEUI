@@ -64,6 +64,7 @@ interface UseAIChatOptions {
   onProgressUpdate?: (progress: AIStreamProgress) => void
   onComplete?: (result: AICompletionResult) => void
   onCancel?: () => void
+  onNoop?: (reason: string) => void
   onPatch?: (filePath: string, searchBlock: string, replaceBlock: string) => boolean | void
   onFileUpdate?: (filePath: string) => void
   onProjectNameUpdate?: (name: string) => void
@@ -82,6 +83,7 @@ interface SendMessageOptions {
   secondaryColor?: string
   theme?: "light" | "dark"
   conversationHistory?: ConversationHistoryItem[]
+  images?: string[]
 }
 
 const logger = createRepromptLogger("use-ai-chat")
@@ -166,6 +168,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       secondaryColor,
       theme,
       conversationHistory,
+      images,
     }: SendMessageOptions) => {
       if (abortControllerRef.current) {
         abortActiveRequest(false)
@@ -240,6 +243,12 @@ export function useAIChat(options: UseAIChatOptions = {}) {
               throw new Error(data.data || "AI stream error")
             }
 
+            if (data.type === "noop") {
+              optionsRef.current.onNoop?.(data.data?.reason || "The page already matches your request — no changes needed.")
+              // The stream will close after this; skip further processing.
+              continue
+            }
+
             if (data.type === "content") {
               if (!isRequestActive()) {
                 return false
@@ -312,6 +321,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
             theme,
             conversationHistory,
             isRecoveryRequest: isRecoveryModeActive(recoveryMode),
+            images,
           }),
           signal: abortController.signal,
         })

@@ -157,7 +157,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton
-        className="sm:max-w-xl bg-background border-border p-0 rounded-2xl"
+        className="sm:max-w-xl bg-[#0E0E10] border-white/[0.06] p-0 rounded-xl overflow-hidden"
       >
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <DialogDescription className="sr-only">
@@ -166,45 +166,67 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
         {isLoading ? (
           <div className="flex h-[320px] items-center justify-center">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <Loader2 className="h-5 w-5 animate-spin text-[#6B6B70]" />
           </div>
         ) : (
           <ScrollArea className="max-h-[85vh]">
             <div className="p-5 space-y-5">
+              {/* Header */}
               <div className="flex items-center justify-between">
-                <h1 className="text-xl font-semibold text-foreground">
-                  Settings
-                </h1>
-                <Button onClick={handleSave} disabled={isSaving} size="sm">
+                <div>
+                  <h1 className="text-lg font-bold tracking-tight text-[#E7E7E9]">
+                    Settings
+                  </h1>
+                  <p className="text-[11px] text-[#9B9B9F] mt-0.5">
+                    Sync your appearance, AI defaults, and preferences.
+                  </p>
+                </div>
+                <Button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  size="sm"
+                  className="h-7 text-[11px] rounded-lg bg-white text-black hover:bg-[#E7E7E9] font-medium"
+                >
                   {isSaving && (
-                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                   )}
                   Save
                 </Button>
               </div>
 
+              {/* Tabs */}
               <Tabs defaultValue="appearance">
-                <TabsList className="w-full">
-                  <TabsTrigger value="appearance" className="flex-1 gap-1.5">
-                    <Palette className="h-3.5 w-3.5" />
+                <TabsList className="w-full bg-[#0E0E10] border border-white/[0.04] rounded-lg p-0.5 h-auto">
+                  <TabsTrigger
+                    value="appearance"
+                    className="flex-1 gap-1.5 h-7 text-[11px] data-[state=active]:bg-[#1B1B1F] data-[state=active]:text-[#E7E7E9] text-[#9B9B9F] rounded-md border-0"
+                  >
+                    <Palette className="h-3 w-3" />
                     Appearance
                   </TabsTrigger>
-                  <TabsTrigger value="ai" className="flex-1 gap-1.5">
-                    <Sparkles className="h-3.5 w-3.5" />
+                  <TabsTrigger
+                    value="ai"
+                    className="flex-1 gap-1.5 h-7 text-[11px] data-[state=active]:bg-[#1B1B1F] data-[state=active]:text-[#E7E7E9] text-[#9B9B9F] rounded-md border-0"
+                  >
+                    <Sparkles className="h-3 w-3" />
                     AI Defaults
                   </TabsTrigger>
-                  <TabsTrigger value="preferences" className="flex-1 gap-1.5">
-                    <Settings className="h-3.5 w-3.5" />
+                  <TabsTrigger
+                    value="preferences"
+                    className="flex-1 gap-1.5 h-7 text-[11px] data-[state=active]:bg-[#1B1B1F] data-[state=active]:text-[#E7E7E9] text-[#9B9B9F] rounded-md border-0"
+                  >
+                    <Settings className="h-3 w-3" />
                     Preferences
                   </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="appearance" className="space-y-4 mt-4">
-                  <div className="rounded-lg border border-border p-4 space-y-3">
-                    <Label className="text-xs text-muted-foreground font-medium">
+                <TabsContent value="appearance" className="space-y-3 mt-4">
+                  {/* Theme */}
+                  <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 space-y-3">
+                    <Label className="text-[11px] text-[#9B9B9F] font-medium uppercase tracking-[0.05em]">
                       Theme
                     </Label>
-                    <div className="flex items-center gap-1.5 rounded-lg bg-muted p-1">
+                    <div className="flex items-center gap-1.5 rounded-lg bg-[#0E0E10] border border-white/[0.04] p-0.5">
                       {(["dark", "light"] as const).map((themeOption) => (
                         <button
                           key={themeOption}
@@ -216,10 +238,10 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                             }))
                           }
                           className={cn(
-                            "flex-1 rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-all",
+                            "flex-1 rounded-md px-3 py-1.5 text-[11px] font-medium capitalize transition-all",
                             draft.theme === themeOption
-                              ? "bg-background text-foreground shadow-sm"
-                              : "text-muted-foreground hover:text-foreground"
+                              ? "bg-[#1B1B1F] text-[#E7E7E9]"
+                              : "text-[#6B6B70] hover:text-[#9B9B9F]"
                           )}
                         >
                           {themeOption}
@@ -228,8 +250,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     </div>
                   </div>
 
-                  <div className="rounded-lg border border-border p-4 space-y-3">
-                    <Label className="text-xs text-muted-foreground font-medium">
+                  {/* Primary Color */}
+                  <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 space-y-3">
+                    <Label className="text-[11px] text-[#9B9B9F] font-medium uppercase tracking-[0.05em]">
                       Primary
                     </Label>
                     <div className="flex flex-wrap gap-2">
@@ -247,7 +270,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                           className={cn(
                             "h-6 w-6 rounded-full transition-all hover:scale-110 flex items-center justify-center",
                             draft.primaryColor === color.name &&
-                              "ring-2 ring-ring ring-offset-1 ring-offset-background"
+                              "ring-2 ring-white ring-offset-2 ring-offset-[#0E0E10]"
                           )}
                           style={{ backgroundColor: color.value }}
                         >
@@ -259,8 +282,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     </div>
                   </div>
 
-                  <div className="rounded-lg border border-border p-4 space-y-3">
-                    <Label className="text-xs text-muted-foreground font-medium">
+                  {/* Secondary Color */}
+                  <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 space-y-3">
+                    <Label className="text-[11px] text-[#9B9B9F] font-medium uppercase tracking-[0.05em]">
                       Secondary
                     </Label>
                     <div className="flex flex-wrap gap-2">
@@ -278,7 +302,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                           className={cn(
                             "h-6 w-6 rounded-full transition-all hover:scale-110 flex items-center justify-center",
                             draft.secondaryColor === color.name &&
-                              "ring-2 ring-ring ring-offset-1 ring-offset-background"
+                              "ring-2 ring-white ring-offset-2 ring-offset-[#0E0E10]"
                           )}
                           style={{ backgroundColor: color.value }}
                         >
@@ -291,9 +315,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="ai" className="space-y-4 mt-4">
-                  <div className="rounded-lg border border-border p-4 space-y-3">
-                    <Label className="text-xs text-muted-foreground font-medium">
+                <TabsContent value="ai" className="space-y-3 mt-4">
+                  <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 space-y-3">
+                    <Label className="text-[11px] text-[#9B9B9F] font-medium uppercase tracking-[0.05em]">
                       Default Model
                     </Label>
                     <ModelSelector
@@ -308,10 +332,10 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="preferences" className="space-y-4 mt-4">
-                  <div className="rounded-lg border border-border divide-y divide-border">
+                <TabsContent value="preferences" className="space-y-3 mt-4">
+                  <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] divide-y divide-white/[0.04]">
                     <div className="flex items-center justify-between px-4 py-3">
-                      <Label className="text-sm text-foreground cursor-pointer">
+                      <Label className="text-[13px] text-[#E7E7E9] cursor-pointer font-normal">
                         Product Updates
                       </Label>
                       <Switch
@@ -328,7 +352,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                       />
                     </div>
                     <div className="flex items-center justify-between px-4 py-3">
-                      <Label className="text-sm text-foreground cursor-pointer">
+                      <Label className="text-[13px] text-[#E7E7E9] cursor-pointer font-normal">
                         Marketing Emails
                       </Label>
                       <Switch
@@ -345,7 +369,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                       />
                     </div>
                     <div className="flex items-center justify-between px-4 py-3">
-                      <Label className="text-sm text-foreground cursor-pointer">
+                      <Label className="text-[13px] text-[#E7E7E9] cursor-pointer font-normal">
                         Private Projects
                       </Label>
                       <Switch

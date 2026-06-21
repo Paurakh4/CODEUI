@@ -224,6 +224,12 @@ function tryApplyPatches(content: string, currentHtml: string): {
 export interface FinalizeFollowUpInput {
   rawContent: string
   currentHtml: string
+  /**
+   * When true, SEARCH/REPLACE patch application is elevated to the PRIMARY
+   * strategy (tried before fenced-block and narration extraction). Use for
+   * surgical edit mode where the model is explicitly asked to return patches.
+   */
+  preferPatches?: boolean
 }
 
 /**
@@ -232,9 +238,10 @@ export interface FinalizeFollowUpInput {
  * Strategy ordering (cheapest first):
  *   1. Pass-through (already a strict complete document).
  *   2. Strip thinking tags, then re-check.
- *   3. Unwrap fenced ```html block (handles both closed and unterminated).
+ *   3a. (If preferPatches) Apply SEARCH/REPLACE patches against prior HTML.
+ *   3b. Unwrap fenced ```html block (handles both closed and unterminated).
  *   4. Extract complete document hidden inside narration.
- *   5. Apply SEARCH/REPLACE patches against the prior HTML.
+ *   5. (If !preferPatches) Apply SEARCH/REPLACE patches against the prior HTML.
  *
  * On success, the returned HTML is guaranteed to satisfy
  * `isStrictCompleteHtmlDocument` AND has been run through `normalizeHtml`,
@@ -272,6 +279,21 @@ export function finalizeFollowUpResponse(
 
   const candidate = withoutThinking || cleaned
 
+  // When preferPatches is set (surgical mode), try SEARCH/REPLACE patches
+  // before fenced-block and narration extraction. The model was explicitly
+  // asked for patches, so patches are the primary strategy.
+  if (input.preferPatches && input.currentHtml && isStrictCompleteHtmlDocument(input.currentHtml)) {
+    const patched = tryApplyPatches(candidate, input.currentHtml)
+    if (patched) {
+      return {
+        ok: true,
+        html: normalizeHtml(patched.html),
+        strategy: "search-replace",
+        appliedPatchCount: patched.appliedPatchCount,
+      }
+    }
+  }
+
   // Fenced blocks before raw narration extraction: when models include
   // multiple fenced examples, the fenced block is the canonical answer.
   const fenced = tryExtractFencedBlock(candidate)
@@ -288,7 +310,8 @@ export function finalizeFollowUpResponse(
     }
   }
 
-  if (input.currentHtml && isStrictCompleteHtmlDocument(input.currentHtml)) {
+  // Non-preferPatches: try patches as a last resort after extraction.
+  if (!input.preferPatches && input.currentHtml && isStrictCompleteHtmlDocument(input.currentHtml)) {
     const patched = tryApplyPatches(candidate, input.currentHtml)
     if (patched) {
       return {

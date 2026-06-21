@@ -6,7 +6,7 @@ import { User, UsageLog } from "@/lib/models"
 import {
   getCombinedSystemPrompt,
 } from "@/lib/prompts/frontend-design"
-import { FOLLOW_UP_REPAIR_INSTRUCTION, FOLLOW_UP_SYSTEM_PROMPT } from "@/lib/prompts/reprompt-system"
+import { FOLLOW_UP_REPAIR_INSTRUCTION, FOLLOW_UP_SYSTEM_PROMPT, SURGICAL_EDIT_SYSTEM_PROMPT, SURGICAL_EDIT_REPAIR_INSTRUCTION, COPY_CONSISTENCY_INSTRUCTION } from "@/lib/prompts/reprompt-system"
 import {
   isFullDocumentRecoveryMode,
   isRecoveryModeActive,
@@ -14,6 +14,7 @@ import {
 } from "@/lib/recovery-mode"
 import {
   getModelById,
+  isVisionCapableModel,
 } from "@/lib/ai-models"
 import {
   getRuntimeDefaultModelId,
@@ -44,12 +45,17 @@ import {
 } from "@/lib/reprompting/follow-up-finalizer"
 import { estimateTokenCount } from "@/lib/token-counter"
 import { getPromptAdaptationGuidance } from "@/lib/prompt-adaptation"
+import { classifyRepromptIntent } from "@/lib/reprompting/intent-classifier"
 import { resolveProviderRequestConfig } from "@/lib/ai-provider-client"
 import { createRepromptLogger } from "@/lib/utils/reprompt-logger"
 
+type ContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } }
+
 interface Message {
   role: "user" | "assistant" | "system"
-  content: string
+  content: string | ContentPart[]
 }
 
 interface ConversationHistoryItem {
@@ -69,6 +75,7 @@ interface RequestBody {
   theme?: "light" | "dark"
   conversationHistory?: ConversationHistoryItem[]
   isRecoveryRequest?: boolean
+  images?: string[]
 }
 
 interface CreditContext {
@@ -499,6 +506,7 @@ export async function POST(req: NextRequest) {
       theme,
       conversationHistory,
       isRecoveryRequest,
+      images,
     } = body
 
     if (!prompt || typeof prompt !== "string") {
@@ -515,6 +523,15 @@ export async function POST(req: NextRequest) {
     if (!(await isRuntimeModelEnabled(model))) {
       return NextResponse.json(
         { error: `Model \"${model}\" is not enabled or does not exist` },
+        { status: 400 },
+      )
+    }
+
+    // Server-side guard: images require a vision-capable model
+    const hasImages = Array.isArray(images) && images.length > 0
+    if (hasImages && !isVisionCapableModel(model)) {
+      return NextResponse.json(
+        { error: "Selected model does not support image input. Pick a vision-capable model." },
         { status: 400 },
       )
     }
@@ -629,7 +646,52 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Credit system error. Please try again." }, { status: 500 })
     }
 
-    const systemPrompt = isFollowUp ? FOLLOW_UP_SYSTEM_PROMPT : getCombinedSystemPrompt()
+    // ── Intent classification for follow-up prompts ──
+    // `text` and `color` intents are candidates for surgical SEARCH/REPLACE
+    // mode, which is much faster than full-document regeneration.
+    const repromptIntent = isFollowUp && currentHtml
+      ? classifyRepromptIntent(prompt)
+      : null
+    const surgicalMode = repromptIntent !== null &&
+      (repromptIntent.kind === "text" || repromptIntent.kind === "color") &&
+      repromptIntent.confidence >= 0.4 &&
+      !isRecoveryModeActive(recoveryMode)
+
+    // ── No-op detection for follow-up prompts ──
+    // Before spending credits on an upstream call, check if the current
+    // HTML already satisfies the request. Heuristic fast-path first, then
+    // a lightweight LLM check if uncertain.
+    if (isFollowUp && currentHtml && !isRecoveryModeActive(recoveryMode)) {
+      const { heuristicAlreadySatisfied } = await import("@/lib/reprompting/noop-check")
+      const heuristicResult = heuristicAlreadySatisfied(prompt, currentHtml)
+      if (heuristicResult === true) {
+        await refundCreditsIfNeeded(creditContext, "no-op (heuristic)")
+        const encoder = new TextEncoder()
+        const stream = new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+              type: "noop",
+              data: { reason: "The page already matches your request — no changes needed." },
+            })}\n\n`))
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done", data: {} })}\n\n`))
+            controller.close()
+          },
+        })
+        return new NextResponse(stream, {
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+          },
+        })
+      }
+    }
+
+    const systemPrompt = surgicalMode
+      ? SURGICAL_EDIT_SYSTEM_PROMPT
+      : isFollowUp
+        ? FOLLOW_UP_SYSTEM_PROMPT
+        : getCombinedSystemPrompt()
 
     const modelContextWindow = (await getRuntimeModelById(model))?.contextLength ?? getModelById(model)?.contextLength
     const continuationThresholdTokens = CONTINUATION_THRESHOLD_TOKENS
@@ -639,6 +701,11 @@ export async function POST(req: NextRequest) {
     const requestPrompt = sanitizedPrompt || prompt
     const promptAdaptationGuidance = getPromptAdaptationGuidance(requestPrompt)
     const adaptationPrefix = promptAdaptationGuidance ? `${promptAdaptationGuidance}\n\n` : ""
+
+    // Append copy-consistency guidance when the intent is a text change.
+    const copyConsistencySuffix = repromptIntent?.kind === "text"
+      ? `\n\n${COPY_CONSISTENCY_INSTRUCTION.trim()}`
+      : ""
 
     const baseMessages: Message[] = [{ role: "system", content: systemPrompt }]
     if (historyMessages.length > 0) {
@@ -655,17 +722,25 @@ export async function POST(req: NextRequest) {
       })
 
       const recoveryInstruction = isRecoveryModeActive(recoveryMode)
-        ? `\n\n${FOLLOW_UP_REPAIR_INSTRUCTION.trim()}`
+        ? surgicalMode
+          ? `\n\n${SURGICAL_EDIT_REPAIR_INSTRUCTION.trim()}`
+          : `\n\n${FOLLOW_UP_REPAIR_INSTRUCTION.trim()}`
         : ""
 
+      const textContent = `${context}\n\n${adaptationPrefix}User Request: ${requestPrompt}${copyConsistencySuffix}${recoveryInstruction}`
       baseMessages.push({
         role: "user",
-        content: `${context}\n\n${adaptationPrefix}User Request: ${requestPrompt}${recoveryInstruction}`,
+        content: hasImages
+          ? [{ type: "text", text: textContent }, ...images!.map((url): ContentPart => ({ type: "image_url", image_url: { url } }))]
+          : textContent,
       })
     } else {
+      const textContent = `${adaptationPrefix}User Request: ${requestPrompt}`
       baseMessages.push({
         role: "user",
-        content: `${adaptationPrefix}User Request: ${requestPrompt}`,
+        content: hasImages
+          ? [{ type: "text", text: textContent }, ...images!.map((url): ContentPart => ({ type: "image_url", image_url: { url } }))]
+          : textContent,
       })
     }
 
@@ -674,7 +749,7 @@ export async function POST(req: NextRequest) {
     const requestBase = {
       stream: true,
       max_tokens: UPSTREAM_MAX_TOKENS,
-      temperature: isFollowUp ? 0.25 : 0.7,
+      temperature: surgicalMode ? 0.1 : isFollowUp ? 0.25 : 0.7,
     }
 
     const requestOpenRouterStream = async (partMessages: Message[]): Promise<UpstreamRequestResult> => {
@@ -881,7 +956,9 @@ export async function POST(req: NextRequest) {
               "The previous follow-up attempt was rejected before it reached the editor.",
               `Rejection reason: ${reason}`,
               "Try again from the original current HTML and original user request.",
-              FOLLOW_UP_REPAIR_INSTRUCTION.trim(),
+              surgicalMode
+                ? SURGICAL_EDIT_REPAIR_INSTRUCTION.trim()
+                : FOLLOW_UP_REPAIR_INSTRUCTION.trim(),
             ].join("\n\n"),
           },
         ]
@@ -897,6 +974,7 @@ export async function POST(req: NextRequest) {
           const finalized = finalizeFollowUpResponse({
             rawContent: aggregatedContent,
             currentHtml: currentHtml ?? "",
+            preferPatches: surgicalMode,
           })
 
           if (finalized.ok) {

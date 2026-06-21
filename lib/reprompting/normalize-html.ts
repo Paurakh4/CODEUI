@@ -24,6 +24,8 @@
  *   3. Whitespace-preserving inside `<pre>`, `<textarea>`, `<script>`, and
  *      `<style>`. Text content of every other element is preserved as-is
  *      from parse5 (no reflow), only the surrounding indentation changes.
+ *      For `<style>`, CSS is beautified to readable multi-line form via
+ *      an idempotent beautifier so stored HTML is always human-readable.
  *   4. Attribute order is preserved exactly as parse5 reports it (which is
  *      source order). We never reorder attributes — class lists in
  *      particular must stay verbatim because Tailwind treats later classes
@@ -249,6 +251,10 @@ class Emitter {
    * content ends with a newline; otherwise we keep the close tag on the
    * same line. This matches how humans typically author these blocks and
    * round-trips through `normalizeHtml(normalizeHtml(x))` cleanly.
+   *
+   * For `<style>` elements, the CSS is beautified before emission so
+   * stored HTML always has readable multi-line CSS — even when the model
+   * emits minified output.
    */
   private emitRawTextElement(element: Element, depth: number, openTag: string): void {
     const tagName = element.tagName.toLowerCase()
@@ -269,6 +275,11 @@ class Emitter {
       if (isCommentNode(child)) {
         raw += `<!--${child.data}-->`
       }
+    }
+
+    // Beautify CSS in <style> tags for readability.
+    if (tagName === "style" && raw.trim()) {
+      raw = beautifyCss(raw)
     }
 
     const closeTag = `</${tagName}>`
@@ -459,4 +470,137 @@ function serializeInline(node: ChildNode): string {
   const children = defaultTreeAdapter.getChildNodes(node) as ChildNode[]
   const inner = children.map((c) => serializeInline(c)).join("")
   return `${open}${inner}</${tag}>`
+}
+
+// ---------------------------------------------------------------------------
+// Deterministic CSS beautifier
+// ---------------------------------------------------------------------------
+
+/**
+ * Beautify a CSS string into readable multi-line form with consistent
+ * indentation. Must be idempotent: `beautifyCss(beautifyCss(x)) === beautifyCss(x)`.
+ *
+ * Rules:
+ *  - One selector per line (handles comma-separated selectors by joining them).
+ *  - Opening brace on the same line as the selector.
+ *  - Each declaration on its own line, indented 2 spaces.
+ *  - Closing brace on its own line at selector depth.
+ *  - `@media`/`@keyframes`/`@supports` blocks increase indent for their contents.
+ *  - `@keyframes` percentage selectors stay at the @keyframes indent level.
+ *  - Comments preserved on their own line.
+ *  - Whitespace inside declarations collapsed to single spaces.
+ */
+function beautifyCss(css: string): string {
+  if (!css) return css
+
+  const IND = "  "
+  const lines: string[] = []
+  let depth = 0
+  let pos = 0
+
+  const peek = (offset = 0): string => css[pos + offset] ?? ""
+  const consume = (n = 1): string => { const r = css.slice(pos, pos + n); pos += n; return r }
+  const skipWhitespace = (): void => {
+    while (pos < css.length && /[\t\n\r ]/.test(css[pos])) pos++
+  }
+  const skipToNewline = (): void => {
+    while (pos < css.length && css[pos] !== "\n") pos++
+  }
+
+  const pushLine = (d: number, text: string): void => {
+    const trimmed = text.trimEnd()
+    if (trimmed) lines.push(IND.repeat(d) + trimmed)
+  }
+
+  // Strip leading/trailing whitespace from the whole input.
+  css = css.trim()
+
+  while (pos < css.length) {
+    skipWhitespace()
+    if (pos >= css.length) break
+
+    const ch = css[pos]
+
+    // Comment: /* ... */
+    if (ch === "/" && peek(1) === "*") {
+      const end = css.indexOf("*/", pos + 2)
+      if (end === -1) { pos = css.length; break }
+      pushLine(depth, css.slice(pos, end + 2))
+      pos = end + 2
+      continue
+    }
+
+    // @-rule: @media, @keyframes, @supports, @import, @font-face, @charset
+    if (ch === "@") {
+      const ruleEnd = css.indexOf("{", pos)
+      const semiEnd = css.indexOf(";", pos)
+      // @import / @charset end with ; not {
+      if (semiEnd !== -1 && (ruleEnd === -1 || semiEnd < ruleEnd)) {
+        pushLine(depth, css.slice(pos, semiEnd + 1))
+        pos = semiEnd + 1
+        continue
+      }
+      if (ruleEnd === -1) { pos = css.length; break }
+      const header = css.slice(pos, ruleEnd + 1).trim()
+      pos = ruleEnd + 1
+      pushLine(depth, header)
+      depth++
+      continue
+    }
+
+    // Closing brace
+    if (ch === "}") {
+      consume()
+      depth = Math.max(0, depth - 1)
+      pushLine(depth, "}")
+      continue
+    }
+
+    // Selector or declaration — read until {, }, or ;
+    const braceEnd = css.indexOf("{", pos)
+    const closingBrace = css.indexOf("}", pos)
+    const semiEnd = css.indexOf(";", pos)
+    const nextStop = Math.min(
+      braceEnd === -1 ? Infinity : braceEnd,
+      closingBrace === -1 ? Infinity : closingBrace,
+      semiEnd === -1 ? Infinity : semiEnd,
+    )
+
+    if (nextStop === Infinity) { pos = css.length; break }
+
+    // If the next stop is {, this is a selector block (or @keyframes percentage).
+    if (nextStop === braceEnd) {
+      let selector = css.slice(pos, braceEnd).trim()
+      pos = braceEnd + 1
+      // Comma-separated selectors stay on one line.
+      pushLine(depth, selector + " {")
+      depth++
+      continue
+    }
+
+    // If the next stop is ;, this is a declaration.
+    if (nextStop === semiEnd) {
+      const decl = css.slice(pos, semiEnd + 1).replace(/\s+/g, " ").trim()
+      pos = semiEnd + 1
+      // @keyframes percentage stops (from {, to {, 50% {) are not declarations.
+      if (/^(?:from|to|\d+(?:\.\d+)?%)\s*\{?\s*$/.test(decl)) {
+        depth = Math.max(0, depth - 1)
+        pushLine(depth, decl.replace(/\{?\s*$/, "").trim() + " {")
+        depth++
+        continue
+      }
+      pushLine(depth, decl)
+      continue
+    }
+
+    // Closing brace encountered before { or ; — emit it.
+    if (nextStop === closingBrace) {
+      consume(closingBrace - pos + 1)
+      depth = Math.max(0, depth - 1)
+      pushLine(depth, "}")
+      continue
+    }
+  }
+
+  return lines.join("\n") + "\n"
 }

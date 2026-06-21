@@ -67,58 +67,62 @@ export function SettingsPanel({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-zinc-400 hover:text-zinc-200"
+            className="h-8 w-8 text-[#9B9B9F] hover:text-[#E7E7E9] hover:bg-[#1B1B1F] rounded-lg"
           >
             <Settings className="w-4 h-4" />
           </Button>
         )}
       </SheetTrigger>
-      <SheetContent className="w-[360px] bg-zinc-950 border-white/[0.06] p-0">
+      <SheetContent className="w-[360px] bg-[#0E0E10] border-white/[0.06] p-0">
         <SheetHeader className="p-4 border-b border-white/[0.04]">
-          <SheetTitle className="text-zinc-100 flex items-center gap-2">
-            <Settings className="w-5 h-5" />
+          <SheetTitle className="text-[#E7E7E9] flex items-center gap-2 text-sm font-semibold tracking-tight">
+            <Settings className="w-4 h-4 text-[#9B9B9F]" />
             Settings
           </SheetTitle>
         </SheetHeader>
 
-        <div className="p-4 space-y-6">
+        <div className="p-4 space-y-5">
           {/* Theme Toggle */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium text-zinc-200">Theme</Label>
-            <div className="flex items-center gap-2 p-1 bg-white/[0.03] rounded-lg border border-white/[0.06]">
+          <div className="space-y-2.5">
+            <Label className="text-[10px] text-[#6B6B70] uppercase tracking-[0.05em] font-medium">
+              Theme
+            </Label>
+            <div className="flex items-center gap-1.5 p-0.5 bg-[#0E0E10] rounded-lg border border-white/[0.04]">
               <button
                 onClick={() => onThemeChange("light")}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm transition-colors",
+                  "flex-1 flex items-center justify-center gap-2 py-1.5 px-3 rounded-md text-[11px] font-medium transition-colors",
                   theme === "light"
-                    ? "bg-white/[0.06] text-zinc-100"
-                    : "text-zinc-500 hover:text-zinc-300"
+                    ? "bg-[#1B1B1F] text-[#E7E7E9]"
+                    : "text-[#6B6B70] hover:text-[#9B9B9F]"
                 )}
               >
-                <Sun className="w-4 h-4" />
+                <Sun className="w-3.5 h-3.5" />
                 Light
               </button>
               <button
                 onClick={() => onThemeChange("dark")}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm transition-colors",
+                  "flex-1 flex items-center justify-center gap-2 py-1.5 px-3 rounded-md text-[11px] font-medium transition-colors",
                   theme === "dark"
-                    ? "bg-white/[0.06] text-zinc-100"
-                    : "text-zinc-500 hover:text-zinc-300"
+                    ? "bg-[#1B1B1F] text-[#E7E7E9]"
+                    : "text-[#6B6B70] hover:text-[#9B9B9F]"
                 )}
               >
-                <Moon className="w-4 h-4" />
+                <Moon className="w-3.5 h-3.5" />
                 Dark
               </button>
             </div>
           </div>
 
           {/* Primary Color */}
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium text-zinc-200">Primary Color</Label>
+              <Label className="text-[10px] text-[#6B6B70] uppercase tracking-[0.05em] font-medium">
+                Primary Color
+              </Label>
               <div
-                className="w-6 h-6 rounded-md border border-white/[0.06]"
+                className="w-5 h-5 rounded-md border border-white/[0.06]"
                 style={{
                   backgroundColor:
                     TAILWIND_COLORS.find((c) => c.name === primaryColor)?.value,
@@ -131,9 +135,9 @@ export function SettingsPanel({
                   key={color.name}
                   onClick={() => onPrimaryColorChange(color.name)}
                   className={cn(
-                    "w-6 h-6 rounded-md transition-transform hover:scale-110",
+                    "w-5 h-5 rounded-md transition-transform hover:scale-110",
                     primaryColor === color.name &&
-                      "ring-2 ring-white ring-offset-2 ring-offset-zinc-950"
+                      "ring-2 ring-white ring-offset-2 ring-offset-[#0E0E10]"
                   )}
                   style={{ backgroundColor: color.value }}
                   title={color.name}
@@ -143,13 +147,13 @@ export function SettingsPanel({
           </div>
 
           {/* Secondary Color */}
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium text-zinc-200">
+              <Label className="text-[10px] text-[#6B6B70] uppercase tracking-[0.05em] font-medium">
                 Secondary Color
               </Label>
               <div
-                className="w-6 h-6 rounded-md border border-white/[0.06]"
+                className="w-5 h-5 rounded-md border border-white/[0.06]"
                 style={{
                   backgroundColor:
                     TAILWIND_COLORS.find((c) => c.name === secondaryColor)?.value,
@@ -162,9 +166,9 @@ export function SettingsPanel({
                   key={color.name}
                   onClick={() => onSecondaryColorChange(color.name)}
                   className={cn(
-                    "w-6 h-6 rounded-md transition-transform hover:scale-110",
+                    "w-5 h-5 rounded-md transition-transform hover:scale-110",
                     secondaryColor === color.name &&
-                      "ring-2 ring-white ring-offset-2 ring-offset-zinc-950"
+                      "ring-2 ring-white ring-offset-2 ring-offset-[#0E0E10]"
                   )}
                   style={{ backgroundColor: color.value }}
                   title={color.name}
@@ -172,11 +176,14 @@ export function SettingsPanel({
               ))}
             </div>
           </div>
+
           {/* Color Preview */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-zinc-200">Preview</Label>
+            <Label className="text-[10px] text-[#6B6B70] uppercase tracking-[0.05em] font-medium">
+              Preview
+            </Label>
             <div
-              className="h-24 rounded-lg p-4 flex flex-col justify-end"
+              className="h-24 rounded-lg p-4 flex flex-col justify-end border border-white/[0.04]"
               style={{
                 background: `linear-gradient(135deg, ${
                   TAILWIND_COLORS.find((c) => c.name === primaryColor)?.value
@@ -185,8 +192,8 @@ export function SettingsPanel({
                 } 100%)`,
               }}
             >
-              <div className="text-white font-bold text-lg">Sample Title</div>
-              <div className="text-white/70 text-sm">Generated website preview</div>
+              <div className="text-white font-bold text-sm">Sample Title</div>
+              <div className="text-white/60 text-[11px]">Generated website preview</div>
             </div>
           </div>
         </div>

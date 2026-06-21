@@ -95,13 +95,24 @@ describe("UT-30 normalizeHtml", () => {
       expect(out).toContain(script)
     })
 
-    it("preserves <style> rules verbatim", () => {
+    it("beautifies <style> CSS into readable multi-line form", () => {
       const css = `\n  body { margin: 0; }\n  h1 { color: red; }\n`
       const input = `<!DOCTYPE html><html><head><style>${css}</style></head><body></body></html>`
 
       const out = normalizeHtml(input)
 
-      expect(out).toContain(css)
+      // CSS is beautified — each rule on its own line with indented declarations.
+      expect(out).toContain("body {")
+      expect(out).toContain("  margin: 0;")
+      expect(out).toContain("h1 {")
+      expect(out).toContain("  color: red;")
+    })
+
+    it("beautifyCss is idempotent", () => {
+      const input = `<!DOCTYPE html><html><head><style>body{margin:0}h1{color:red}</style></head><body></body></html>`
+      const first = normalizeHtml(input)
+      const second = normalizeHtml(first)
+      expect(second).toBe(first)
     })
   })
 

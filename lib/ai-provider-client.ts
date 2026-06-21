@@ -7,9 +7,13 @@ import {
 } from "@/lib/ai-models"
 import { createRepromptLogger } from "@/lib/utils/reprompt-logger"
 
+export type AIContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } }
+
 export interface AITextMessage {
   role: "system" | "user" | "assistant"
-  content: string
+  content: string | AIContentPart[]
 }
 
 export interface AITextCompletionOptions {

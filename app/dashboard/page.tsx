@@ -172,7 +172,7 @@ function DashboardContent() {
     }
   }, [clearPaymentParams, fetchCheckoutStatus, searchParams, session?.user?.id, status, updateSession])
 
-  const handleStart = async (prompt?: string, model?: string) => {
+  const handleStart = async (prompt?: string, model?: string, images?: string[]) => {
     if (openingProject) {
       return
     }
@@ -218,7 +218,7 @@ function DashboardContent() {
       }
     }
 
-    storePendingProjectStart(id, { prompt, model })
+    storePendingProjectStart(id, { prompt, model, images })
     const nextParams = new URLSearchParams()
 
     if (prompt) {

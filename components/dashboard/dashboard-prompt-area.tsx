@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useCallback } from "react"
+import { useRef, useCallback, useState, type ChangeEvent, type DragEvent } from "react"
 import {
   ArrowUp,
   Plus,
@@ -11,6 +11,8 @@ import {
   ChevronDown,
   LayoutTemplate,
   Code,
+  Paperclip,
+  X,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -24,11 +26,60 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
+import { isVisionCapableModel } from "@/lib/ai-models"
+
+// ponytail: image payload caps — large data URLs bloat Mongo docs; upgrade path = upload to media library + store URL
+const MAX_IMAGES_PER_MESSAGE = 4
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024 // 5 MB
+const IMAGE_DOWNSCALE_MAX_DIM = 1024
+
+interface AttachedImage {
+  id: string
+  dataUrl: string
+  name: string
+}
+
+function generateImageId() {
+  return `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function downscaleImage(file: File, maxDim: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        let { width, height } = img
+        if (width <= maxDim && height <= maxDim) {
+          resolve(reader.result as string)
+          return
+        }
+        const ratio = Math.min(maxDim / width, maxDim / height)
+        width = Math.round(width * ratio)
+        height = Math.round(height * ratio)
+        const canvas = document.createElement("canvas")
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext("2d")
+        if (!ctx) {
+          reject(new Error("Failed to get canvas context"))
+          return
+        }
+        ctx.drawImage(img, 0, 0, width, height)
+        resolve(canvas.toDataURL("image/jpeg", 0.85))
+      }
+      img.onerror = () => reject(new Error("Failed to load image for downscale"))
+      img.src = reader.result as string
+    }
+    reader.onerror = () => reject(new Error("Failed to read file"))
+    reader.readAsDataURL(file)
+  })
+}
 
 interface DashboardPromptAreaProps {
   promptValue: string
   onPromptValueChange: (value: string) => void
-  onSend: () => void
+  onSend: (images?: Array<{ dataUrl: string }>) => void
   onEnhance: () => void
   isEnhancing: boolean
   isStartingProject?: boolean
@@ -59,6 +110,9 @@ export function DashboardPromptArea({
   onStartBlankProject,
 }: DashboardPromptAreaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([])
+  const [isDraggingOver, setIsDraggingOver] = useState(false)
 
   const adjustHeight = useCallback((reset?: boolean) => {
     const textarea = textareaRef.current
@@ -70,6 +124,44 @@ export function DashboardPromptArea({
     textarea.style.height = "44px"
     const newHeight = Math.max(44, Math.min(textarea.scrollHeight, 160))
     textarea.style.height = `${newHeight}px`
+  }, [])
+
+  const addFiles = useCallback(async (files: FileList | File[]) => {
+    if (!isVisionCapableModel(selectedModelId)) {
+      return
+    }
+
+    const imageFiles: File[] = []
+    for (let i = 0; i < files.length; i += 1) {
+      const file = files[i]
+      if (!file.type.startsWith("image/")) continue
+      if (file.size > MAX_IMAGE_SIZE_BYTES) {
+        console.warn(`Image "${file.name}" exceeds ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024} MB limit, skipping`)
+        continue
+      }
+      imageFiles.push(file)
+    }
+
+    const remaining = MAX_IMAGES_PER_MESSAGE - attachedImages.length
+    const toAdd = imageFiles.slice(0, remaining)
+
+    const newImages: AttachedImage[] = await Promise.all(
+      toAdd.map(async (file) => ({
+        id: generateImageId(),
+        dataUrl: await downscaleImage(file, IMAGE_DOWNSCALE_MAX_DIM),
+        name: file.name,
+      }))
+    )
+
+    setAttachedImages((prev) => [...prev, ...newImages].slice(0, MAX_IMAGES_PER_MESSAGE))
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
+  }, [attachedImages.length, selectedModelId])
+
+  const removeImage = useCallback((id: string) => {
+    setAttachedImages((prev) => prev.filter((img) => img.id !== id))
   }, [])
 
   const handleContinueWriting = useCallback(() => {
@@ -85,10 +177,67 @@ export function DashboardPromptArea({
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       if (!isStartingProject) {
-        onSend()
+        const images = attachedImages.map((img) => ({ dataUrl: img.dataUrl }))
+        onSend(images.length > 0 ? images : undefined)
+        setAttachedImages([])
       }
     }
   }
+
+  const handleSubmit = () => {
+    if (isStartingProject) return
+    const images = attachedImages.map((img) => ({ dataUrl: img.dataUrl }))
+    onSend(images.length > 0 ? images : undefined)
+    setAttachedImages([])
+  }
+
+  // Paste handler
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    const files: File[] = []
+    for (let i = 0; i < items.length; i += 1) {
+      const item = items[i]
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile()
+        if (file) files.push(file)
+      }
+    }
+    if (files.length > 0) {
+      e.preventDefault()
+      void addFiles(files)
+    }
+  }, [addFiles])
+
+  // Drag-and-drop
+  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingOver(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingOver(false)
+  }, [])
+
+  const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingOver(false)
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      void addFiles(e.dataTransfer.files)
+    }
+  }, [addFiles])
+
+  const handleFileInputChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      void addFiles(e.target.files)
+    }
+  }, [addFiles])
+
+  const canSubmit = promptValue.trim().length > 0 || attachedImages.length > 0
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center w-full max-w-3xl mx-auto px-3 sm:px-4 pt-1 pb-2">
@@ -101,7 +250,39 @@ export function DashboardPromptArea({
         </div>
 
         {/* Tactile Input Card */}
-        <div className="input-card">
+        <div
+          className={`input-card ${isDraggingOver ? "ring-1 ring-blue-500/50 bg-blue-500/[0.02]" : ""}`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          {/* Image preview chips */}
+          {attachedImages.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
+              {attachedImages.map((img) => (
+                <div
+                  key={img.id}
+                  className="relative group rounded-md overflow-hidden border border-white/[0.08] bg-black/20"
+                  style={{ width: 48, height: 48 }}
+                >
+                  <img
+                    src={img.dataUrl}
+                    alt={img.name}
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(img.id)}
+                    aria-label={`Remove ${img.name}`}
+                    className="absolute top-0 right-0 p-0.5 rounded-bl-md bg-black/60 text-white/80 hover:bg-black/80 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
           <textarea
             ref={textareaRef}
             value={promptValue}
@@ -110,6 +291,7 @@ export function DashboardPromptArea({
               adjustHeight()
             }}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             className="w-full bg-transparent text-[#E7E7E9] text-[14px] font-[500] px-3 py-2 min-h-[44px] max-h-[160px] outline-none resize-none placeholder:text-[#6B6B70] leading-snug"
             placeholder="Ask CodeUI to build..."
             rows={1}
@@ -175,6 +357,26 @@ export function DashboardPromptArea({
 
               <div className="h-3 w-px bg-white/[0.04]" />
 
+              {/* File picker for images */}
+              <label
+                className={`flex items-center justify-center h-6 w-6 text-[#9B9B9F] hover:text-[#E7E7E9] hover:bg-[#1B1B1F] rounded-lg transition-colors ${(!isVisionCapableModel(selectedModelId) || isStartingProject) ? "opacity-50 cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
+                aria-label="Attach images"
+                title={!isVisionCapableModel(selectedModelId) ? "This model doesn't support image input. Switch to a vision-capable model." : "Attach images"}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={handleFileInputChange}
+                  accept="image/*"
+                  multiple
+                  disabled={isStartingProject || !isVisionCapableModel(selectedModelId)}
+                />
+                <Paperclip className="w-3 h-3" />
+              </label>
+
+              <div className="h-3 w-px bg-white/[0.04]" />
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
@@ -214,8 +416,8 @@ export function DashboardPromptArea({
             </div>
 
             <button
-              onClick={onSend}
-              disabled={isStartingProject || !promptValue.trim()}
+              onClick={handleSubmit}
+              disabled={isStartingProject || !canSubmit}
               aria-label="Send prompt"
               className="flex items-center justify-center h-7 w-7 bg-[#121212] text-white rounded-lg transition-all hover:bg-[#1B1B1F] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E0E10]"
             >

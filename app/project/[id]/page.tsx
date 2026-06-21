@@ -8,6 +8,7 @@ import { consumePendingProjectStart } from "@/lib/utils/project-bootstrap"
 interface InitialProjectRequest {
   prompt?: string
   model?: string
+  images?: string[]
 }
 
 function ProjectContent({ id }: { id: string }) {
@@ -54,7 +55,8 @@ function ProjectContent({ id }: { id: string }) {
       <EditorLayoutNew 
         projectId={id}
         initialPrompt={resolvedPrompt} 
-        initialModel={resolvedModel} 
+        initialModel={resolvedModel}
+        initialImages={initialRequest.images}
         onBack={() => router.push("/dashboard")}
       />
     </div>

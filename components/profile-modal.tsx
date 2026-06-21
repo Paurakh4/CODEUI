@@ -175,7 +175,7 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton
-        className="sm:max-w-xl bg-background border-border p-0 rounded-2xl"
+        className="sm:max-w-xl bg-[#0E0E10] border-white/[0.06] p-0 rounded-xl overflow-hidden"
       >
         <DialogTitle className="sr-only">Profile Settings</DialogTitle>
         <DialogDescription className="sr-only">
@@ -185,87 +185,101 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
         <ScrollArea className="max-h-[85vh]">
           {isLoading ? (
             <div className="flex h-[320px] items-center justify-center">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <Loader2 className="h-5 w-5 animate-spin text-[#6B6B70]" />
             </div>
           ) : loadError || !profile ? (
             <div className="flex h-[320px] flex-col items-center justify-center px-6 text-center">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-[13px] text-[#9B9B9F]">
                 {loadError || "Profile data is currently unavailable."}
               </p>
             </div>
           ) : (
             <div className="p-5 space-y-5">
+              {/* Header */}
               <div className="flex items-center justify-between">
-                <h1 className="text-xl font-semibold text-foreground">
-                  Profile
-                </h1>
+                <div>
+                  <h1 className="text-lg font-bold tracking-tight text-[#E7E7E9]">
+                    Profile
+                  </h1>
+                  <p className="text-[11px] text-[#9B9B9F] mt-0.5">
+                    Manage your display name and account details.
+                  </p>
+                </div>
                 {isDirty && (
                   <Button
                     onClick={handleSave}
                     disabled={isSaving}
                     size="sm"
+                    className="h-7 text-[11px] rounded-lg bg-white text-black hover:bg-[#E7E7E9] font-medium"
                   >
                     {isSaving && (
-                      <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                     )}
                     Save
                   </Button>
                 )}
               </div>
 
+              {/* Avatar + Name */}
               <div className="flex items-center gap-3">
-                <Avatar className="h-10 w-10 shrink-0">
+                <Avatar className="h-10 w-10 shrink-0 ring-2 ring-white/[0.06]">
                   {profile.image ? (
                     <AvatarImage src={profile.image} alt={profile.name} />
                   ) : null}
-                  <AvatarFallback className="bg-muted text-muted-foreground text-xs font-medium">
+                  <AvatarFallback className="bg-[#1B1B1F] text-[#9B9B9F] text-xs font-medium">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">
+                  <p className="text-[13px] font-medium text-[#E7E7E9] truncate">
                     {profile.name}
                   </p>
-                  <p className="text-xs text-muted-foreground truncate">
+                  <p className="text-[11px] text-[#6B6B70] truncate">
                     {profile.email}
                   </p>
                 </div>
               </div>
 
+              {/* Display Name Input */}
               <div className="relative">
-                <PencilLine className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <PencilLine className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#6B6B70]" />
                 <Input
                   id="profile-name"
                   value={displayName}
                   onChange={(event) => setDisplayName(event.target.value)}
-                  className="pl-9 h-9 text-sm"
+                  className="pl-9 h-9 text-[13px] bg-[#0E0E10] border-white/[0.06] text-[#E7E7E9] placeholder:text-[#6B6B70] rounded-lg focus-visible:ring-white/20"
                   placeholder="Display name"
                 />
               </div>
 
+              {/* Plan + Credits cards */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted-foreground mb-1">Plan</p>
-                  <p className="text-base font-semibold text-foreground">
+                <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-3">
+                  <p className="text-[10px] text-[#6B6B70] uppercase tracking-[0.05em] font-medium mb-1">
+                    Plan
+                  </p>
+                  <p className="text-base font-semibold text-[#E7E7E9]">
                     {profile.subscription.tierName}
                   </p>
-                  <p className="text-xs text-muted-foreground mt-0.5 tabular-nums">
-                    {profile.subscription.monthlyAllowance}/mo
+                  <p className="text-[11px] text-[#9B9B9F] mt-0.5 tabular-nums">
+                    {profile.subscription.monthlyAllowance} credits / mo
                   </p>
                 </div>
 
-                <div className="rounded-lg border border-border p-3">
-                  <p className="text-xs text-muted-foreground mb-1">Credits</p>
-                  <p className="text-base font-semibold text-foreground tabular-nums">
+                <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-3">
+                  <p className="text-[10px] text-[#6B6B70] uppercase tracking-[0.05em] font-medium mb-1">
+                    Credits
+                  </p>
+                  <p className="text-base font-semibold text-[#E7E7E9] tabular-nums">
                     {profile.credits.totalCredits}
                   </p>
                   <div className="flex items-center justify-between mt-0.5">
-                    <p className="text-xs text-muted-foreground tabular-nums">
-                      {profile.credits.monthlyCredits}/mo
+                    <p className="text-[11px] text-[#9B9B9F] tabular-nums">
+                      {profile.credits.monthlyCredits} / mo
                     </p>
                     <button
                       onClick={showPricing}
-                      className="text-xs font-medium text-foreground hover:underline"
+                      className="text-[11px] font-medium text-[#E7E7E9] hover:text-white transition-colors"
                     >
                       Top-up
                     </button>
@@ -273,41 +287,42 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
                 </div>
               </div>
 
+              {/* Recent Projects */}
               <div>
-                <p className="text-xs text-muted-foreground mb-2">
-                  Projects
+                <p className="text-[10px] text-[#6B6B70] uppercase tracking-[0.05em] font-medium mb-2">
+                  Recent Projects
                 </p>
                 <div className="space-y-1">
                   {profile.recentProjects.length === 0 ? (
-                    <p className="text-xs text-muted-foreground py-4 text-center">
-                      No projects
+                    <p className="text-[11px] text-[#6B6B70] py-4 text-center">
+                      No projects yet
                     </p>
                   ) : (
                     profile.recentProjects.map((project) => (
                       <div
                         key={project.id}
-                        className="flex items-center justify-between rounded-md border border-border bg-muted/20 px-3 py-2"
+                        className="flex items-center justify-between rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 py-2 hover:border-white/[0.08] transition-colors"
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="text-sm shrink-0">
                             {project.emoji || "🎨"}
                           </span>
-                          <span className="text-sm text-foreground truncate">
+                          <span className="text-[13px] text-[#E7E7E9] truncate">
                             {project.name}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-xs text-muted-foreground tabular-nums">
+                          <span className="text-[11px] text-[#9B9B9F] tabular-nums">
                             {new Date(project.updatedAt).toLocaleDateString()}
                           </span>
                           <span
-                            className={`text-[10px] font-medium uppercase ${
+                            className={`text-[10px] font-medium uppercase tracking-[0.05em] ${
                               project.isPrivate
-                                ? "text-muted-foreground"
-                                : "text-foreground"
+                                ? "text-[#6B6B70]"
+                                : "text-[#9B9B9F]"
                             }`}
                           >
-                            {project.isPrivate ? "Pvt" : "Pub"}
+                            {project.isPrivate ? "Private" : "Public"}
                           </span>
                         </div>
                       </div>

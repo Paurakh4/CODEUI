@@ -5,6 +5,7 @@ export interface IMessage {
   role: "user" | "assistant";
   content: string;
   thinkingContent?: string;
+  images?: string[];
   createdAt: Date;
 }
 
@@ -53,6 +54,10 @@ const MessageSchema = new Schema<IMessage>(
     },
     thinkingContent: {
       type: String,
+    },
+    images: {
+      type: [String],
+      default: undefined,
     },
     createdAt: {
       type: Date,

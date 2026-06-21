@@ -1,6 +1,7 @@
 interface PendingProjectStart {
   prompt?: string
   model?: string
+  images?: string[]
   createdAt: number
 }
 
@@ -50,15 +51,16 @@ function normalizePendingProjectStart(value: unknown): PendingProjectStart | nul
   const candidate = value as Record<string, unknown>
   const prompt = typeof candidate.prompt === "string" && candidate.prompt.trim() ? candidate.prompt : undefined
   const model = typeof candidate.model === "string" && candidate.model.trim() ? candidate.model : undefined
+  const images = Array.isArray(candidate.images) ? (candidate.images as string[]).filter((i): i is string => typeof i === "string") : undefined
   const createdAt = typeof candidate.createdAt === "number" ? candidate.createdAt : 0
 
   if (!prompt && !model) return null
   if (!createdAt || Date.now() - createdAt > PENDING_PROJECT_START_TTL_MS) return null
 
-  return { prompt, model, createdAt }
+  return { prompt, model, images, createdAt }
 }
 
-export function storePendingProjectStart(projectId: string, payload: { prompt?: string; model?: string }) {
+export function storePendingProjectStart(projectId: string, payload: { prompt?: string; model?: string; images?: string[] }) {
   if (typeof window === "undefined") return
   if (!payload.prompt && !payload.model) return
 
@@ -67,13 +69,14 @@ export function storePendingProjectStart(projectId: string, payload: { prompt?: 
   const record: PendingProjectStart = {
     prompt: payload.prompt,
     model: payload.model,
+    images: payload.images,
     createdAt: Date.now(),
   }
 
   window.sessionStorage.setItem(getPendingProjectStartKey(projectId), JSON.stringify(record))
 }
 
-export function consumePendingProjectStart(projectId: string): { prompt?: string; model?: string } | null {
+export function consumePendingProjectStart(projectId: string): { prompt?: string; model?: string; images?: string[] } | null {
   if (typeof window === "undefined") return null
 
   const key = getPendingProjectStartKey(projectId)
@@ -87,6 +90,7 @@ export function consumePendingProjectStart(projectId: string): { prompt?: string
     return {
       prompt: replayableRecord.prompt,
       model: replayableRecord.model,
+      images: replayableRecord.images,
     }
   }
 

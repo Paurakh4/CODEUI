@@ -1,11 +1,11 @@
 "use client";
 
 import { ArrowRight, Bot, Check, ChevronDown, Loader2, Paperclip, Sparkles, X } from "lucide-react";
-import { useState, useRef, useCallback, useEffect, type ChangeEvent } from "react";
+import { useState, useRef, useCallback, useEffect, type ChangeEvent, type DragEvent } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { CODEUI_GOD_MODE_MODEL_ID } from "@/lib/ai-models";
+import { CODEUI_GOD_MODE_MODEL_ID, isVisionCapableModel } from "@/lib/ai-models";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -14,6 +14,59 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { motion, AnimatePresence } from "@/components/ui/no-motion";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
+// ponytail: image payload caps — large data URLs bloat Mongo docs; upgrade path = upload to media library + store URL
+const MAX_IMAGES_PER_MESSAGE = 4
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024 // 5 MB
+const IMAGE_DOWNSCALE_MAX_DIM = 1024 // px — keeps data URLs sane
+
+interface AttachedImage {
+  id: string
+  dataUrl: string
+  name: string
+}
+
+function generateImageId() {
+  return `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+/**
+ * Downscale an image to fit within maxDim × maxDim via an offscreen canvas.
+ * Preserves aspect ratio. Returns a data URL (JPEG 0.85 quality).
+ */
+function downscaleImage(file: File, maxDim: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        let { width, height } = img
+        if (width <= maxDim && height <= maxDim) {
+          // No downscale needed — return the original data URL
+          resolve(reader.result as string)
+          return
+        }
+        const ratio = Math.min(maxDim / width, maxDim / height)
+        width = Math.round(width * ratio)
+        height = Math.round(height * ratio)
+        const canvas = document.createElement("canvas")
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext("2d")
+        if (!ctx) {
+          reject(new Error("Failed to get canvas context"))
+          return
+        }
+        ctx.drawImage(img, 0, 0, width, height)
+        resolve(canvas.toDataURL("image/jpeg", 0.85))
+      }
+      img.onerror = () => reject(new Error("Failed to load image for downscale"))
+      img.src = reader.result as string
+    }
+    reader.onerror = () => reject(new Error("Failed to read file"))
+    reader.readAsDataURL(file)
+  })
+}
 
 interface UseAutoResizeTextareaProps {
     minHeight: number;
@@ -67,44 +120,11 @@ function useAutoResizeTextarea({
     return { textareaRef, adjustHeight };
 }
 
-const OPENAI_ICON = (
-    <>
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 256 260"
-            aria-label="OpenAI Icon"
-            className="w-4 h-4 dark:hidden block"
-        >
-            <title>OpenAI Icon Light</title>
-            <path d="M239.184 106.203a64.716 64.716 0 0 0-5.576-53.103C219.452 28.459 191 15.784 163.213 21.74A65.586 65.586 0 0 0 52.096 45.22a64.716 64.716 0 0 0-43.23 31.36c-14.31 24.602-11.061 55.634 8.033 76.74a64.665 64.665 0 0 0 5.525 53.102c14.174 24.65 42.644 37.324 70.446 31.36a64.72 64.72 0 0 0 48.754 21.744c28.481.025 53.714-18.361 62.414-45.481a64.767 64.767 0 0 0 43.229-31.36c14.137-24.558 10.875-55.423-8.083-76.483Zm-97.56 136.338a48.397 48.397 0 0 1-31.105-11.255l1.535-.87 51.67-29.825a8.595 8.595 0 0 0 4.247-7.367v-72.85l21.845 12.636c.218.111.37.32.409.563v60.367c-.056 26.818-21.783 48.545-48.601 48.601Zm-104.466-44.61a48.345 48.345 0 0 1-5.781-32.589l1.534.921 51.722 29.826a8.339 8.339 0 0 0 8.441 0l63.181-36.425v25.221a.87.87 0 0 1-.358.665l-52.335 30.184c-23.257 13.398-52.97 5.431-66.404-17.803ZM23.549 85.38a48.499 48.499 0 0 1 25.58-21.333v61.39a8.288 8.288 0 0 0 4.195 7.316l62.874 36.272-21.845 12.636a.819.819 0 0 1-.767 0L41.353 151.53c-23.211-13.454-31.171-43.144-17.804-66.405v.256Zm179.466 41.695-63.08-36.63L161.73 77.86a.819.819 0 0 1 .768 0l52.233 30.184a48.6 48.6 0 0 1-7.316 87.635v-61.391a8.544 8.544 0 0 0-4.4-7.213Zm21.742-32.69-1.535-.922-51.619-30.081a8.39 8.39 0 0 0-8.492 0L99.98 99.808V74.587a.716.716 0 0 1 .307-.665l52.233-30.133a48.652 48.652 0 0 1 72.236 50.391v.205ZM88.061 139.097l-21.845-12.585a.87.87 0 0 1-.41-.614V65.685a48.652 48.652 0 0 1 79.757-37.346l-1.535.87-51.67 29.825a8.595 8.595 0 0 0-4.246 7.367l-.051 72.697Zm11.868-25.58 28.138-16.217 28.188 16.218v32.434l-28.086 16.218-28.188-16.218-.052-32.434Z" />
-        </svg>
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 256 260"
-            aria-label="OpenAI Icon"
-            className="w-4 h-4 hidden dark:block"
-        >
-            <title>OpenAI Icon Dark</title>
-            <path
-                fill="#fff"
-                d="M239.184 106.203a64.716 64.716 0 0 0-5.576-53.103C219.452 28.459 191 15.784 163.213 21.74A65.586 65.586 0 0 0 52.096 45.22a64.716 64.716 0 0 0-43.23 31.36c-14.31 24.602-11.061 55.634 8.033 76.74a64.665 64.665 0 0 0 5.525 53.102c14.174 24.65 42.644 37.324 70.446 31.36a64.72 64.72 0 0 0 48.754 21.744c28.481.025 53.714-18.361 62.414-45.481a64.767 64.767 0 0 0 43.229-31.36c14.137-24.558 10.875-55.423-8.083-76.483Zm-97.56 136.338a48.397 48.397 0 0 1-31.105-11.255l1.535-.87 51.67-29.825a8.595 8.595 0 0 0 4.247-7.367v-72.85l21.845 12.636c.218.111.37.32.409.563v60.367c-.056 26.818-21.783 48.545-48.601 48.601Zm-104.466-44.61a48.345 48.345 0 0 1-5.781-32.589l1.534.921 51.722 29.826a8.339 8.339 0 0 0 8.441 0l63.181-36.425v25.221a.87.87 0 0 1-.358.665l-52.335 30.184c-23.257 13.398-52.97 5.431-66.404-17.803ZM23.549 85.38a48.499 48.499 0 0 1 25.58-21.333v61.39a8.288 8.288 0 0 0 4.195 7.316l62.874 36.272-21.845 12.636a.819.819 0 0 1-.767 0L41.353 151.53c-23.211-13.454-31.171-43.144-17.804-66.405v.256Zm179.466 41.695-63.08-36.63L161.73 77.86a.819.819 0 0 1 .768 0l52.233 30.184a48.6 48.6 0 0 1-7.316 87.635v-61.391a8.544 8.544 0 0 0-4.4-7.213Zm21.742-32.69-1.535-.922-51.619-30.081a8.39 8.39 0 0 0-8.492 0L99.98 99.808V74.587a.716.716 0 0 1 .307-.665l52.233-30.133a48.652 48.652 0 0 1 72.236 50.391v.205ZM88.061 139.097l-21.845-12.585a.87.87 0 0 1-.41-.614V65.685a48.652 48.652 0 0 1 79.757-37.346l-1.535.87-51.67 29.825a8.595 8.595 0 0 0-4.246 7.367l-.051 72.697Zm11.868-25.58 28.138-16.217 28.188 16.218v32.434l-28.086 16.218-28.188-16.218-.052-32.434Z"
-            />
-        </svg>
-    </>
-);
-
 interface AI_PromptProps {
-    onSend?: (message: string, model?: string) => void;
+    onSend?: (message: string, model?: string, images?: Array<{ dataUrl: string }>) => void;
     onEnhance?: (message: string, model?: string) => Promise<string>;
     onDraftChange?: (message: string) => void;
     onCancel?: () => void;
-    onFileSelect?: (event: ChangeEvent<HTMLInputElement>) => void;
-    fileUploadAccept?: string;
-    isFileUploadDisabled?: boolean;
     initialModelId?: string;
     onModelChange?: (modelId: string) => void;
     availableModels?: Array<{id: string, name: string}>;
@@ -117,9 +137,6 @@ export function AI_Prompt({
     onEnhance,
     onDraftChange,
     onCancel,
-    onFileSelect,
-    fileUploadAccept,
-    isFileUploadDisabled,
     initialModelId, 
     onModelChange,
     availableModels: propAvailableModels,
@@ -128,6 +145,9 @@ export function AI_Prompt({
 }: AI_PromptProps) {
     const [value, setValue] = useState("");
     const [isEnhancing, setIsEnhancing] = useState(false);
+    const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([])
+    const [isDraggingOver, setIsDraggingOver] = useState(false)
+    const fileInputRef = useRef<HTMLInputElement>(null)
     const { textareaRef, adjustHeight } = useAutoResizeTextarea({
         minHeight: 52,
         maxHeight: 200,
@@ -135,9 +155,6 @@ export function AI_Prompt({
     
     // State for models
     const [selectedModelId, setSelectedModelId] = useState(initialModelId || CODEUI_GOD_MODE_MODEL_ID);
-    // Use props if provided, otherwise default to empty (or local fetch if we wanted to keep fallback, but store is better)
-    // We'll keep local state for fallback if props aren't provided to maintain component independence if needed, 
-    // but for now we'll prioritize props.
     const [localAvailableModels, setLocalAvailableModels] = useState<Array<{id: string, name: string}>>([]);
     const [localIsLoadingModels, setLocalIsLoadingModels] = useState(true);
 
@@ -206,13 +223,55 @@ export function AI_Prompt({
             });
     }, [propAvailableModels, initialModelId]);
 
-    const handleSubmit = () => {
-        if (!value.trim() || isGenerating || isEnhancing) return;
+    const addFiles = useCallback(async (files: FileList | File[]) => {
+      if (!isVisionCapableModel(selectedModelId)) {
+        // ponytail: block image attach when model doesn't support vision — prevents the send-time error
+        return
+      }
 
-        onSend?.(value.trim(), selectedModelId);
+      const imageFiles: File[] = []
+      for (let i = 0; i < files.length; i += 1) {
+        const file = files[i]
+        if (!file.type.startsWith("image/")) continue
+        if (file.size > MAX_IMAGE_SIZE_BYTES) {
+          // ponytail: toast not available in this component; caller can observe via onSend
+          console.warn(`Image "${file.name}" exceeds ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024} MB limit, skipping`)
+          continue
+        }
+        imageFiles.push(file)
+      }
+
+      const remaining = MAX_IMAGES_PER_MESSAGE - attachedImages.length
+      const toAdd = imageFiles.slice(0, remaining)
+
+      const newImages: AttachedImage[] = await Promise.all(
+        toAdd.map(async (file) => ({
+          id: generateImageId(),
+          dataUrl: await downscaleImage(file, IMAGE_DOWNSCALE_MAX_DIM),
+          name: file.name,
+        }))
+      )
+
+      setAttachedImages((prev) => [...prev, ...newImages].slice(0, MAX_IMAGES_PER_MESSAGE))
+
+      // Reset file input so the same file can be re-selected
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
+    }, [attachedImages.length, selectedModelId])
+
+    const removeImage = useCallback((id: string) => {
+      setAttachedImages((prev) => prev.filter((img) => img.id !== id))
+    }, [])
+
+    const handleSubmit = useCallback(() => {
+        if (!value.trim() || isGenerating || isEnhancing) return;
+        const images = attachedImages.map((img) => ({ dataUrl: img.dataUrl }))
+        onSend?.(value.trim(), selectedModelId, images);
         setValue("");
+        setAttachedImages([]);
         adjustHeight(true);
-    };
+    }, [value, isGenerating, isEnhancing, attachedImages, selectedModelId, onSend, adjustHeight])
 
     const handleEnhance = async () => {
         if (!onEnhance || !value.trim() || isGenerating || isEnhancing) {
@@ -246,19 +305,107 @@ export function AI_Prompt({
             return;
         }
 
-        if (value.trim()) {
+        if (value.trim() || attachedImages.length > 0) {
             e.preventDefault();
             handleSubmit();
         }
     };
+
+    // Paste handler: intercept clipboard images
+    const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      const files: File[] = []
+      for (let i = 0; i < items.length; i += 1) {
+        const item = items[i]
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile()
+          if (file) files.push(file)
+        }
+      }
+
+      if (files.length > 0) {
+        e.preventDefault()
+        void addFiles(files)
+      }
+    }, [addFiles])
+
+    // Drag-and-drop handlers
+    const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsDraggingOver(true)
+    }, [])
+
+    const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsDraggingOver(false)
+    }, [])
+
+    const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsDraggingOver(false)
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        void addFiles(e.dataTransfer.files)
+      }
+    }, [addFiles])
+
+    // File input change handler
+    const handleFileInputChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files.length > 0) {
+        void addFiles(e.target.files)
+      }
+    }, [addFiles])
     
     const selectedModel = availableModels.find(m => m.id === selectedModelId) || availableModels[0];
+    const canSubmit = value.trim().length > 0 || attachedImages.length > 0
 
     return (
         <div className="w-full">
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] overflow-hidden">
+            <div
+              className={cn(
+                "rounded-xl border overflow-hidden transition-colors",
+                isDraggingOver
+                  ? "border-blue-500/50 bg-blue-500/[0.04]"
+                  : "border-white/[0.06] bg-white/[0.03]"
+              )}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
                 <div className="relative">
                     <div className="relative flex flex-col">
+
+                        {/* Image preview chips */}
+                        {attachedImages.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5 px-2.5 pt-2.5">
+                            {attachedImages.map((img) => (
+                              <div
+                                key={img.id}
+                                className="relative group rounded-md overflow-hidden border border-white/[0.08] bg-black/20"
+                                style={{ width: 48, height: 48 }}
+                              >
+                                <img
+                                  src={img.dataUrl}
+                                  alt={img.name}
+                                  className="w-full h-full object-cover"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removeImage(img.id)}
+                                  aria-label={`Remove ${img.name}`}
+                                  className="absolute top-0 right-0 p-0.5 rounded-bl-md bg-black/60 text-white/80 hover:bg-black/80 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <X className="w-2.5 h-2.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+
                         <div
                             className="overflow-y-auto"
                             style={{ maxHeight: "200px" }}
@@ -275,6 +422,7 @@ export function AI_Prompt({
                                 )}
                                 ref={textareaRef}
                                 onKeyDown={handleKeyDown}
+                                onPaste={handlePaste}
                                 onChange={(e) => {
                                     setValue(e.target.value);
                                     adjustHeight();
@@ -387,17 +535,20 @@ export function AI_Prompt({
                                             "rounded-md p-1 bg-black/5 dark:bg-white/5",
                                             "hover:bg-black/10 dark:hover:bg-white/10 focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-blue-500",
                                             "text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white",
-                                            (isFileUploadDisabled || isGenerating || isEnhancing) && "opacity-50 cursor-not-allowed pointer-events-none",
-                                            !isFileUploadDisabled && !isGenerating && !isEnhancing && "cursor-pointer"
+                                            (isGenerating || isEnhancing || !isVisionCapableModel(selectedModelId)) && "opacity-50 cursor-not-allowed pointer-events-none",
+                                            !isGenerating && !isEnhancing && isVisionCapableModel(selectedModelId) && "cursor-pointer"
                                         )}
-                                        aria-label="Attach file"
+                                        aria-label="Attach images"
+                                        title={!isVisionCapableModel(selectedModelId) ? "This model doesn't support image input. Switch to a vision-capable model." : "Attach images"}
                                     >
                                         <input
+                                            ref={fileInputRef}
                                             type="file"
                                             className="hidden"
-                                            onChange={onFileSelect}
-                                            accept={fileUploadAccept}
-                                            disabled={isFileUploadDisabled || isGenerating || isEnhancing}
+                                            onChange={handleFileInputChange}
+                                            accept="image/*"
+                                            multiple
+                                            disabled={isGenerating || isEnhancing || !isVisionCapableModel(selectedModelId)}
                                         />
                                         <Paperclip className="w-3 h-3 transition-colors" />
                                     </label>
@@ -412,7 +563,7 @@ export function AI_Prompt({
                                             : "hover:bg-black/10 dark:hover:bg-white/10"
                                     )}
                                     aria-label={isGenerating ? "Cancel generation" : "Send message"}
-                                    disabled={(!isGenerating && !value.trim()) || isEnhancing}
+                                    disabled={(!isGenerating && !canSubmit) || isEnhancing}
                                     onClick={() => {
                                         if (isGenerating) {
                                             onCancel?.();
@@ -428,7 +579,7 @@ export function AI_Prompt({
                                         <ArrowRight
                                             className={cn(
                                                 "w-3 h-3 dark:text-white transition-opacity duration-200",
-                                                value.trim()
+                                                canSubmit
                                                     ? "opacity-100"
                                                     : "opacity-30"
                                             )}

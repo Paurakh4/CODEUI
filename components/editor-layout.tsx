@@ -1,6 +1,6 @@
 "use client"
 
-import { startTransition, useEffect, useState, useCallback, useRef, type ChangeEvent } from "react"
+import { startTransition, useEffect, useState, useCallback, useRef } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { TopNav } from "@/components/top-nav-new"
@@ -31,6 +31,7 @@ import { getElementPropertyFields } from "@/lib/design-element-properties"
 import { validatePromptScope } from "@/lib/prompt-scope"
 import { isFullDocumentRecoveryMode, isPatchRepairRecoveryMode, resolveRecoveryMode, type RecoveryMode } from "@/lib/recovery-mode"
 import { dedupeAdjacentAssistantMessages } from "@/lib/utils/chat-message-dedupe"
+import { isVisionCapableModel } from "@/lib/ai-models"
 import { cn } from "@/lib/utils"
 import { convertHtmlToReactComponent, generateExportPrompt, sanitizeFileName } from "@/lib/utils/export"
 import { deriveProjectNameFromPrompt, isDefaultProjectName, normalizeProjectName } from "@/lib/utils/project-name"
@@ -84,6 +85,7 @@ interface Message {
   isThinking?: boolean
   thinkingContent?: string
   progressLabel?: string
+  images?: string[]
 }
 
 function normalizeMessageRole(value: unknown): Message["role"] {
@@ -547,6 +549,62 @@ function getRenderableStreamingHtml(value: string): string | null {
   return candidate
 }
 
+/**
+ * Sanitize thinking content for display — strip raw CSS, code fences, and
+ * `<style>` blocks that are part of the model's chain-of-thought, not meant
+ * for the user. Keeps natural-language reasoning intact.
+ *
+ * ponytail: heuristic-based; a CSS rule with a natural-language prefix
+ * (e.g. "I should use..." followed by a code block) might lose the prefix.
+ * Upgrade path: a token-level classifier, but this is good enough for now.
+ */
+function sanitizeThinkingForDisplay(raw: string): string {
+  if (!raw) return ""
+
+  let result = raw
+
+  // Strip markdown code fences (with or without language tag).
+  result = result.replace(/```[\w-]*\s*[\s\S]*?```/g, "\n")
+  // Strip unclosed opening fences (truncated output).
+  result = result.replace(/```[\w-]*\s*\n[\s\S]*$/g, "\n")
+
+  // Strip <style>...</style> blocks.
+  result = result.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "\n")
+
+  // Strip CSS custom property declaration runs (--foo:...; chains).
+  result = result.replace(/^(?:\s*--[-\w]+\s*:\s*[^;]+;\s*)+$/gm, "\n")
+
+  // Strip CSS rule blocks (.class{...}, #id{...}, tag{...}) on their own lines.
+  result = result.replace(/^[ \t]*[.#@]?[-\w]+\s*\{[\s\S]*?\}[ \t]*$/gm, "\n")
+
+  // Strip runs of CSS declarations (property: value; sequences) that form a block.
+  result = result.replace(/^(?:\s*[-\w]+\s*:\s*[^;{}]+;\s*){3,}$/gm, "\n")
+
+  // Collapse runs of blank lines.
+  result = result.replace(/\n{3,}/g, "\n\n")
+
+  return result.trim()
+}
+
+/**
+ * Strip markdown code fences and thinking tags from raw streamed output
+ * before displaying it in the Monaco code editor. Does NOT affect the
+ * committed HTML — only the draft shown during streaming.
+ */
+function stripDisplayFences(raw: string): string {
+  let result = raw
+  // Remove leading ```html / ``` fence line.
+  result = result.replace(/^```[\w-]*\s*\n/, "")
+  // Remove trailing ``` fence line.
+  result = result.replace(/\n\s*```\s*$/, "")
+  // Remove unmatched opening fence (truncated output).
+  result = result.replace(/\n\s*```[\w-]*\s*$/, "")
+  // Remove thinking tags and their content (model reasoning in raw output).
+  result = result.replace(/<think(?:ing)?[^>]*>[\s\S]*?<\/think(?:ing)?>/gi, "")
+  result = result.replace(/<reasoning[^>]*>[\s\S]*?<\/reasoning>/gi, "")
+  return result
+}
+
 function buildAssistantSummaryHtmlSnapshot(html: string): string {
   const normalized = html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -565,11 +623,12 @@ function buildAssistantSummaryHtmlSnapshot(html: string): string {
 interface EditorLayoutNewProps {
   initialPrompt?: string
   initialModel?: string
+  initialImages?: string[]
   onBack?: () => void
   projectId?: string
 }
 
-export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId }: EditorLayoutNewProps) {
+export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, onBack, projectId }: EditorLayoutNewProps) {
   const router = useRouter()
   const {
     state,
@@ -639,7 +698,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   
   // Chat State
   const [messages, setMessages] = useState<Message[]>([])
-  const [thinkingExpanded, setThinkingExpanded] = useState(true)
+  const [expandedThinkingIds, setExpandedThinkingIds] = useState<Set<string>>(new Set())
   const [expandedUserMessages, setExpandedUserMessages] = useState<Set<string>>(new Set())
   const hasProcessedInitialPrompt = useRef(false)
   const initialPromptStartTimerRef = useRef<number | null>(null)
@@ -649,7 +708,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   const scopeRecoveryAttemptsRef = useRef(0)
   const [pendingRecovery, setPendingRecovery] = useState<PendingRecovery | null>(null)
   const [pendingDesignDiscovery, setPendingDesignDiscovery] = useState<PendingDesignDiscovery | null>(null)
-  const [isUploadingMedia, setIsUploadingMedia] = useState(false)
   const activeProjectKeyRef = useRef<string | null>(null)
   const messagesRef = useRef<Message[]>([])
   const activeThinkingScrollRef = useRef<HTMLDivElement | null>(null)
@@ -658,6 +716,15 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
 
   const toggleUserMessage = useCallback((id: string) => {
     setExpandedUserMessages((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const toggleThinking = useCallback((id: string) => {
+    setExpandedThinkingIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
@@ -679,7 +746,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   }, [messages])
 
   useEffect(() => {
-    if (!thinkingExpanded || !activeThinkingScrollRef.current) {
+    if (!activeThinkingScrollRef.current) {
       return
     }
 
@@ -701,7 +768,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         thinkingScrollFrameRef.current = null
       }
     }
-  }, [messages, thinkingExpanded])
+  }, [messages])
 
   // Style History for undo/redo
   const [styleHistoryState, styleHistoryActions] = useStyleHistory(30)
@@ -757,7 +824,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     setPendingRecovery(null)
   clearPendingDesignDiscovery()
     setMessages([])
-    setThinkingExpanded(true)
+    setExpandedThinkingIds(new Set())
     setSelectedElement(null)
     setPanelPosition(null)
     setDraftAiOutput("")
@@ -993,7 +1060,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   }, 2000)
 
   // Save messages to MongoDB
-  const saveMessageToMongo = useCallback(async (message: { role: "user" | "assistant"; content: string; thinkingContent?: string }) => {
+  const saveMessageToMongo = useCallback(async (message: { role: "user" | "assistant"; content: string; thinkingContent?: string; images?: string[] }) => {
     if (!projectId || projectId === "new" || !session?.user?.id) return
     
     try {
@@ -1233,11 +1300,12 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           }
           // Restore messages from MongoDB
           if (project.messages && project.messages.length > 0) {
-            const restoredMessages = dedupeAdjacentAssistantMessages<Message>(project.messages.map((m: { role: string; content: string; thinkingContent?: string; createdAt: string }, index: number): Message => ({
+            const restoredMessages = dedupeAdjacentAssistantMessages<Message>(project.messages.map((m: { role: string; content: string; thinkingContent?: string; images?: string[]; createdAt: string }, index: number): Message => ({
               id: createEditorEntityId(`mongo_${index}`),
               role: normalizeMessageRole(m.role),
               content: typeof m.content === "string" ? m.content : "",
               thinkingContent: typeof m.thinkingContent === "string" ? m.thinkingContent : undefined,
+              images: Array.isArray(m.images) ? m.images : undefined,
               timestamp: normalizeMessageTimestamp(m.createdAt),
               isThinking: false,
             })))
@@ -1320,6 +1388,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
             role: normalizeMessageRole(m?.role),
             content: typeof m?.content === "string" ? m.content : "",
             thinkingContent: typeof m?.thinkingContent === "string" ? m.thinkingContent : undefined,
+            images: Array.isArray(m?.images) ? m.images : undefined,
             timestamp: normalizeMessageTimestamp(m?.timestamp),
             isThinking: Boolean(m?.isThinking),
             progressLabel: typeof m?.progressLabel === "string" ? m.progressLabel : undefined,
@@ -1381,6 +1450,16 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
             thinkingContent: targetMessage.thinkingContent,
           }
         : null
+
+      // Auto-collapse the thinking panel once the response is finalized.
+      if (targetMessageId) {
+        setExpandedThinkingIds((prev) => {
+          if (!prev.has(targetMessageId)) return prev
+          const next = new Set(prev)
+          next.delete(targetMessageId)
+          return next
+        })
+      }
 
       setMessages((prev) => {
         if (!targetMessageId) {
@@ -1453,8 +1532,9 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     isGenerating,
   } = useAIChat({
     onContentUpdate: (content) => {
-      // Stream output into Monaco (not into chat)
-      setDraftAiOutput(content)
+      // Stream output into Monaco (not into chat) — strip fences/thinking
+      // so Monaco never shows ```html or <thinking> markers.
+      setDraftAiOutput(stripDisplayFences(content))
 
       const streamingHtml = getRenderableStreamingHtml(content)
       const activeRequest = activeAiRequestRef.current
@@ -1467,12 +1547,19 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
     // The API still emits a "draft" stream with the raw partial output so we
     // can render the in-flight model output in Monaco for live feedback.
     onDraftUpdate: (draft) => {
-      setDraftAiOutput(draft)
+      setDraftAiOutput(stripDisplayFences(draft))
     },
     onThinkingUpdate: (thinkingContent) => {
       setMessages((prev) => {
         const lastMessage = prev[prev.length - 1]
         if (lastMessage && lastMessage.role === "assistant") {
+          // Keep the streaming thinking panel expanded.
+          setExpandedThinkingIds((ids) => {
+            if (ids.has(lastMessage.id)) return ids
+            const next = new Set(ids)
+            next.add(lastMessage.id)
+            return next
+          })
           return prev.map((m, i) =>
             i === prev.length - 1 ? { ...m, thinkingContent, isThinking: true } : m
           )
@@ -1481,6 +1568,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       })
     },
     onProgressUpdate: updateAssistantProgress,
+    onNoop: (reason) => {
+      resetActiveAiRequest()
+      setDraftAiOutput("")
+      setApplyingPatch(false)
+      setViewMode("preview")
+      finalizeAssistantMessage(reason)
+    },
     onCancel: () => {
       const activeRequest = activeAiRequestRef.current
       resetActiveAiRequest()
@@ -1500,6 +1594,14 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         if (!lastMessage || lastMessage.role !== "assistant" || !lastMessage.isThinking) {
           return prev
         }
+
+        // Auto-collapse the thinking panel on cancel.
+        setExpandedThinkingIds((ids) => {
+          if (!ids.has(lastMessage.id)) return ids
+          const next = new Set(ids)
+          next.delete(lastMessage.id)
+          return next
+        })
 
         return prev.map((message, index) =>
           index === prev.length - 1
@@ -1856,6 +1958,14 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
               ? `Error: ${error.message}. The previous page was restored.`
               : `Error: ${error.message}`
 
+          // Auto-collapse the thinking panel on error.
+          setExpandedThinkingIds((ids) => {
+            if (!ids.has(lastMessage.id)) return ids
+            const next = new Set(ids)
+            next.delete(lastMessage.id)
+            return next
+          })
+
           return prev.map((m, i) =>
             i === prev.length - 1
               ? { ...m, isThinking: false, content: finalContent, progressLabel: undefined }
@@ -1924,10 +2034,12 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       message,
       model,
       useExistingUserMessage = false,
+      images,
     }: {
       message: string
       model?: string
       useExistingUserMessage?: boolean
+      images?: string[]
     }) => {
       const trimmedMessage = message.trim()
       if (!trimmedMessage) return
@@ -1990,6 +2102,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
             nextMessages[nextMessages.length - 1] = {
               ...lastMessage,
               content: trimmedMessage,
+              images,
             }
           }
 
@@ -2002,10 +2115,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           content: trimmedMessage,
           role: "user",
           timestamp: new Date(),
+          images,
         }
 
         setMessages((prev) => [...prev, userMessage, assistantMessage])
-        saveMessageToMongo({ role: "user", content: trimmedMessage })
+        saveMessageToMongo({ role: "user", content: trimmedMessage, images })
       }
 
       lastUserPromptRef.current = trimmedMessage
@@ -2048,6 +2162,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
           secondaryColor: state.secondaryColor,
           theme: state.theme,
           conversationHistory,
+          images,
         })
       } catch {
         // Error handling is managed by useAIChat onError callback.
@@ -2076,7 +2191,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
   )
 
   const handleSend = useCallback(
-    async (message: string, model?: string) => {
+    async (message: string, model?: string, images?: Array<{ dataUrl: string }>) => {
       const trimmedMessage = message.trim()
       if (!trimmedMessage) {
         return
@@ -2086,14 +2201,32 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
         return
       }
 
+      const imageUrls = images?.map((img) => img.dataUrl) ?? []
+
+      // Block non-vision models when images are attached
+      if (imageUrls.length > 0 && !isVisionCapableModel(model ?? state.selectedModel)) {
+        toast({
+          title: "Pick a vision-capable model",
+          description: "The selected model does not support image input. Switch to Gemini, Claude, GPT, or another vision-capable model.",
+          variant: "destructive",
+        })
+        return
+      }
+
       if (messagesRef.current.length > 0) {
         clearPendingDesignDiscovery()
-        await startGeneration({ message: trimmedMessage, model })
+        await startGeneration({ message: trimmedMessage, model, images: imageUrls })
         return
       }
 
       if (!session) {
         showSignIn()
+        return
+      }
+
+      // Skip design-discovery when images are attached — the LLM needs to see the images directly
+      if (imageUrls.length > 0) {
+        await startGeneration({ message: trimmedMessage, model, images: imageUrls })
         return
       }
 
@@ -2386,6 +2519,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       void startGeneration({
         message: promptToAutoStart,
         model: initialModel,
+        images: initialImages,
         useExistingUserMessage: hasOrphanedInitialUserMessage,
       })
     }, 0)
@@ -2439,48 +2573,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
       }
     }
   }, [clearPendingDesignDiscovery, projectId, session?.user?.id, toast])
-
-  const handleUploadMedia = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file || !projectId || projectId === "new" || !session?.user?.id) {
-      return
-    }
-
-    setIsUploadingMedia(true)
-
-    try {
-      const formData = new FormData()
-      formData.append("file", file)
-
-      const res = await fetch(`/api/projects/${projectId}/media`, {
-        method: "POST",
-        body: formData,
-      })
-
-      const data = await res.json().catch(() => null)
-
-      if (!res.ok) {
-        throw new Error(data?.error || "Failed to upload media")
-      }
-
-      toast({
-        title: "Media uploaded",
-        description: `${file.name} is now available in this project.`,
-      })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to upload media"
-      toast({
-        title: "Upload failed",
-        description: message,
-        variant: "destructive",
-      })
-    } finally {
-      setIsUploadingMedia(false)
-      if (event.target) {
-        event.target.value = ""
-      }
-    }
-  }, [projectId, session?.user?.id, toast])
 
   const downloadFile = useCallback((content: string, filename: string, mimeType: string) => {
     const blob = new Blob([content], { type: mimeType })
@@ -3125,6 +3217,19 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                         </div>
                       ) : message.role === "user" && message.content.length > LONG_USER_MSG_THRESHOLD ? (
                         <div className="space-y-1.5">
+                          {/* Image thumbnails */}
+                          {message.images && message.images.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {message.images.map((dataUrl, i) => (
+                                <img
+                                  key={i}
+                                  src={dataUrl}
+                                  alt={`Attached image ${i + 1}`}
+                                  className="max-h-20 rounded-md border border-white/[0.06] object-cover"
+                                />
+                              ))}
+                            </div>
+                          ) : null}
                           <p className={cn(
                             "text-xs whitespace-pre-wrap",
                             !expandedUserMessages.has(message.id) && "line-clamp-3"
@@ -3144,51 +3249,71 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
                           </button>
                         </div>
                       ) : (
-                        <p className="text-xs whitespace-pre-wrap">{message.content}</p>
+                        <div className="space-y-1.5">
+                          {/* Image thumbnails */}
+                          {message.images && message.images.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {message.images.map((dataUrl, i) => (
+                                <img
+                                  key={i}
+                                  src={dataUrl}
+                                  alt={`Attached image ${i + 1}`}
+                                  className="max-h-20 rounded-md border border-white/[0.06] object-cover"
+                                />
+                              ))}
+                            </div>
+                          ) : null}
+                          <p className="text-xs whitespace-pre-wrap">{message.content}</p>
+                        </div>
                       )}
                     </div>
                   </div>
                   
                   {/* Thinking panel for assistant */}
-                  {message.role === "assistant" && message.thinkingContent && (
+                  {message.role === "assistant" && message.thinkingContent && (() => {
+                    const sanitized = sanitizeThinkingForDisplay(message.thinkingContent)
+                    if (!sanitized.trim()) return null
+                    const isExpanded = isStreamingThinking || expandedThinkingIds.has(message.id)
+                    return (
                     <div className="ml-2">
                       <div
                         className={cn(
                           "max-w-[85%] text-left transition-all",
-                          thinkingExpanded
+                          isExpanded
                             ? "flex max-h-[160px] w-full flex-col overflow-hidden rounded-lg bg-zinc-900/50 pl-3"
                             : "w-fit"
                         )}
                       >
                         <button
                           type="button"
-                          onClick={() => setThinkingExpanded(!thinkingExpanded)}
-                          aria-expanded={thinkingExpanded}
+                          onClick={() => toggleThinking(message.id)}
+                          aria-expanded={isExpanded}
                           aria-controls={thinkingPanelId}
                           className={cn(
                             "flex items-center gap-1 text-[11px] text-zinc-500 transition-colors hover:text-zinc-300",
-                            thinkingExpanded ? "pt-2 pb-1.5" : ""
+                            isExpanded ? "pt-2 pb-1.5" : ""
                           )}
                         >
-                          {thinkingExpanded ? (
+                          {isExpanded ? (
                             <ChevronUp className="w-2.5 h-2.5" />
                           ) : (
                             <ChevronDown className="w-2.5 h-2.5" />
                           )}
                           Thinking
                         </button>
-                        {thinkingExpanded ? (
+                        {isExpanded ? (
                           <div
                             id={thinkingPanelId}
                             ref={isStreamingThinking ? activeThinkingScrollRef : undefined}
                             className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2.5 pr-1 text-xs leading-5 text-zinc-500 whitespace-pre-wrap"
                           >
-                            {message.thinkingContent}
+                            {sanitized}
                           </div>
                         ) : null}
                       </div>
                     </div>
-                  )}
+                    )
+                  })()}
                 </div>
               )})}
 
@@ -3224,9 +3349,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, onBack, projectId
             onEnhance={handleEnhancePrompt}
             onDraftChange={handleComposerDraftChange}
             onCancel={cancelAI}
-            onFileSelect={handleUploadMedia}
-            fileUploadAccept="image/*,video/*,audio/*"
-            isFileUploadDisabled={isUploadingMedia || !session?.user?.id || !projectId || projectId === "new"}
             initialModelId={state.selectedModel}
             onModelChange={setModel}
             availableModels={state.availableModels}
