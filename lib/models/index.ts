@@ -27,6 +27,10 @@ export {
   type IAdminModelConfig,
 } from "./AdminModelConfig";
 export {
+  default as AdminCustomProvider,
+  type IAdminCustomProvider,
+} from "./AdminCustomProvider";
+export {
   default as Feedback,
   type IFeedback,
   type FeedbackType,

@@ -8,6 +8,7 @@ import {
 } from "@/lib/admin/model-policies"
 import {
   PROMPT_ENHANCEMENT_SYSTEM_PROMPT,
+  CLARIFYING_QUESTIONS_SYSTEM_PROMPT,
   buildDeterministicPromptEnhancement,
   buildPromptEnhancementUserPrompt,
   detectPromptEnhancementWarning,
@@ -78,10 +79,59 @@ export async function POST(request: Request) {
     const context: PromptEnhancementContext = { prompt, strength }
     const warning = detectPromptEnhancementWarning(prompt)
     if (!isLikelyUiPrompt(prompt)) {
+      // ── Clarifying questions (Bug #7) ──
+      // Instead of silently skipping, ask the LLM for up to 2 clarifying
+      // questions to help the user turn their vague request into an
+      // actionable UI prompt.
+      try {
+        const clarifyingCompletion = await requestAITextCompletion({
+          requestId,
+          requestedModel: promptEnhanceModelId,
+          fallbackChain: await getRuntimeModelFallbackChain(promptEnhanceModelId),
+          modelsById: await getRuntimeModelsById(),
+          messages: [
+            { role: "system", content: CLARIFYING_QUESTIONS_SYSTEM_PROMPT },
+            { role: "user", content: `User prompt: "${prompt}"` },
+          ],
+          signal: request.signal,
+          temperature: 0.3,
+          maxTokens: 200,
+        })
+
+        let clarifyingQuestions: string[] = []
+        try {
+          const parsed = JSON.parse(clarifyingCompletion.content.trim())
+          if (Array.isArray(parsed) && parsed.every((q: unknown) => typeof q === "string")) {
+            clarifyingQuestions = parsed.slice(0, 2)
+          }
+        } catch {
+          // If JSON parse fails, extract questions heuristically.
+          const questions = clarifyingCompletion.content.match(/"[^"]+\?/g)
+          if (questions) {
+            clarifyingQuestions = questions.map((q) => q.replace(/^"|"$/g, "")).slice(0, 2)
+          }
+        }
+
+        if (clarifyingQuestions.length > 0) {
+          return NextResponse.json({
+            enhancedPrompt: prompt,
+            warning,
+            skipped: true,
+            clarifyingQuestions,
+          })
+        }
+      } catch {
+        logger.warn("Clarifying questions call failed, falling back to deterministic", {
+          phase: "route",
+          requestId,
+        })
+      }
+
+      // Fallback: still return the deterministic enhancement so the user
+      // gets *something* actionable rather than a dead-end skip.
       return NextResponse.json({
-        enhancedPrompt: prompt,
+        enhancedPrompt: buildDeterministicPromptEnhancement(context),
         warning,
-        skipped: true,
       })
     }
 

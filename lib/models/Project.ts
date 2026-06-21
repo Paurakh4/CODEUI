@@ -37,6 +37,22 @@ export interface IProject extends Omit<Document, "_id"> {
   // Chat messages (embedded, per-project persistence)
   messages: IMessage[];
 
+  // Design tokens — persisted style decisions (fonts, colors, spacing, radius)
+  // Survives across reprompts and page reloads.
+  designTokens?: {
+    fontFamily?: string;
+    headingFontFamily?: string;
+    primaryColor?: string;
+    secondaryColor?: string;
+    accentColor?: string;
+    backgroundColor?: string;
+    textColor?: string;
+    headingColor?: string;
+    spacingScale?: string;
+    borderRadius?: string;
+    theme?: "light" | "dark";
+  };
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -142,6 +158,10 @@ const ProjectSchema = new Schema<IProject>(
     messages: {
       type: [MessageSchema],
       default: [],
+    },
+    designTokens: {
+      type: Schema.Types.Mixed,
+      default: {},
     },
   },
   {

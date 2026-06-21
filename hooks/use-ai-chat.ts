@@ -9,6 +9,7 @@ import {
 } from "@/lib/parsers/stream-parser"
 import { isPatchRepairRecoveryMode, isRecoveryModeActive, type RecoveryModeValue } from "@/lib/recovery-mode"
 import { createRepromptLogger } from "@/lib/utils/reprompt-logger"
+import type { DesignTokens } from "@/lib/design-tokens"
 
 export interface ConversationHistoryItem {
   role: "user" | "assistant"
@@ -50,6 +51,18 @@ export interface AICompletionResult {
   meta?: AIStreamMeta
 }
 
+export interface ContentWipeRejectedData {
+  reason: string
+  lostTokens: string[]
+  lostPriceTokens: string[]
+  lossRatio: number
+}
+
+export interface HexWarningData {
+  message: string
+  missingHex: string[]
+}
+
 interface UseAIChatOptions {
   onContentUpdate?: (content: string) => void
   /**
@@ -65,6 +78,8 @@ interface UseAIChatOptions {
   onComplete?: (result: AICompletionResult) => void
   onCancel?: () => void
   onNoop?: (reason: string) => void
+  onContentWipeRejected?: (data: ContentWipeRejectedData) => void
+  onHexWarning?: (data: HexWarningData) => void
   onPatch?: (filePath: string, searchBlock: string, replaceBlock: string) => boolean | void
   onFileUpdate?: (filePath: string) => void
   onProjectNameUpdate?: (name: string) => void
@@ -84,6 +99,8 @@ interface SendMessageOptions {
   theme?: "light" | "dark"
   conversationHistory?: ConversationHistoryItem[]
   images?: string[]
+  designTokens?: DesignTokens
+  restoreCandidates?: string[]
 }
 
 const logger = createRepromptLogger("use-ai-chat")
@@ -169,6 +186,8 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       theme,
       conversationHistory,
       images,
+      designTokens,
+      restoreCandidates,
     }: SendMessageOptions) => {
       if (abortControllerRef.current) {
         abortActiveRequest(false)
@@ -240,12 +259,39 @@ export function useAIChat(options: UseAIChatOptions = {}) {
             }
 
             if (data.type === "error") {
-              throw new Error(data.data || "AI stream error")
+              const errorData = data.data
+              const errorMessage = typeof errorData === "object" && errorData !== null
+                ? (errorData as { message?: string; reason?: string }).message || JSON.stringify(errorData)
+                : String(errorData || "AI stream error")
+              const errorReason = typeof errorData === "object" && errorData !== null
+                ? (errorData as { reason?: string }).reason
+                : undefined
+              const error = new Error(errorMessage)
+              ;(error as Error & { reason?: string }).reason = errorReason
+              throw error
             }
 
             if (data.type === "noop") {
               optionsRef.current.onNoop?.(data.data?.reason || "The page already matches your request — no changes needed.")
               // The stream will close after this; skip further processing.
+              continue
+            }
+
+            if (data.type === "content-wipe-rejected") {
+              if (!isRequestActive()) {
+                return false
+              }
+
+              optionsRef.current.onContentWipeRejected?.(data.data as ContentWipeRejectedData)
+              continue
+            }
+
+            if (data.type === "hex-warning") {
+              if (!isRequestActive()) {
+                return false
+              }
+
+              optionsRef.current.onHexWarning?.(data.data as HexWarningData)
               continue
             }
 
@@ -322,6 +368,8 @@ export function useAIChat(options: UseAIChatOptions = {}) {
             conversationHistory,
             isRecoveryRequest: isRecoveryModeActive(recoveryMode),
             images,
+            designTokens,
+            restoreCandidates,
           }),
           signal: abortController.signal,
         })

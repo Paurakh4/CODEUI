@@ -38,6 +38,12 @@ export interface FollowUpFinalizerSuccess {
   html: string
   strategy: FollowUpFinalizerStrategy
   appliedPatchCount?: number
+  /**
+   * When true, the model complied with the request to return SEARCH/REPLACE
+   * patches. When false (and preferPatches was true), the model returned a
+   * full HTML document instead — applied as fallback but logged as a warning.
+   */
+  diffCompliant?: boolean
 }
 
 export interface FollowUpFinalizerFailure {
@@ -262,7 +268,12 @@ export function finalizeFollowUpResponse(
 
   const passthrough = tryStrictPassthrough(cleaned)
   if (passthrough) {
-    return { ok: true, html: normalizeHtml(passthrough), strategy: "passthrough" }
+    return {
+      ok: true,
+      html: normalizeHtml(passthrough),
+      strategy: "passthrough",
+      diffCompliant: input.preferPatches ? false : undefined,
+    }
   }
 
   const withoutThinking = stripThinkingBlocks(cleaned).trim()
@@ -273,6 +284,7 @@ export function finalizeFollowUpResponse(
         ok: true,
         html: normalizeHtml(passthroughAfterThink),
         strategy: "stripped-thinking",
+        diffCompliant: input.preferPatches ? false : undefined,
       }
     }
   }
@@ -290,6 +302,7 @@ export function finalizeFollowUpResponse(
         html: normalizeHtml(patched.html),
         strategy: "search-replace",
         appliedPatchCount: patched.appliedPatchCount,
+        diffCompliant: true,
       }
     }
   }
@@ -298,7 +311,12 @@ export function finalizeFollowUpResponse(
   // multiple fenced examples, the fenced block is the canonical answer.
   const fenced = tryExtractFencedBlock(candidate)
   if (fenced) {
-    return { ok: true, html: normalizeHtml(fenced), strategy: "fenced-block" }
+    return {
+      ok: true,
+      html: normalizeHtml(fenced),
+      strategy: "fenced-block",
+      diffCompliant: input.preferPatches ? false : undefined,
+    }
   }
 
   const extracted = tryExtractCompleteDocument(candidate)
@@ -307,6 +325,7 @@ export function finalizeFollowUpResponse(
       ok: true,
       html: normalizeHtml(extracted),
       strategy: "extracted-from-narration",
+      diffCompliant: input.preferPatches ? false : undefined,
     }
   }
 
@@ -319,6 +338,7 @@ export function finalizeFollowUpResponse(
         html: normalizeHtml(patched.html),
         strategy: "search-replace",
         appliedPatchCount: patched.appliedPatchCount,
+        diffCompliant: true,
       }
     }
   }

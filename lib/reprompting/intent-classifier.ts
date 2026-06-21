@@ -6,6 +6,8 @@
  *   - `color`    — changing theme/color palette
  *   - `layout`   — changing element arrangement (horizontal, vertical, grid)
  *   - `structural` — adding/removing components or sections
+ *   - `restore`  — asking to bring back previously lost content
+ *   - `vague`    — general improvement request with no specific target
  *   - `unknown`  — can't confidently classify
  *
  * `text` and `color` intents are candidates for surgical SEARCH/REPLACE mode
@@ -14,7 +16,7 @@
  */
 
 export interface IntentResult {
-  kind: "text" | "color" | "layout" | "structural" | "unknown"
+  kind: "text" | "color" | "layout" | "structural" | "restore" | "vague" | "unknown"
   confidence: number // 0–1
   /** Words/phrases that triggered the classification. */
   triggers: string[]
@@ -72,6 +74,29 @@ const RULES: IntentRule[] = [
       /\b(?:section|component|card|panel|block|module|widget|form|modal|navbar|footer|header|sidebar|faq|testimonial|pricing|hero|gallery|contact)\s+(?:with|that\s+has|containing|showing)\b/i,
     ],
     weight: 6,
+  },
+  // ── Restore requests ──
+  {
+    kind: "restore",
+    patterns: [
+      /\b(?:restore|bring\s+back|put\s+back|recover|get\s+back)\s+(?:the\s+)?(?:plan|price|name|text|content|heading|list|bullet|feature)\b/i,
+      /\b(?:restore|bring\s+back|put\s+back)\s+(?:what|that|those|the\s+ones?)\s+(?:was|were)\s+(?:there|before|previously|earlier)\b/i,
+      /\bthat\s+(?:were|was)\s+(?:there|present)\s+before\b/i,
+      /\bundo\s+(?:the\s+)?(?:last|previous)\s+(?:change|edit|update)\b/i,
+    ],
+    weight: 9,
+  },
+  // ── Vague prompts ──
+  {
+    kind: "vague",
+    patterns: [
+      /^make\s+it\s+(?:look\s+)?better\.?$/i,
+      /^improve\s+(?:it|this|the\s+(?:design|page|ui|look))\.?$/i,
+      /^(?:polish|refine|tweak|tighten\s+up)\s*(?:it|this)?\.?$/i,
+      /^(?:fix\s+it|make\s+it\s+(?:nice|good|great|beautiful|pretty))\.?$/i,
+      /^(?:enhance|upgrade)\s+(?:it|this|the\s+(?:design|page|ui|look))\.?$/i,
+    ],
+    weight: 5,
   },
 ]
 

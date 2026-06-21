@@ -26,6 +26,7 @@ export interface PreviewFrameProps {
   forwardedRef?: React.RefObject<HTMLIFrameElement | null>
   previewUpdateToken?: number
   previewUpdateMode?: "full" | "style"
+  codeVersionHash?: string
 }
 
 const TRACKED_STYLE_PROPERTIES = [
@@ -207,6 +208,7 @@ export function PreviewFrame({
   forwardedRef,
   previewUpdateToken = 0,
   previewUpdateMode = "full",
+  codeVersionHash,
 }: PreviewFrameProps) {
   const localIframeRef = useRef<HTMLIFrameElement>(null)
   const iframeRef = forwardedRef || localIframeRef
@@ -217,6 +219,7 @@ export function PreviewFrame({
   const onTextChangeRef = useRef(onTextChange)
   const onTextEditStartRef = useRef(onTextEditStart)
   const lastHandledPreviewUpdateTokenRef = useRef(0)
+  const lastRenderedHashRef = useRef<string>("")
   const [isLoading, setIsLoading] = useState(true)
   const [reloadToken, setReloadToken] = useState(0)
   const [canvasOffset, setCanvasOffset] = useState<CanvasPoint>({ x: 0, y: 0 })
@@ -783,14 +786,25 @@ export function PreviewFrame({
     const hasNewPreviewUpdate = previewUpdateToken !== 0 && lastHandledPreviewUpdateTokenRef.current !== previewUpdateToken
     const shouldSkipReload = hasNewPreviewUpdate && previewUpdateMode === "style"
 
+    // ── Hash-mismatch guard (Bug #2) ──
+    // If the codeVersionHash changed but the preview token didn't bump
+    // (e.g. external version restore), force a full reload.
+    const hashMismatch = codeVersionHash && lastRenderedHashRef.current && codeVersionHash !== lastRenderedHashRef.current
+    const forceReload = hashMismatch && !hasNewPreviewUpdate
+
     if (hasNewPreviewUpdate) {
       lastHandledPreviewUpdateTokenRef.current = previewUpdateToken
     }
 
-    // Style-only updates are already reflected in the live iframe DOM.
-    if (shouldSkipReload) {
+    // Style-only updates are already reflected in the live iframe DOM,
+    // unless there's a hash mismatch.
+    if (shouldSkipReload && !forceReload) {
       setIsLoading(false)
       return
+    }
+
+    if (codeVersionHash) {
+      lastRenderedHashRef.current = codeVersionHash
     }
     
     setIsLoading(true)
@@ -809,7 +823,7 @@ export function PreviewFrame({
     return () => {
       iframe.onload = null
     }
-  }, [htmlContent, previewUpdateMode, previewUpdateToken, reloadToken])
+  }, [htmlContent, previewUpdateMode, previewUpdateToken, reloadToken, codeVersionHash])
 
   // Refresh the preview
   const handleRefresh = useCallback(() => {

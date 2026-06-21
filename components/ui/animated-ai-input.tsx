@@ -130,6 +130,10 @@ interface AI_PromptProps {
     availableModels?: Array<{id: string, name: string}>;
     isLoadingModels?: boolean;
     isGenerating?: boolean;
+    /** Single-slot queued prompt shown while generating (Bug #5). */
+    queuedPrompt?: string | null;
+    /** Cancel the queued prompt. */
+    onCancelQueued?: () => void;
 }
 
 export function AI_Prompt({ 
@@ -142,6 +146,8 @@ export function AI_Prompt({
     availableModels: propAvailableModels,
     isLoadingModels: propIsLoadingModels,
     isGenerating = false,
+    queuedPrompt,
+    onCancelQueued,
 }: AI_PromptProps) {
     const [value, setValue] = useState("");
     const [isEnhancing, setIsEnhancing] = useState(false);
@@ -265,16 +271,17 @@ export function AI_Prompt({
     }, [])
 
     const handleSubmit = useCallback(() => {
-        if (!value.trim() || isGenerating || isEnhancing) return;
+        if (!value.trim() || isEnhancing) return;
         const images = attachedImages.map((img) => ({ dataUrl: img.dataUrl }))
+        // ponytail: allow sending while generating — parent handles queuing (Bug #5).
         onSend?.(value.trim(), selectedModelId, images);
         setValue("");
         setAttachedImages([]);
         adjustHeight(true);
-    }, [value, isGenerating, isEnhancing, attachedImages, selectedModelId, onSend, adjustHeight])
+    }, [value, isEnhancing, attachedImages, selectedModelId, onSend, adjustHeight])
 
     const handleEnhance = async () => {
-        if (!onEnhance || !value.trim() || isGenerating || isEnhancing) {
+        if (!onEnhance || !value.trim() || isEnhancing) {
             return;
         }
 
@@ -301,7 +308,7 @@ export function AI_Prompt({
 
         e.preventDefault();
 
-        if (isGenerating || isEnhancing) {
+        if (isEnhancing) {
             return;
         }
 
@@ -406,6 +413,24 @@ export function AI_Prompt({
                           </div>
                         ) : null}
 
+                        {/* Queued prompt chip (Bug #5) */}
+                        {isGenerating && queuedPrompt ? (
+                            <div className="px-2.5 pb-1">
+                                <div className="inline-flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 rounded-md px-2 py-1 text-[11px] text-blue-400">
+                                    <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
+                                    <span className="truncate max-w-[200px]">Queued: {queuedPrompt}</span>
+                                    <button
+                                        type="button"
+                                        onClick={onCancelQueued}
+                                        className="ml-1 p-0.5 rounded hover:bg-blue-500/20 transition-colors"
+                                        aria-label="Cancel queued prompt"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            </div>
+                        ) : null}
+
                         <div
                             className="overflow-y-auto"
                             style={{ maxHeight: "200px" }}
@@ -438,7 +463,7 @@ export function AI_Prompt({
                                                 variant="ghost"
                                                 size="icon-sm"
                                                 onClick={handleEnhance}
-                                                disabled={isGenerating || isEnhancing}
+                                                disabled={isEnhancing}
                                                 aria-label="Enhance prompt"
                                                 className="rounded-md bg-black/5 text-black/50 hover:bg-black/10 hover:text-black dark:bg-white/5 dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white"
                                             >
@@ -465,7 +490,7 @@ export function AI_Prompt({
                                             <Button
                                                 variant="ghost"
                                                 className="flex items-center gap-1 h-6 pl-1 pr-1.5 text-[11px] rounded-md dark:text-white hover:bg-black/10 dark:hover:bg-white/10 focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-blue-500"
-                                                disabled={isLoadingModels || isGenerating || isEnhancing}
+                                                disabled={isLoadingModels || isEnhancing}
                                             >
                                                 <AnimatePresence mode="wait">
                                                     <motion.div

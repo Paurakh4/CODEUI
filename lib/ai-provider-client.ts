@@ -1,6 +1,7 @@
 import {
   OPENROUTER_SOURCE_PROVIDER,
   PXROUTE_SOURCE_PROVIDER,
+  CUSTOM_SOURCE_PROVIDER,
   resolveModelSourceProvider,
   type AIModel,
   type ModelSourceProvider,
@@ -40,6 +41,9 @@ export interface AIProviderRequestConfig {
   headers: Record<string, string>
   sourceProvider: ModelSourceProvider
   readTimeoutMs: number
+  // Raw model id to send in the upstream request body. For openrouter/pxroute
+  // this equals the catalog id; for custom providers it is the unnamespaced id.
+  upstreamModelId: string
 }
 
 const logger = createRepromptLogger("ai-provider-client")
@@ -72,12 +76,12 @@ export function getOpenRouterReadTimeoutMs(fallback = DEFAULT_OPENROUTER_READ_TI
   )
 }
 
-export function resolveProviderRequestConfig(options: {
+export async function resolveProviderRequestConfig(options: {
   modelId: string
-  model?: Pick<AIModel, "provider" | "sourceProvider"> | null
+  model?: Pick<AIModel, "provider" | "sourceProvider" | "customProviderId" | "upstreamModelId"> | null
   requestId: string
   openRouterReadTimeoutMs?: number
-}): AIProviderRequestConfig {
+}): Promise<AIProviderRequestConfig> {
   const sourceProvider = resolveModelSourceProvider(options.model)
 
   if (sourceProvider === PXROUTE_SOURCE_PROVIDER) {
@@ -91,8 +95,38 @@ export function resolveProviderRequestConfig(options: {
       apiKey,
       sourceProvider,
       readTimeoutMs: getPxRouteReadTimeoutMs(),
+      upstreamModelId: options.model?.upstreamModelId ?? options.modelId,
       headers: {
         Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "X-CodeUI-Request-ID": options.requestId,
+      },
+    }
+  }
+
+  if (sourceProvider === CUSTOM_SOURCE_PROVIDER) {
+    const customProviderId = options.model?.customProviderId
+    if (!customProviderId) {
+      throw new Error("Custom provider model is missing a provider reference")
+    }
+
+    const provider = await resolveCustomProviderConfig(customProviderId)
+    const baseUrl = provider.baseUrl.replace(/\/+$/, "")
+    // OpenAI-compatible providers expose chat completions at /chat/completions
+    // and the model list at /models. If the admin already included a path
+    // segment (e.g. /v1), we just append /chat/completions.
+    const endpoint = baseUrl.endsWith("/chat/completions")
+      ? baseUrl
+      : `${baseUrl}/chat/completions`
+
+    return {
+      endpoint,
+      apiKey: provider.apiKey,
+      sourceProvider,
+      readTimeoutMs: getOpenRouterReadTimeoutMs(),
+      upstreamModelId: options.model?.upstreamModelId ?? options.modelId,
+      headers: {
+        Authorization: `Bearer ${provider.apiKey}`,
         "Content-Type": "application/json",
         "X-CodeUI-Request-ID": options.requestId,
       },
@@ -109,6 +143,7 @@ export function resolveProviderRequestConfig(options: {
     apiKey,
     sourceProvider: OPENROUTER_SOURCE_PROVIDER,
     readTimeoutMs: options.openRouterReadTimeoutMs ?? getOpenRouterReadTimeoutMs(),
+    upstreamModelId: options.model?.upstreamModelId ?? options.modelId,
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
@@ -117,6 +152,18 @@ export function resolveProviderRequestConfig(options: {
       "X-CodeUI-Request-ID": options.requestId,
     },
   }
+}
+
+// ponytail: lazy DB lookup, no caching. Ceiling: every completion request hits
+// Mongo for the provider config. Upgrade path: in-process TTL cache keyed by
+// providerId, invalidated on admin write.
+async function resolveCustomProviderConfig(providerId: string) {
+  const { getCustomProviderById } = await import("@/lib/admin/custom-providers")
+  const provider = await getCustomProviderById(providerId)
+  if (!provider) {
+    throw new Error(`Custom provider "${providerId}" is no longer configured`)
+  }
+  return { baseUrl: provider.baseUrl, apiKey: provider.apiKey }
 }
 
 function extractTextContent(content: unknown): string {
@@ -175,7 +222,7 @@ export async function requestAITextCompletion({
     const model = fallbackChain[index]
 
     try {
-      const providerConfig = resolveProviderRequestConfig({
+      const providerConfig = await resolveProviderRequestConfig({
         modelId: model,
         model: modelsById?.get(model),
         requestId,
@@ -188,7 +235,7 @@ export async function requestAITextCompletion({
         signal: timeoutSignal.signal,
         body: JSON.stringify({
           stream: false,
-          model,
+          model: providerConfig.upstreamModelId,
           messages,
           temperature,
           max_tokens: maxTokens,

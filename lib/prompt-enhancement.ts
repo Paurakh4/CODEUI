@@ -176,7 +176,17 @@ export const PROMPT_ENHANCEMENT_SYSTEM_PROMPT = [
   "Do not change platform assumptions or audience assumptions.",
   "Add relevant UI/UX guidance only when it is already implied by the original request.",
   "The result should read like a strong design-generation brief with clear layout, hierarchy, interaction, and design-system direction.",
+  "CRITICAL: Preserve every explicit component, section, or element the user named (e.g. 'hero section', 'features grid', 'CTA button', 'pricing table', 'navbar', 'footer') VERBATIM in the VERY FIRST sentence of the enhanced prompt, before adding any stylistic or structural elaboration. Never replace a named component with a vaguer term like 'distinct sections' or 'visual breathing room'.",
   "Return plain text only. No code fences. No explanations.",
+].join(" ")
+
+export const CLARIFYING_QUESTIONS_SYSTEM_PROMPT = [
+  "You are a Senior UI/UX Designer helping a user refine a vague design request.",
+  "The user's prompt does not contain enough UI-specific detail to enhance.",
+  "Ask at most 2 short, specific clarifying questions that would help turn their vague request into an actionable UI change.",
+  "Focus on the most impactful missing detail: layout, colors, typography, content, or specific components.",
+  "Return ONLY a JSON array of question strings. No other text.",
+  'Example: ["What specific part of the page would you like to improve — layout, colors, typography, or content?"]',
 ].join(" ")
 
 function normalizeWhitespace(value: string): string {
@@ -252,6 +262,7 @@ export function buildPromptEnhancementUserPrompt({
     "Rewrite the following UI prompt.",
     strengthRule,
     "Preserve the user's intended product, scope, platform, and audience.",
+    "CRITICAL: First, list every component/section the user explicitly named (e.g. 'hero section', 'features grid', 'CTA button') verbatim in the opening sentence. Then elaborate on layout, hierarchy, and design direction. Never replace a named component with vaguer language.",
     "Include clearer layout direction, visual hierarchy, interaction guidance, and design-system language only when implied by the original request.",
     isVeryLongPrompt(normalizedPrompt)
       ? "The prompt is long. Summarize and structure it clearly without dropping important meaning or introducing new features."

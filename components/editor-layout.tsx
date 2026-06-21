@@ -11,6 +11,7 @@ import { PreviewFrame, extractSelectedElementInfo, type SelectedElementInfo } fr
 import { CodeEditor } from "@/components/code-editor"
 import { StylePanel, type SelectedElement, type StyleProperty, type StyleChange } from "@/components/style-panel"
 import { TextShimmer } from "@/components/ui/text-shimmer";
+import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 import { ChevronDown, ChevronLeft, PanelLeftClose, X, ChevronUp, RotateCcw } from "lucide-react"
 import { SolarCodeSquareLinear } from "@/components/solar-code-square-linear"
 import { useSession } from "next-auth/react"
@@ -32,7 +33,10 @@ import { validatePromptScope } from "@/lib/prompt-scope"
 import { isFullDocumentRecoveryMode, isPatchRepairRecoveryMode, resolveRecoveryMode, type RecoveryMode } from "@/lib/recovery-mode"
 import { dedupeAdjacentAssistantMessages } from "@/lib/utils/chat-message-dedupe"
 import { isVisionCapableModel } from "@/lib/ai-models"
-import { cn } from "@/lib/utils"
+import { extractDesignTokensFromHtml, type DesignTokens } from "@/lib/design-tokens"
+import { isVaguePrompt } from "@/lib/reprompting/page-health-check"
+import { stripConflictMarkerLines } from "@/lib/reprompting/conflict-marker-sanitizer"
+import { cn, fastHash } from "@/lib/utils"
 import { convertHtmlToReactComponent, generateExportPrompt, sanitizeFileName } from "@/lib/utils/export"
 import { deriveProjectNameFromPrompt, isDefaultProjectName, normalizeProjectName } from "@/lib/utils/project-name"
 import {
@@ -602,6 +606,12 @@ function stripDisplayFences(raw: string): string {
   // Remove thinking tags and their content (model reasoning in raw output).
   result = result.replace(/<think(?:ing)?[^>]*>[\s\S]*?<\/think(?:ing)?>/gi, "")
   result = result.replace(/<reasoning[^>]*>[\s\S]*?<\/reasoning>/gi, "")
+  // Strip SEARCH/REPLACE + UPDATE_FILE/PROJECT_NAME/NEW_FILE conflict-marker
+  // LINES (keep the content between them) so Monaco never flashes
+  // `<<<<<<< SEARCH` / `=======` / `>>>>>>> REPLACE` during follow-up drafts.
+  // Server-side `sanitizeConflictMarkers` already strips whole blocks from
+  // the finalized HTML; this is display-only for the in-flight draft.
+  result = stripConflictMarkerLines(result)
   return result
 }
 
@@ -661,6 +671,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
   const [projectName, setProjectName] = useState("untitled-project")
   const [htmlContent, setHtmlContent] = useState(EMPTY_HTML)
   const htmlContentRef = useRef(htmlContent)
+  const [codeVersionHash, setCodeVersionHash] = useState("")
 
   const [versions, setVersions] = useState<HistoryVersion[]>([])
   const [currentVersionId, setCurrentVersionId] = useState<string | null>(null)
@@ -707,10 +718,19 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
   const scopeRecoveryAttemptsRef = useRef(0)
   const [pendingRecovery, setPendingRecovery] = useState<PendingRecovery | null>(null)
   const [pendingDesignDiscovery, setPendingDesignDiscovery] = useState<PendingDesignDiscovery | null>(null)
+  // ponytail: single-slot prompt queue (Bug #5). User can queue one prompt
+  // while generating; auto-sends on terminal states only (not during recovery).
+  const [queuedPrompt, setQueuedPrompt] = useState<string | null>(null)
+  const queuedPromptRef = useRef<{
+    prompt: string
+    model?: string
+    images?: Array<{ dataUrl: string }>
+  } | null>(null)
   const activeProjectKeyRef = useRef<string | null>(null)
   const messagesRef = useRef<Message[]>([])
   const activeThinkingScrollRef = useRef<HTMLDivElement | null>(null)
   const thinkingScrollFrameRef = useRef<number | null>(null)
+  const chatScrollRef = useRef<HTMLDivElement | null>(null)
   const designDiscoveryRequestRef = useRef(0)
 
   const toggleUserMessage = useCallback((id: string) => {
@@ -744,10 +764,26 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     messagesRef.current = messages
   }, [messages])
 
+  // ponytail: only auto-scroll if the user is near the bottom — respects upward reading
+  function isNearBottom(el: HTMLElement, threshold = 48): boolean {
+    return el.scrollHeight - el.scrollTop - el.clientHeight < threshold
+  }
+
+  function scrollToBottom(el: HTMLElement): void {
+    el.scrollTop = el.scrollHeight
+  }
+
+  // Auto-scroll the chat messages container — only when user is near the bottom
   useEffect(() => {
-    if (!activeThinkingScrollRef.current) {
-      return
-    }
+    const container = chatScrollRef.current
+    if (!container || !isNearBottom(container)) return
+    scrollToBottom(container)
+  }, [messages])
+
+  // Auto-scroll the thinking panel — only when user is near the bottom
+  useEffect(() => {
+    const container = activeThinkingScrollRef.current
+    if (!container || !isNearBottom(container)) return
 
     if (thinkingScrollFrameRef.current !== null) {
       window.cancelAnimationFrame(thinkingScrollFrameRef.current)
@@ -755,8 +791,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
     thinkingScrollFrameRef.current = window.requestAnimationFrame(() => {
       const scrollViewport = activeThinkingScrollRef.current
-      if (scrollViewport) {
-        scrollViewport.scrollTop = scrollViewport.scrollHeight
+      if (scrollViewport && isNearBottom(scrollViewport)) {
+        scrollToBottom(scrollViewport)
       }
       thinkingScrollFrameRef.current = null
     })
@@ -777,6 +813,20 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
   const lastAppliedHtml = useRef<string>("")
   const requestStableHtmlRef = useRef<string>(EMPTY_HTML)
   const lastPatchFailureRef = useRef<PatchFailureContext | null>(null)
+  // ponytail: stable preview ref for follow-ups — preview shows this committed
+  // HTML during generation, never the streaming draft. Prevents blank/broken
+  // intermediate states (Bug #3).
+  const stablePreviewHtmlRef = useRef<string>(EMPTY_HTML)
+  // ponytail: last saved HTML — used to clear the orange dot when restored
+  // content matches what's persisted (Bug #6).
+  const lastSavedHtmlRef = useRef<string>("")
+  // ponytail: last failed request for retry (Bug #2). Reuses requestStableHtmlRef
+  // so every retry starts from the same committed baseline.
+  const lastFailedRequestRef = useRef<{
+    prompt: string
+    model?: string
+    stableHtml: string
+  } | null>(null)
   const previewRef = useRef<HTMLIFrameElement>(null)
   const activeAiRequestRef = useRef<{
     isFollowUp: boolean
@@ -841,6 +891,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     lastSavedContentRef.current = ""
     createdProjectIdRef.current = null
     setPreviewUpdateSignal({ token: 0, mode: "full" })
+    setCodeVersionHash("")
     setViewMode("preview")
     setDeviceMode("desktop")
     setSidebarOpen(true)
@@ -880,11 +931,16 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     if (isCompleteHtmlDocument(nextHtml)) {
       lastAppliedHtml.current = nextHtml.trim()
     }
+    // ponytail: update stable preview ref on every commit so follow-up
+    // previews always show the last committed stable HTML (Bug #3).
+    stablePreviewHtmlRef.current = nextHtml.trim()
     setPreviewUpdateSignal((prev) => ({
       token: prev.token + 1,
+      // Never skip reload on AI-generated updates — always "full".
       mode: options?.styleUpdate === true ? "style" : "full",
     }))
     setHtmlContent(nextHtml)
+    setCodeVersionHash(fastHash(nextHtml.trim()))
     setHasUnsavedChanges(true)
   }, [])
 
@@ -901,6 +957,10 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     )
 
     commitHtmlContentUpdate(restoredHtml)
+    // ponytail: clear orange dot when restored HTML matches persisted state (Bug #6).
+    if (restoredHtml.trim() === lastSavedHtmlRef.current) {
+      setHasUnsavedChanges(false)
+    }
     return restoredHtml
   }, [commitHtmlContentUpdate, htmlContent])
 
@@ -1084,6 +1144,9 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       
       if (res.ok) {
         lastSavedContentRef.current = content
+        // ponytail: track last persisted HTML to clear orange dot when restored
+        // content matches persisted state (Bug #6).
+        lastSavedHtmlRef.current = content.trim()
         setHasUnsavedChanges(false)
       } else {
         console.error("Failed to save project to MongoDB")
@@ -1152,6 +1215,18 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
       if (!response.ok) {
         throw new Error(data?.error || "Failed to enhance prompt")
+      }
+
+      // ── Clarifying questions (Bug #7) ──
+      if (data?.clarifyingQuestions && Array.isArray(data.clarifyingQuestions) && data.clarifyingQuestions.length > 0) {
+        const questions = data.clarifyingQuestions as string[]
+        toast("What would you like to improve?", {
+          description: questions.join(" "),
+          duration: 8000,
+        })
+        // Return the original prompt so the user can refine it manually
+        // with the guidance from the toast.
+        return trimmedPrompt
       }
 
       if (data?.warning) {
@@ -1611,14 +1686,55 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     onProgressUpdate: updateAssistantProgress,
     onNoop: (reason) => {
       resetActiveAiRequest()
+      lastFailedRequestRef.current = null
       setDraftAiOutput("")
       setApplyingPatch(false)
       setViewMode("preview")
+      // ponytail: clear dot when no-op — no changes were made (Bug #6).
+      if (htmlContentRef.current.trim() === lastSavedHtmlRef.current) {
+        setHasUnsavedChanges(false)
+      }
       finalizeAssistantMessage(reason)
+      // ponytail: dequeue queued prompt on terminal no-op (Bug #5).
+      dequeueAndSend()
+    },
+    onContentWipeRejected: (data) => {
+      const activeRequest = activeAiRequestRef.current
+      resetActiveAiRequest()
+      lastFailedRequestRef.current = null
+      recoveryInFlightRef.current = false
+      promptScopeRecoveryInFlightRef.current = false
+      scopeRecoveryAttemptsRef.current = 0
+      setPendingRecovery(null)
+      setDraftAiOutput("")
+      restorePreservedHtml()
+      setApplyingPatch(false)
+      setViewMode("preview")
+      lastPatchFailureRef.current = null
+
+      const lostSummary = data.lostPriceTokens.length > 0
+        ? `Protected prices: ${data.lostPriceTokens.join(", ")}`
+        : `${data.lostTokens.length} text items would have been lost`
+      toast.warning("Content protected", {
+        description: `${lostSummary}. Your previous version was kept. Try rephrasing to be more specific about what to change.`,
+      })
+      finalizeAssistantMessage(
+        `I kept your previous version because ${data.lostTokens.length} text items would have been lost. ` +
+        `This was a style-only change, so I protected your existing content. ` +
+        `To change both style and content, include specific content instructions in your prompt.`
+      )
+      // ponytail: dequeue queued prompt on terminal content-wipe (Bug #5).
+      dequeueAndSend()
+    },
+    onHexWarning: (data) => {
+      toast.warning("Color constraint", {
+        description: data.message,
+      })
     },
     onCancel: () => {
       const activeRequest = activeAiRequestRef.current
       resetActiveAiRequest()
+      lastFailedRequestRef.current = null
       recoveryInFlightRef.current = false
       promptScopeRecoveryInFlightRef.current = false
       scopeRecoveryAttemptsRef.current = 0
@@ -1658,6 +1774,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       toast.info("Generation cancelled", {
         description: "The current generation was stopped.",
       })
+      // ponytail: dequeue queued prompt on cancel (Bug #5).
+      dequeueAndSend()
     },
     onProjectNameUpdate: (name) => {
       const normalizedName = normalizeProjectName(name)
@@ -1717,6 +1835,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       const requestRecoveryMode = result.recoveryMode ?? activeRequest.recoveryMode
       const usesPatchRepairFlow = isPatchRepairRecoveryMode(requestRecoveryMode)
       resetActiveAiRequest()
+      // ponytail: clear failed request on successful completion (Bug #2).
+      lastFailedRequestRef.current = null
 
       const { rawContent, extractedHtml, failedFiles, recoveryMode, incompletePatches, validationError } = result
       const isFollowUp = activeRequest.isFollowUp
@@ -1947,11 +2067,23 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
           : fallbackAssistantMessage
 
         finalizeAssistantMessage(resolvedSummary, assistantMessageId)
+        // ponytail: dequeue queued prompt on terminal state (Bug #5).
+        // Only fires after successful completion (not during recovery).
+        dequeueAndSend()
       })()
     },
     onError: (error) => {
       const activeRequest = activeAiRequestRef.current
       const activeRecoveryMode = activeRequest.recoveryMode
+      // ponytail: store failed request for retry (Bug #2). Reuses
+      // requestStableHtmlRef so every retry starts from the same baseline.
+      if (activeRequest.isFollowUp && lastUserPromptRef.current) {
+        lastFailedRequestRef.current = {
+          prompt: lastUserPromptRef.current,
+          model: state.selectedModel,
+          stableHtml: requestStableHtmlRef.current,
+        }
+      }
       resetActiveAiRequest()
       const isRecoveryFailure = recoveryInFlightRef.current
       const isPromptScopeRecoveryFailure = promptScopeRecoveryInFlightRef.current
@@ -1968,20 +2100,23 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       setApplyingPatch(false)
       setViewMode("preview")
       if (!(isRecoveryFailure && isPromptScopeRecoveryFailure) && !activeRequest.isFollowUp) {
+        const errorReason = (error as Error & { reason?: string }).reason
+        const description = isRecoveryFailure
+          ? isFullDocumentRecoveryMode(activeRecoveryMode)
+            ? FULL_DOCUMENT_RECOVERY_FAILURE_MESSAGE
+            : targetedFailureMessage
+          : shouldRestorePreviousPage
+            ? `${error.message || "Something went wrong while generating code."} The previous page was restored.`
+            : error.message || "Something went wrong while generating code. Please try again."
         toast.error(isRecoveryFailure ? "Update failed" : "Generation failed", {
-          description: isRecoveryFailure
-            ? isFullDocumentRecoveryMode(activeRecoveryMode)
-              ? FULL_DOCUMENT_RECOVERY_FAILURE_MESSAGE
-              : targetedFailureMessage
-            : shouldRestorePreviousPage
-              ? `${error.message || "Something went wrong while generating code."} The previous page was restored.`
-              : error.message || "Something went wrong while generating code. Please try again.",
+          description: errorReason ? `${description} (${errorReason})` : description,
         })
       }
       setMessages((prev) => {
         const lastMessage = prev[prev.length - 1]
         if (lastMessage && lastMessage.role === "assistant") {
-          const finalContent = isRecoveryFailure
+          const errorReason = (error as Error & { reason?: string }).reason
+          const baseContent = isRecoveryFailure
             ? isPromptScopeRecoveryFailure
               ? "Could not finish expanding the requested UI automatically. The latest complete result was kept in the editor."
               : isFullDocumentRecoveryMode(activeRecoveryMode)
@@ -1992,6 +2127,12 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
             : shouldRestorePreviousPage
               ? `Error: ${error.message}. The previous page was restored.`
               : `Error: ${error.message}`
+          // ponytail: surface the reason from the server (Bug #2) and add retry hint.
+          const reasonSuffix = errorReason ? ` Reason: ${errorReason}.` : ""
+          const retryHint = activeRequest.isFollowUp && lastFailedRequestRef.current
+            ? " You can retry the same prompt."
+            : ""
+          const finalContent = `${baseContent}${reasonSuffix}${retryHint}`
 
           // Auto-collapse the thinking panel on error.
           setExpandedThinkingIds((ids) => {
@@ -2009,6 +2150,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         }
         return prev
       })
+      // ponytail: dequeue queued prompt on terminal failure (Bug #5).
+      // Only fires on hard failure, not during intermediate recovery.
+      if (!isRecoveryFailure && !pendingRecovery) {
+        dequeueAndSend()
+      }
     },
   })
 
@@ -2091,6 +2237,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         [htmlContentRef.current, lastAppliedHtml.current, htmlContent],
         EMPTY_HTML,
       )
+
+      // ponytail: snapshot stable preview ref for follow-ups (Bug #3).
+      // During follow-up generation, the preview shows this committed HTML,
+      // never the streaming draft.
+      stablePreviewHtmlRef.current = requestStableHtmlRef.current
 
       if (isGenerating) {
         cancelAI()
@@ -2186,6 +2337,20 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
           isFollowUp,
           assistantMessageId: assistantMessage.id,
         }
+
+        // ── Extract design tokens from current HTML (Bug #8) ──
+        const currentDesignTokens: DesignTokens = isFollowUp && htmlContentRef.current
+          ? extractDesignTokensFromHtml(htmlContentRef.current)
+          : {}
+
+        // ── Build restore candidates from version history (Bug #3) ──
+        const restoreCandidates = isFollowUp
+          ? versions
+              .filter((v) => v.htmlContent && v.htmlContent.trim().length > 100)
+              .slice(0, 3)
+              .map((v) => v.htmlContent)
+          : undefined
+
         await sendAIMessage({
           prompt: trimmedMessage,
           currentHtml: isFollowUp ? htmlContentRef.current : undefined,
@@ -2197,6 +2362,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
           theme: state.theme,
           conversationHistory,
           images,
+          designTokens: currentDesignTokens,
+          restoreCandidates,
         })
       } catch {
         // Error handling is managed by useAIChat onError callback.
@@ -2228,6 +2395,20 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     async (message: string, model?: string, images?: Array<{ dataUrl: string }>) => {
       const trimmedMessage = message.trim()
       if (!trimmedMessage) {
+        return
+      }
+
+      // ponytail: clear failed request on new send (Bug #2).
+      lastFailedRequestRef.current = null
+
+      // ponytail: queue prompt if already generating (Bug #5).
+      // Only one queued prompt at a time; auto-sends on terminal states.
+      if (isGenerating) {
+        queuedPromptRef.current = { prompt: trimmedMessage, model, images }
+        setQueuedPrompt(trimmedMessage)
+        toast.info("Queued", {
+          description: "Will run after the current generation finishes.",
+        })
         return
       }
 
@@ -2338,6 +2519,46 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     },
     [clearPendingDesignDiscovery, pendingDesignDiscovery?.isLoading, pendingDesignDiscovery?.isSubmitting, session, showSignIn, startGeneration, state.selectedModel, toast]
   )
+
+  // ponytail: retry the last failed reprompt from the same stable baseline (Bug #2).
+  const handleRetryFailedPrompt = useCallback(() => {
+    const failed = lastFailedRequestRef.current
+    if (!failed) return
+    lastFailedRequestRef.current = null
+
+    // Restore the stable HTML that was current when the failure occurred
+    // so the retry starts from the exact same DOM baseline.
+    restorePreservedHtml(failed.stableHtml)
+
+    toast.info("Retrying...", {
+      description: "Resending the same prompt against the original page.",
+    })
+
+    void startGeneration({
+      message: failed.prompt,
+      model: failed.model,
+    })
+  }, [restorePreservedHtml, startGeneration, toast])
+
+  // ponytail: dequeue and auto-send queued prompt on terminal states (Bug #5).
+  // Must NOT fire during intermediate recovery states — only on
+  // rolledBack, completed, or failedTerminal.
+  const dequeueAndSend = useCallback(() => {
+    const queued = queuedPromptRef.current
+    if (!queued) return
+    queuedPromptRef.current = null
+    setQueuedPrompt(null)
+
+    // Small delay to let the current state settle before starting the next.
+    setTimeout(() => {
+      void handleSend(queued.prompt, queued.model, queued.images)
+    }, 100)
+  }, [handleSend])
+
+  const cancelQueuedPrompt = useCallback(() => {
+    queuedPromptRef.current = null
+    setQueuedPrompt(null)
+  }, [])
 
   const completeDesignDiscovery = useCallback(
     async (
@@ -2689,6 +2910,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     lastAppliedHtml.current = normalizedHtml
     requestStableHtmlRef.current = normalizedHtml
     setCurrentVersionId(normalizedVersionId)
+    setCodeVersionHash(fastHash(normalizedHtml))
     setHasUnsavedChanges(lastSavedContentRef.current !== normalizedHtml)
     setPreviewHtmlContent(null)
     setViewMode("preview")
@@ -3053,7 +3275,16 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       case "design":
         const panelPos = panelPosition ? calculatePanelPosition(panelPosition) : null
         const isDesignCanvasMode = viewMode === "design"
-        const livePreviewHtml = previewHtmlContent ?? (isGenerating ? liveDraftHtml : null) ?? htmlContent
+        const livePreviewHtml = previewHtmlContent ??
+          // ponytail: during follow-up generation, use the last committed
+          // stable HTML, never the streaming draft. Prevents blank/broken
+          // intermediate states (Bug #3). Initial generation still streams.
+          (isGenerating && activeAiRequestRef.current.isFollowUp
+            ? stablePreviewHtmlRef.current
+            : isGenerating
+              ? liveDraftHtml
+              : null) ??
+          htmlContent
         return (
           <div className="flex h-full min-h-0 relative overflow-hidden">
             <PreviewFrame
@@ -3067,6 +3298,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
               forwardedRef={previewRef}
               previewUpdateToken={previewUpdateSignal.token}
               previewUpdateMode={previewUpdateSignal.mode}
+              codeVersionHash={codeVersionHash}
             />
             {isDesignCanvasMode && selectedElement && panelPos && (
               <div 
@@ -3178,7 +3410,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         </div>
 
         {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto px-3 py-3 min-h-0 min-w-0">
+        <div ref={chatScrollRef} className="flex-1 overflow-y-auto px-3 py-3 min-h-0 min-w-0">
           {messages.length === 0 && !pendingDesignDiscovery ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-3">
               <div className="mb-1.5 flex items-center justify-center">
@@ -3254,12 +3486,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
                               ))}
                             </div>
                           ) : null}
-                          <p className={cn(
-                            "text-xs whitespace-pre-wrap",
-                            !expandedUserMessages.has(message.id) && "line-clamp-3"
-                          )}>
-                            {message.content}
-                          </p>
+                          <MarkdownRenderer
+                            content={message.content}
+                            className={cn(
+                              "text-xs",
+                              !expandedUserMessages.has(message.id) && "line-clamp-3"
+                            )}
+                          />
                           <button
                             type="button"
                             onClick={() => toggleUserMessage(message.id)}
@@ -3287,7 +3520,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
                               ))}
                             </div>
                           ) : null}
-                          <p className="text-xs whitespace-pre-wrap">{message.content}</p>
+                          <MarkdownRenderer content={message.content} className="text-xs" />
                         </div>
                       )}
                     </div>
@@ -3329,9 +3562,9 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
                           <div
                             id={thinkingPanelId}
                             ref={isStreamingThinking ? activeThinkingScrollRef : undefined}
-                            className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2.5 pr-1 text-xs leading-5 text-zinc-500 whitespace-pre-wrap"
+                            className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2.5 pr-1 text-xs leading-5 text-zinc-500 thinking-markdown"
                           >
-                            {sanitized}
+                            <MarkdownRenderer content={sanitized} />
                           </div>
                         ) : null}
                       </div>
@@ -3378,6 +3611,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
             availableModels={state.availableModels}
             isLoadingModels={state.isLoadingModels}
             isGenerating={isGenerating}
+            queuedPrompt={queuedPrompt}
+            onCancelQueued={cancelQueuedPrompt}
           />
         </div>
         </div>

@@ -6,7 +6,7 @@ import { User, UsageLog } from "@/lib/models"
 import {
   getCombinedSystemPrompt,
 } from "@/lib/prompts/frontend-design"
-import { FOLLOW_UP_REPAIR_INSTRUCTION, FOLLOW_UP_SYSTEM_PROMPT, SURGICAL_EDIT_SYSTEM_PROMPT, SURGICAL_EDIT_REPAIR_INSTRUCTION, COPY_CONSISTENCY_INSTRUCTION } from "@/lib/prompts/reprompt-system"
+import { FOLLOW_UP_REPAIR_INSTRUCTION, FOLLOW_UP_SYSTEM_PROMPT, SURGICAL_EDIT_SYSTEM_PROMPT, SURGICAL_EDIT_REPAIR_INSTRUCTION, COPY_CONSISTENCY_INSTRUCTION, COLOR_EXHAUSTIVENESS_INSTRUCTION, HARDENED_PRESERVATION_INSTRUCTION } from "@/lib/prompts/reprompt-system"
 import {
   isFullDocumentRecoveryMode,
   isRecoveryModeActive,
@@ -46,6 +46,13 @@ import {
 import { estimateTokenCount } from "@/lib/token-counter"
 import { getPromptAdaptationGuidance } from "@/lib/prompt-adaptation"
 import { classifyRepromptIntent } from "@/lib/reprompting/intent-classifier"
+import { isStyleOnlyPrompt, checkContentPreservation } from "@/lib/reprompting/content-preservation"
+import { extractHexConstraints, buildHexConstraintBlock, checkHexConstraintsInOutput } from "@/lib/reprompting/hex-constraints"
+import { assessPageHealth, buildPageHealthWarning, isVaguePrompt } from "@/lib/reprompting/page-health-check"
+import { normalizePromptIntent } from "@/lib/reprompting/prompt-normalizer"
+import { splitMultiPartPrompt, shouldSplitPrompt } from "@/lib/reprompting/prompt-splitter"
+import { serializeDesignTokensForPrompt, type DesignTokens } from "@/lib/design-tokens"
+import { sanitizeConflictMarkers } from "@/lib/reprompting/conflict-marker-sanitizer"
 import { resolveProviderRequestConfig } from "@/lib/ai-provider-client"
 import { createRepromptLogger } from "@/lib/utils/reprompt-logger"
 
@@ -76,6 +83,8 @@ interface RequestBody {
   conversationHistory?: ConversationHistoryItem[]
   isRecoveryRequest?: boolean
   images?: string[]
+  designTokens?: DesignTokens
+  restoreCandidates?: string[]
 }
 
 interface CreditContext {
@@ -507,6 +516,8 @@ export async function POST(req: NextRequest) {
       conversationHistory,
       isRecoveryRequest,
       images,
+      designTokens,
+      restoreCandidates,
     } = body
 
     if (!prompt || typeof prompt !== "string") {
@@ -652,9 +663,11 @@ export async function POST(req: NextRequest) {
     const repromptIntent = isFollowUp && currentHtml
       ? classifyRepromptIntent(prompt)
       : null
+    // ── Surgical mode is now the DEFAULT for ALL follow-up reprompts ──
+    // Every model receives SURGICAL_EDIT_SYSTEM_PROMPT (SEARCH/REPLACE) first.
+    // If a model returns full HTML instead, the finalizer applies it as a
+    // fallback and logs a diffCompliant warning.
     const surgicalMode = repromptIntent !== null &&
-      (repromptIntent.kind === "text" || repromptIntent.kind === "color") &&
-      repromptIntent.confidence >= 0.4 &&
       !isRecoveryModeActive(recoveryMode)
 
     // ── No-op detection for follow-up prompts ──
@@ -702,10 +715,53 @@ export async function POST(req: NextRequest) {
     const promptAdaptationGuidance = getPromptAdaptationGuidance(requestPrompt)
     const adaptationPrefix = promptAdaptationGuidance ? `${promptAdaptationGuidance}\n\n` : ""
 
+    // ── Prompt normalization (Bug #9) ──
+    const normalizedIntent = normalizePromptIntent(requestPrompt)
+    const effectivePrompt = isFollowUp ? normalizedIntent.structured : requestPrompt
+
+    // ── Hex color hard constraints (Bug #4) ──
+    const hexConstraints = extractHexConstraints(requestPrompt)
+    const hexConstraintBlock = hexConstraints.length > 0 ? buildHexConstraintBlock(hexConstraints) : ""
+
+    // ── Page health check (Bug #6) ──
+    const pageHealthIssues = isFollowUp && currentHtml ? assessPageHealth(currentHtml) : []
+    const isVague = isVaguePrompt(requestPrompt) || repromptIntent?.kind === "vague"
+    const shouldInjectHealthWarning = pageHealthIssues.length > 0 && (isVague || pageHealthIssues.some((i) => i.severity === "critical"))
+    const healthWarning = shouldInjectHealthWarning ? buildPageHealthWarning(pageHealthIssues) : ""
+
+    // ── Design tokens injection (Bug #8) ──
+    const designTokensBlock = designTokens ? serializeDesignTokensForPrompt(designTokens) : ""
+
+    // ── Restore reference injection (Bug #3) ──
+    let restoreReferenceBlock = ""
+    if (repromptIntent?.kind === "restore" && restoreCandidates?.length) {
+      const bestCandidate = restoreCandidates[0]
+      if (bestCandidate && bestCandidate.trim().length > 100) {
+        restoreReferenceBlock = [
+          "RESTORE REFERENCE — a previous version of this page contained the following content.",
+          "Use this as reference to restore the requested text/names/prices verbatim:",
+          "```html",
+          bestCandidate.slice(0, 8_000),
+          "```",
+          "",
+        ].join("\n")
+      }
+    }
+
     // Append copy-consistency guidance when the intent is a text change.
     const copyConsistencySuffix = repromptIntent?.kind === "text"
       ? `\n\n${COPY_CONSISTENCY_INSTRUCTION.trim()}`
       : ""
+
+    // Append accent-exhaustiveness guidance when the intent is a color change
+    // so the model updates every element using the old accent (toggles, pills,
+    // badges, icons, focus rings, etc.) — not just buttons and headings.
+    const colorExhaustivenessSuffix = repromptIntent?.kind === "color"
+      ? `\n\n${COLOR_EXHAUSTIVENESS_INSTRUCTION.trim()}`
+      : ""
+
+    // ── Hardened preservation (always appended for follow-ups) ──
+    const hardenedPreservation = isFollowUp ? `\n\n${HARDENED_PRESERVATION_INSTRUCTION.trim()}` : ""
 
     const baseMessages: Message[] = [{ role: "system", content: systemPrompt }]
     if (historyMessages.length > 0) {
@@ -727,7 +783,20 @@ export async function POST(req: NextRequest) {
           : `\n\n${FOLLOW_UP_REPAIR_INSTRUCTION.trim()}`
         : ""
 
-      const textContent = `${context}\n\n${adaptationPrefix}User Request: ${requestPrompt}${copyConsistencySuffix}${recoveryInstruction}`
+      const textContent = [
+        designTokensBlock,
+        healthWarning,
+        restoreReferenceBlock,
+        context,
+        "",
+        adaptationPrefix,
+        hexConstraintBlock,
+        `User Request: ${effectivePrompt}`,
+        copyConsistencySuffix,
+        colorExhaustivenessSuffix,
+        recoveryInstruction,
+        hardenedPreservation,
+      ].filter(Boolean).join("\n")
       baseMessages.push({
         role: "user",
         content: hasImages
@@ -735,7 +804,11 @@ export async function POST(req: NextRequest) {
           : textContent,
       })
     } else {
-      const textContent = `${adaptationPrefix}User Request: ${requestPrompt}`
+      const textContent = [
+        adaptationPrefix,
+        hexConstraintBlock,
+        `User Request: ${effectivePrompt}`,
+      ].filter(Boolean).join("\n")
       baseMessages.push({
         role: "user",
         content: hasImages
@@ -762,7 +835,7 @@ export async function POST(req: NextRequest) {
         const candidateModel = fallbackChain[index]
 
         try {
-          const providerConfig = resolveProviderRequestConfig({
+          const providerConfig = await resolveProviderRequestConfig({
             modelId: candidateModel,
             model: runtimeModelsById.get(candidateModel),
             requestId,
@@ -775,7 +848,7 @@ export async function POST(req: NextRequest) {
             body: JSON.stringify({
               ...requestBase,
               messages: partMessages,
-              model: candidateModel,
+              model: providerConfig.upstreamModelId,
             }),
           })
 
@@ -930,6 +1003,64 @@ export async function POST(req: NextRequest) {
           emitEvent("progress", progress)
         }
 
+        /**
+         * Emit final content after running conflict-marker sanitization,
+         * content-preservation, and hex-constraint checks. If content would be
+         * wiped on a style-only prompt, emit a `content-wipe-rejected` event
+         * instead so the client can restore the previous version.
+         */
+        const emitFinalContentAndClose = (finalContent: string) => {
+          // ── Conflict marker sanitization (Bug #1) ──
+          // Run on finalized HTML only, after patch application is complete.
+          const sanitizedContent = sanitizeConflictMarkers(finalContent)
+
+          // ── Content preservation check (Bug #1 from Session 2) ──
+          if (isFollowUp && currentHtml && sanitizedContent) {
+            const styleOnly = isStyleOnlyPrompt(requestPrompt) ||
+              repromptIntent?.kind === "color" ||
+              repromptIntent?.kind === "layout"
+            if (styleOnly) {
+              const preservation = checkContentPreservation(currentHtml, sanitizedContent)
+              if (!preservation.preserved) {
+                logger.warn("Content wipe rejected", {
+                  phase: "finalize",
+                  requestId,
+                  lostTokens: preservation.lostTokens.slice(0, 20),
+                  lostPriceTokens: preservation.lostPriceTokens,
+                  lossRatio: preservation.lossRatio,
+                })
+                emitEvent("content-wipe-rejected", {
+                  reason: "Content would have been lost — kept your previous version.",
+                  lostTokens: preservation.lostTokens.slice(0, 30),
+                  lostPriceTokens: preservation.lostPriceTokens,
+                  lossRatio: preservation.lossRatio,
+                })
+                closeController()
+                return
+              }
+            }
+
+            // ── Hex constraint check (Bug #4 from Session 2) ──
+            if (hexConstraints.length > 0) {
+              const missingHex = checkHexConstraintsInOutput(hexConstraints, sanitizedContent)
+              if (missingHex.length > 0) {
+                logger.warn("Hex constraints not respected", {
+                  phase: "finalize",
+                  requestId,
+                  missingHex,
+                })
+                emitEvent("hex-warning", {
+                  message: `Some exact hex colors were not applied: ${missingHex.join(", ")}`,
+                  missingHex,
+                })
+              }
+            }
+          }
+
+          emitEvent("content", sanitizedContent)
+          closeController()
+        }
+
         const buildMessagesForPart = (partNumber: number) => {
           if (partNumber === 1) {
             return baseMessages
@@ -978,15 +1109,26 @@ export async function POST(req: NextRequest) {
           })
 
           if (finalized.ok) {
-            // Replace the raw aggregate with the finalized HTML so downstream
-            // emit sites send a single clean document.
-            aggregatedContent = finalized.html
-            totalEmittedContentLength = finalized.html.length
+            // ── Sanitize conflict markers from finalized HTML (Bug #1) ──
+            // Run ONLY on finalized HTML after patch application, never on
+            // the raw aggregate while the StreamParser still needs it.
+            const sanitized = sanitizeConflictMarkers(finalized.html)
+            if (sanitized !== finalized.html) {
+              logger.warn("Conflict markers stripped from finalized HTML", {
+                phase: "finalize",
+                requestId,
+                originalLength: finalized.html.length,
+                sanitizedLength: sanitized.length,
+              })
+            }
+            aggregatedContent = sanitized
+            totalEmittedContentLength = sanitized.length
             logger.info("Follow-up response finalized via in-memory strategy", {
               phase: "finalize",
               requestId,
               strategy: finalized.strategy,
               appliedPatchCount: finalized.appliedPatchCount,
+              diffCompliant: finalized.diffCompliant ?? true,
             })
             return "continue"
           }
@@ -999,7 +1141,10 @@ export async function POST(req: NextRequest) {
               requestId,
               reason: outputIssue,
             })
-            emitEvent("error", "Could not complete the update automatically. The previous page was kept.")
+            emitEvent("error", {
+              message: "Could not complete the update automatically. The previous page was kept.",
+              reason: outputIssue,
+            })
             closeController()
             return "closed"
           }
@@ -1022,7 +1167,10 @@ export async function POST(req: NextRequest) {
 
           const retryUpstreamRequest = await requestOpenRouterStream(buildHiddenFollowUpRetryMessages(outputIssue))
           if (!retryUpstreamRequest.response || !retryUpstreamRequest.response.body) {
-            emitEvent("error", "Could not complete the update automatically. The previous page was kept.")
+            emitEvent("error", {
+              message: "Could not complete the update automatically. The previous page was kept.",
+              reason: outputIssue,
+            })
             closeController()
             return "closed"
           }
@@ -1136,7 +1284,8 @@ export async function POST(req: NextRequest) {
                 thresholdReached: continuationCount > 0,
               })
               if (!streamContentIncrementally && aggregatedContent) {
-                emitEvent("content", aggregatedContent)
+                emitFinalContentAndClose(aggregatedContent)
+                return
               }
               closeController()
               return
@@ -1173,7 +1322,8 @@ export async function POST(req: NextRequest) {
                   return
                 }
                 if (aggregatedContent) {
-                  emitEvent("content", aggregatedContent)
+                  emitFinalContentAndClose(aggregatedContent)
+                  return
                 }
               }
 
@@ -1293,7 +1443,8 @@ export async function POST(req: NextRequest) {
             thresholdReached: continuationCount > 0,
           })
           if (!streamContentIncrementally && aggregatedContent) {
-            emitEvent("content", aggregatedContent)
+            emitFinalContentAndClose(aggregatedContent)
+            return
           }
           closeController()
         } catch (error) {

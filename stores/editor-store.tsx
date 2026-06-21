@@ -91,6 +91,9 @@ export interface EditorState {
   // Version History
   versions: Version[]
   currentVersionId: string | null
+
+  // Code version hash — used for preview sync (Bug #2)
+  codeVersionHash: string
   
   // Settings
   selectedModel: string
@@ -120,6 +123,7 @@ export const initialState: EditorState = {
   // Version History
   versions: [],
   currentVersionId: null,
+  codeVersionHash: "",
   
   selectedModel: CODEUI_GOD_MODE_MODEL_ID,
   availableModels: [],
@@ -151,6 +155,7 @@ export type EditorAction =
   | { type: "SET_PRIMARY_COLOR"; payload: string }
   | { type: "SET_SECONDARY_COLOR"; payload: string }
   | { type: "SET_THEME"; payload: "light" | "dark" }
+  | { type: "SET_CODE_VERSION_HASH"; payload: string }
   | { type: "SET_PROJECT"; payload: Project }
   | { type: "RESET_STATE" }
 
@@ -253,6 +258,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     
     case "SET_THEME":
       return { ...state, theme: action.payload }
+
+    case "SET_CODE_VERSION_HASH":
+      return { ...state, codeVersionHash: action.payload }
     
     case "SET_PROJECT":
       return {
@@ -291,6 +299,7 @@ interface EditorContextValue {
   setPrimaryColor: (color: string) => void
   setSecondaryColor: (color: string) => void
   setTheme: (theme: "light" | "dark") => void
+  setCodeVersionHash: (hash: string) => void
 }
 
 const EditorContext = createContext<EditorContextValue | null>(null)
@@ -616,6 +625,10 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "SET_THEME", payload: theme })
     applyThemeRef.current(theme)
   }, [])
+
+  const setCodeVersionHash = useCallback((hash: string) => {
+    dispatch({ type: "SET_CODE_VERSION_HASH", payload: hash })
+  }, [])
   
   const value: EditorContextValue = {
     state,
@@ -634,6 +647,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     setPrimaryColor,
     setSecondaryColor,
     setTheme,
+    setCodeVersionHash,
   }
   
   return (

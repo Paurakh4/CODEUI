@@ -11,6 +11,8 @@ export interface ModelCatalogEntryInput {
   name?: string | null
   provider?: string | null
   sourceProvider?: ModelSourceProvider | null
+  customProviderId?: string | null
+  upstreamModelId?: string | null
   description?: string | null
   contextLength?: number | null
   supportsReasoning?: boolean | null
@@ -69,11 +71,15 @@ export function resolveModelCatalog(
     }
 
     const description = normalizeText(candidate.description) ?? baseModel?.description
+    const customProviderId = normalizeText(candidate.customProviderId) ?? baseModel?.customProviderId
+    const upstreamModelId = normalizeText(candidate.upstreamModelId) ?? baseModel?.upstreamModelId
     candidateById.set(id, {
       id,
       name,
       provider,
       sourceProvider: resolveModelSourceProvider({ provider, sourceProvider }),
+      customProviderId,
+      upstreamModelId,
       description,
       contextLength,
       supportsReasoning:

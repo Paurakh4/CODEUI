@@ -9,7 +9,11 @@ export interface AIModel {
   id: string
   name: string
   provider: string
-  sourceProvider?: "openrouter" | "pxroute"
+  sourceProvider?: "openrouter" | "pxroute" | "custom"
+  customProviderId?: string
+  // Raw model id sent to the upstream API. Only set for custom providers where
+  // the catalog id is namespaced (e.g. `custom:opencode-zen:gpt-5.5`).
+  upstreamModelId?: string
   description?: string
   contextLength: number
   supportsReasoning?: boolean
@@ -24,6 +28,7 @@ export const DEFAULT_PROMPT_ENHANCE_MODEL_ID = "x-ai/grok-build-0.1"
 
 export const PXROUTE_SOURCE_PROVIDER = "pxroute" as const
 export const OPENROUTER_SOURCE_PROVIDER = "openrouter" as const
+export const CUSTOM_SOURCE_PROVIDER = "custom" as const
 
 export const PXROUTE_MODEL_IDS = [
   "claude-opus-4-8",
@@ -39,10 +44,15 @@ export const PXROUTE_MODEL_IDS = [
 export type ModelSourceProvider =
   | typeof OPENROUTER_SOURCE_PROVIDER
   | typeof PXROUTE_SOURCE_PROVIDER
+  | typeof CUSTOM_SOURCE_PROVIDER
 
 export function resolveModelSourceProvider(model?: Pick<AIModel, "provider" | "sourceProvider"> | null): ModelSourceProvider {
   if (model?.sourceProvider === PXROUTE_SOURCE_PROVIDER) {
     return PXROUTE_SOURCE_PROVIDER
+  }
+
+  if (model?.sourceProvider === CUSTOM_SOURCE_PROVIDER) {
+    return CUSTOM_SOURCE_PROVIDER
   }
 
   if (model?.sourceProvider === OPENROUTER_SOURCE_PROVIDER) {
@@ -50,6 +60,21 @@ export function resolveModelSourceProvider(model?: Pick<AIModel, "provider" | "s
   }
 
   return model?.provider === "PxRoute" ? PXROUTE_SOURCE_PROVIDER : OPENROUTER_SOURCE_PROVIDER
+}
+
+/**
+ * Build a namespaced catalog id for a custom-provider model so models from
+ * different providers never collide (e.g. OpenCode Zen and PxRoute both expose
+ * `gpt-5.5`).
+ */
+export function buildCustomModelId(providerId: string, upstreamModelId: string) {
+  return `custom:${providerId}:${upstreamModelId}`
+}
+
+export function parseCustomModelId(catalogId: string): { providerId: string; upstreamModelId: string } | null {
+  const match = /^custom:([^:]+):(.+)$/.exec(catalogId)
+  if (!match) return null
+  return { providerId: match[1], upstreamModelId: match[2] }
 }
 
 /**

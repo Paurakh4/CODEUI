@@ -12,7 +12,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { AddModelSheet } from "@/components/admin/add-model-sheet"
 import type { AdminModelCatalogEntry } from "@/lib/admin/model-policies"
-import { OPENROUTER_SOURCE_PROVIDER, PXROUTE_SOURCE_PROVIDER } from "@/lib/ai-models"
+import {
+  CUSTOM_SOURCE_PROVIDER,
+  OPENROUTER_SOURCE_PROVIDER,
+  PXROUTE_SOURCE_PROVIDER,
+} from "@/lib/ai-models"
 
 interface ModelPolicyFormProps {
   models: AdminModelCatalogEntry[]
@@ -44,6 +48,8 @@ function serializeModels(models: EditableModel[]) {
     name: model.name.trim(),
     provider: model.provider.trim(),
     sourceProvider: model.sourceProvider ?? OPENROUTER_SOURCE_PROVIDER,
+    customProviderId: model.customProviderId,
+    upstreamModelId: model.upstreamModelId,
     description: model.description.trim(),
     contextLength: model.contextLength,
     supportsReasoning: Boolean(model.supportsReasoning),
@@ -229,6 +235,8 @@ export function ModelPolicyForm({
             name: model.name.trim(),
             provider: model.provider.trim(),
             sourceProvider: model.sourceProvider ?? OPENROUTER_SOURCE_PROVIDER,
+            customProviderId: model.customProviderId,
+            upstreamModelId: model.upstreamModelId,
             description: model.description.trim(),
             contextLength: model.contextLength,
             supportsReasoning: Boolean(model.supportsReasoning),
@@ -374,10 +382,16 @@ export function ModelPolicyForm({
                           className={
                             model.sourceProvider === PXROUTE_SOURCE_PROVIDER
                               ? "border-sky-500/20 bg-sky-500/10 text-sky-200 text-[10px]"
-                              : "text-[10px]"
+                              : model.sourceProvider === CUSTOM_SOURCE_PROVIDER
+                                ? "border-violet-500/20 bg-violet-500/10 text-violet-200 text-[10px]"
+                                : "text-[10px]"
                           }
                         >
-                          {model.sourceProvider === PXROUTE_SOURCE_PROVIDER ? "PxRoute" : "OpenRouter"}
+                          {model.sourceProvider === PXROUTE_SOURCE_PROVIDER
+                            ? "PxRoute"
+                            : model.sourceProvider === CUSTOM_SOURCE_PROVIDER
+                              ? "Custom"
+                              : "OpenRouter"}
                         </Badge>
                       </div>
                     </TableCell>
