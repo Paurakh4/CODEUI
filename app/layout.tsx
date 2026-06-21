@@ -6,7 +6,7 @@ import { AuthSessionProvider } from '@/components/session-provider'
 import { AuthDialogProvider } from '@/components/auth-dialog-provider'
 import { AccountModalProvider } from '@/components/account-modal-provider'
 import { EditorProvider } from '@/stores/editor-store'
-import { Toaster } from '@/components/ui/toaster'
+import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
 export const metadata: Metadata = {

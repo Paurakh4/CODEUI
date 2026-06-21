@@ -12,7 +12,7 @@ import { useEditor } from "@/stores/editor-store"
 import type { SubscriptionTier } from "@/lib/pricing"
 import { cn } from "@/lib/utils"
 import { isVisionCapableModel } from "@/lib/ai-models"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar"
@@ -61,7 +61,6 @@ export function DashboardMain({
   const { data: session } = useSession()
   const { showSignIn } = useAuthDialog()
   const { state, setModel } = useEditor()
-  const { toast } = useToast()
   const selectedModelId = state.selectedModel
   const availableModels = state.availableModels
   const isLoadingModels = state.isLoadingModels
@@ -124,10 +123,8 @@ export function DashboardMain({
 
     // Block non-vision models when images are attached
     if (imageUrls.length > 0 && !isVisionCapableModel(selectedModelId)) {
-      toast({
-        title: "Pick a vision-capable model",
+      toast.error("Pick a vision-capable model", {
         description: "The selected model does not support image input. Switch to Gemini, Claude, GPT, or another vision-capable model.",
-        variant: "destructive",
       })
       return
     }
@@ -163,8 +160,7 @@ export function DashboardMain({
       }
 
       if (data?.warning) {
-        toast({
-          title: data?.skipped ? "Prompt Enhance skipped" : "Prompt Enhance",
+        toast.info(data?.skipped ? "Prompt Enhance skipped" : "Prompt Enhance", {
           description: data.warning,
         })
       }
@@ -175,19 +171,16 @@ export function DashboardMain({
           : trimmedPrompt
 
       if (enhancedPrompt === trimmedPrompt && !data?.warning) {
-        toast({
-          title: "Prompt already clear",
+        toast.info("Prompt already clear", {
           description: "Prompt Enhance did not need to rewrite the current request.",
         })
       }
 
       setPromptValue(enhancedPrompt)
     } catch (error) {
-      toast({
-        title: "Prompt Enhance unavailable",
+      toast.error("Prompt Enhance unavailable", {
         description:
           error instanceof Error ? error.message : "Failed to enhance prompt.",
-        variant: "destructive",
       })
     } finally {
       setIsEnhancing(false)
@@ -262,16 +255,13 @@ export function DashboardMain({
         })
         if (!res.ok) throw new Error("Failed to delete project")
         setProjects((prev) => prev.filter((p) => p.id !== projectId))
-        toast({
-          title: "Project deleted",
+        toast.success("Project deleted", {
           description: "The project was removed successfully.",
         })
       } catch (error) {
         console.error("Failed to delete project:", error)
-        toast({
-          title: "Failed to delete project",
+        toast.error("Failed to delete project", {
           description: "Please try again in a moment.",
-          variant: "destructive",
         })
       } finally {
         setDeletingProjectId(null)
@@ -314,10 +304,8 @@ export function DashboardMain({
               : p,
           ),
         )
-        toast({
-          title: "Favorite update failed",
+        toast.error("Favorite update failed", {
           description: "The project favorite state could not be saved.",
-          variant: "destructive",
         })
       } finally {
         setUpdatingFavoriteIds((cur) => cur.filter((id) => id !== projectId))
@@ -353,8 +341,7 @@ export function DashboardMain({
             cur.map((p) => (p.id === projectId ? updatedProject : p)),
           )
         }
-        toast({
-          title: next ? "Project is now private" : "Project is now public",
+        toast.info(next ? "Project is now private" : "Project is now public", {
           description: next
             ? "The project was removed from public discover."
             : "Anyone can now open the project from the discover gallery in read-only mode.",
@@ -368,10 +355,8 @@ export function DashboardMain({
               : p,
           ),
         )
-        toast({
-          title: "Visibility update failed",
+        toast.error("Visibility update failed", {
           description: "The project visibility could not be saved.",
-          variant: "destructive",
         })
       } finally {
         setUpdatingVisibilityIds((cur) => cur.filter((id) => id !== projectId))

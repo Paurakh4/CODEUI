@@ -18,7 +18,7 @@ import { useAuthDialog } from "@/components/auth-dialog-provider"
 import { extractHtml, useAIChat, type AIStreamProgress } from "@/hooks/use-ai-chat"
 import { useStyleHistory } from "@/hooks/use-style-history"
 import { useEditor } from "@/stores/editor-store"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { StreamParser } from "@/lib/parsers/stream-parser"
 import {
   FULL_DOCUMENT_RECOVERY_FAILURE_MESSAGE,
@@ -638,7 +638,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     setSecondaryColor,
     setTheme,
   } = useEditor()
-  const { toast } = useToast()
   
   const storageKey = projectId ? `editor_state_${projectId}` : "editor_state"
 
@@ -1077,8 +1076,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
   const handleEnhancePrompt = useCallback(async (prompt: string, model?: string) => {
     const trimmedPrompt = prompt.trim()
     if (!trimmedPrompt) {
-      toast({
-        title: "Prompt Enhance needs text",
+      toast.info("Prompt Enhance needs text", {
         description: "Add a UI prompt first.",
       })
       return ""
@@ -1112,8 +1110,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       }
 
       if (data?.warning) {
-        toast({
-          title: data?.skipped ? "Prompt Enhance skipped" : "Prompt Enhance",
+        toast.info(data?.skipped ? "Prompt Enhance skipped" : "Prompt Enhance", {
           description: data.warning,
         })
       }
@@ -1123,18 +1120,15 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         : trimmedPrompt
 
       if (enhancedPrompt === trimmedPrompt && !data?.warning) {
-        toast({
-          title: "Prompt already clear",
+        toast.info("Prompt already clear", {
           description: "Prompt Enhance did not need to rewrite the current request.",
         })
       }
 
       return enhancedPrompt
     } catch (error) {
-      toast({
-        title: "Prompt Enhance unavailable",
+      toast.error("Prompt Enhance unavailable", {
         description: error instanceof Error ? error.message : "Failed to enhance prompt.",
-        variant: "destructive",
       })
       return trimmedPrompt
     }
@@ -1252,8 +1246,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     }
 
     if (!options?.silent) {
-      toast({
-        title: "Checkpoint saved",
+      toast.success("Checkpoint saved", {
         description: description || "Saved a new version.",
       })
     }
@@ -1271,7 +1264,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         const res = await fetch(`/api/projects/${projectId}`)
         if (!res.ok) {
           if (res.status === 404) {
-            toast({ title: "Project not found", variant: "destructive" })
+            toast.error("Project not found")
             router.push("/dashboard")
           }
           return
@@ -1317,7 +1310,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         }
       } catch (error) {
         console.error("Error loading project:", error)
-        toast({ title: "Failed to load project", variant: "destructive" })
+        toast.error("Failed to load project")
       } finally {
         if (!cancelled) {
           setIsLoadingProject(false)
@@ -1614,8 +1607,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
             : message,
         )
       })
-      toast({
-        title: "Generation cancelled",
+      toast.info("Generation cancelled", {
         description: "The current generation was stopped.",
       })
     },
@@ -1826,12 +1818,10 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         setApplyingPatch(false)
         setViewMode("preview")
         if (!hasPromptScopeIssues && !isFollowUp) {
-          toast({
-            title: "Update failed",
+          toast.error("Update failed", {
             description: isFullDocumentRecoveryMode(requestRecoveryMode)
               ? FULL_DOCUMENT_RECOVERY_FAILURE_MESSAGE
               : preservedLayoutMessage,
-            variant: "destructive",
           })
         }
         finalizeAssistantMessage(
@@ -1854,8 +1844,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         commitHtmlContentUpdate(extractedHtml)
 
         if (hasPatchFailures) {
-          toast({
-            title: "Update applied",
+          toast.success("Update applied", {
             description: "Applied a full-document update to keep the editor in sync.",
           })
         }
@@ -1931,8 +1920,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       setApplyingPatch(false)
       setViewMode("preview")
       if (!(isRecoveryFailure && isPromptScopeRecoveryFailure) && !activeRequest.isFollowUp) {
-        toast({
-          title: isRecoveryFailure ? "Update failed" : "Generation failed",
+        toast.error(isRecoveryFailure ? "Update failed" : "Generation failed", {
           description: isRecoveryFailure
             ? isFullDocumentRecoveryMode(activeRecoveryMode)
               ? FULL_DOCUMENT_RECOVERY_FAILURE_MESSAGE
@@ -1940,7 +1928,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
             : shouldRestorePreviousPage
               ? `${error.message || "Something went wrong while generating code."} The previous page was restored.`
               : error.message || "Something went wrong while generating code. Please try again.",
-          variant: "destructive",
         })
       }
       setMessages((prev) => {
@@ -2140,8 +2127,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         selectedElementHtml = extractSelectedElementHtmlFromContent(htmlContentRef.current, selectedElement.id)
         if (!selectedElementHtml) {
           setSelectedElement(null)
-          toast({
-            title: "Selected element unavailable",
+          toast.info("Selected element unavailable", {
             description: "The previously selected element no longer exists in the current HTML. Applying the request globally instead.",
           })
         }
@@ -2205,10 +2191,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
       // Block non-vision models when images are attached
       if (imageUrls.length > 0 && !isVisionCapableModel(model ?? state.selectedModel)) {
-        toast({
-          title: "Pick a vision-capable model",
+        toast.error("Pick a vision-capable model", {
           description: "The selected model does not support image input. Switch to Gemini, Claude, GPT, or another vision-capable model.",
-          variant: "destructive",
         })
         return
       }
@@ -2294,8 +2278,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
           clearPendingDesignDiscovery()
         }
 
-        toast({
-          title: "Skipping discovery",
+        toast.info("Skipping discovery", {
           description:
             error instanceof Error
               ? error.message
@@ -2566,10 +2549,10 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         await fetch(`/api/projects/${projectId}/messages`, {
           method: "DELETE",
         })
-        toast({ title: "Chat history cleared" })
+        toast.success("Chat history cleared")
       } catch (error) {
         console.error("Failed to clear chat history:", error)
-        toast({ title: "Failed to clear chat history", variant: "destructive" })
+        toast.error("Failed to clear chat history")
       }
     }
   }, [clearPendingDesignDiscovery, projectId, session?.user?.id, toast])
@@ -2606,25 +2589,21 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
           theme: state.theme,
         })
         navigator.clipboard.writeText(prompt)
-        toast({
-          title: "Prompt copied",
+        toast.success("Prompt copied", {
           description: "Paste this prompt in your favorite AI agent to recreate this UI.",
         })
         setIsExportModalOpen(false)
         return
       }
 
-      toast({
-        title: "Export complete",
+      toast.success("Export complete", {
         description: exportFormat === "react" ? "Downloaded React component (.tsx)." : "Downloaded HTML file.",
       })
       setIsExportModalOpen(false)
     } catch (error) {
       console.error("Export failed:", error)
-      toast({
-        title: "Export failed",
+      toast.error("Export failed", {
         description: "Unable to export the current project.",
-        variant: "destructive",
       })
     }
   }, [downloadFile, exportFormat, htmlContent, projectName, state, toast])
@@ -2642,10 +2621,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
   const applyVersionSnapshot = useCallback((version: HistoryVersion) => {
     if (!version || !canUseStableProjectHtml(version.htmlContent)) {
-      toast({
-        title: "Version unavailable",
+      toast.error("Version unavailable", {
         description: "This checkpoint cannot be restored from the current undo stack.",
-        variant: "destructive",
       })
       return false
     }
@@ -2679,10 +2656,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     }
 
     if (!canUseStableProjectHtml(version.htmlContent)) {
-      toast({
-        title: "Version preview unavailable",
+      toast.error("Version preview unavailable", {
         description: "This checkpoint only captured a temporary loading state and cannot be previewed.",
-        variant: "destructive",
       })
       setPreviewHtmlContent(null)
       return false
@@ -2695,10 +2670,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
   const handleRestoreVersion = useCallback(async (version: HistoryVersion) => {
     if (!version || !version.htmlContent) {
-      toast({
-        title: "Restore failed",
+      toast.error("Restore failed", {
         description: "Selected version could not be restored.",
-        variant: "destructive",
       })
       return false
     }
@@ -2711,8 +2684,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
     setHasUnsavedChanges(true)
 
-    toast({
-      title: "Version restored",
+    toast.success("Version restored", {
       description: version.description || "Reverted to selected checkpoint.",
     })
 
@@ -2896,8 +2868,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       if (canUndoVersionNavigation) {
         const targetVersion = stableVersions[currentStableVersionIndex - 1]
         if (targetVersion && applyVersionSnapshot(targetVersion)) {
-          toast({
-            title: "Reverted version",
+          toast.success("Reverted version", {
             description: targetVersion.description || "Moved to the previous checkpoint.",
           })
         }
@@ -2946,8 +2917,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       if (canRedoVersionNavigation) {
         const targetVersion = stableVersions[currentStableVersionIndex + 1]
         if (targetVersion && applyVersionSnapshot(targetVersion)) {
-          toast({
-            title: "Reapplied version",
+          toast.success("Reapplied version", {
             description: targetVersion.description || "Moved to the next checkpoint.",
           })
         }

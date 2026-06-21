@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { ModelSelector } from "@/components/model-selector";
 import { useEditor } from "@/stores/editor-store";
 import {
@@ -49,7 +49,6 @@ function getColorValue(name: UserPreferences["primaryColor"]) {
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const { state, setModel, setPrimaryColor, setSecondaryColor, setTheme } = useEditor();
-  const { toast } = useToast();
   const [draft, setDraft] = useState<UserPreferences>(getDraftFromEditor(state));
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -87,10 +86,8 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
       } catch (error) {
         console.error("Failed to load settings:", error);
         if (!cancelled) {
-          toast({
-            title: "Settings unavailable",
+          toast.error("Settings unavailable", {
             description: "Using your current editor defaults for now.",
-            variant: "destructive",
           });
         }
       } finally {
@@ -133,20 +130,17 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
       setModel(savedSettings.defaultModel);
       setDraft(savedSettings);
 
-      toast({
-        title: "Settings updated",
+      toast.success("Settings updated", {
         description: "Your preferences are now synced to your account.",
       });
       onOpenChange(false);
     } catch (error) {
       console.error("Failed to save settings:", error);
-      toast({
-        title: "Save failed",
+      toast.error("Save failed", {
         description:
           error instanceof Error
             ? error.message
             : "We couldn't save your settings.",
-        variant: "destructive",
       });
     } finally {
       setIsSaving(false);
@@ -172,26 +166,13 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
           <ScrollArea className="max-h-[85vh]">
             <div className="p-5 space-y-5">
               {/* Header */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-lg font-bold tracking-tight text-[#E7E7E9]">
-                    Settings
-                  </h1>
-                  <p className="text-[11px] text-[#9B9B9F] mt-0.5">
-                    Sync your appearance, AI defaults, and preferences.
-                  </p>
-                </div>
-                <Button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  size="sm"
-                  className="h-7 text-[11px] rounded-lg bg-white text-black hover:bg-[#E7E7E9] font-medium"
-                >
-                  {isSaving && (
-                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                  )}
-                  Save
-                </Button>
+              <div>
+                <h1 className="text-lg font-bold tracking-tight text-[#E7E7E9]">
+                  Settings
+                </h1>
+                <p className="text-[11px] text-[#9B9B9F] mt-0.5">
+                  Sync your appearance, AI defaults, and preferences.
+                </p>
               </div>
 
               {/* Tabs */}
@@ -220,174 +201,199 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                   </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="appearance" className="space-y-3 mt-4">
-                  {/* Theme */}
-                  <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 space-y-3">
-                    <Label className="text-[11px] text-[#9B9B9F] font-medium uppercase tracking-[0.05em]">
-                      Theme
-                    </Label>
-                    <div className="flex items-center gap-1.5 rounded-lg bg-[#0E0E10] border border-white/[0.04] p-0.5">
-                      {(["dark", "light"] as const).map((themeOption) => (
-                        <button
-                          key={themeOption}
-                          type="button"
-                          onClick={() =>
-                            setDraft((current) => ({
-                              ...current,
-                              theme: themeOption,
-                            }))
-                          }
-                          className={cn(
-                            "flex-1 rounded-md px-3 py-1.5 text-[11px] font-medium capitalize transition-all",
-                            draft.theme === themeOption
-                              ? "bg-[#1B1B1F] text-[#E7E7E9]"
-                              : "text-[#6B6B70] hover:text-[#9B9B9F]"
-                          )}
-                        >
-                          {themeOption}
-                        </button>
-                      ))}
+                <div className="relative mt-4">
+                  <TabsContent forceMount value="appearance"
+                    className="transition-all duration-200 ease-out data-[state=active]:opacity-100 data-[state=active]:translate-y-0 data-[state=inactive]:opacity-0 data-[state=inactive]:translate-y-1 data-[state=inactive]:pointer-events-none data-[state=inactive]:absolute data-[state=inactive]:inset-x-0"
+                  >
+                    <div className="space-y-3">
+                      {/* Theme */}
+                      <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 space-y-3">
+                        <Label className="text-[11px] text-[#9B9B9F] font-medium uppercase tracking-[0.05em]">
+                          Theme
+                        </Label>
+                        <div className="flex items-center gap-1.5 rounded-lg bg-[#0E0E10] border border-white/[0.04] p-0.5">
+                          {(["dark", "light"] as const).map((themeOption) => (
+                            <button
+                              key={themeOption}
+                              type="button"
+                              onClick={() =>
+                                setDraft((current) => ({
+                                  ...current,
+                                  theme: themeOption,
+                                }))
+                              }
+                              className={cn(
+                                "flex-1 rounded-md px-3 py-1.5 text-[11px] font-medium capitalize transition-all",
+                                draft.theme === themeOption
+                                  ? "bg-[#1B1B1F] text-[#E7E7E9]"
+                                  : "text-[#6B6B70] hover:text-[#9B9B9F]"
+                              )}
+                            >
+                              {themeOption}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Primary Color */}
+                      <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 space-y-3">
+                        <Label className="text-[11px] text-[#9B9B9F] font-medium uppercase tracking-[0.05em]">
+                          Primary
+                        </Label>
+                        <div className="flex flex-wrap gap-2">
+                          {USER_PREFERENCE_COLORS.map((color) => (
+                            <button
+                              key={`primary-${color.name}`}
+                              type="button"
+                              title={color.name}
+                              onClick={() =>
+                                setDraft((current) => ({
+                                  ...current,
+                                  primaryColor: color.name,
+                                }))
+                              }
+                              className={cn(
+                                "h-6 w-6 rounded-full transition-all hover:scale-110 flex items-center justify-center",
+                                draft.primaryColor === color.name &&
+                                  "ring-2 ring-white ring-offset-2 ring-offset-[#0E0E10]"
+                              )}
+                              style={{ backgroundColor: color.value }}
+                            >
+                              {draft.primaryColor === color.name && (
+                                <CheckCircle2 className="h-3 w-3 text-white drop-shadow-sm" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Secondary Color */}
+                      <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 space-y-3">
+                        <Label className="text-[11px] text-[#9B9B9F] font-medium uppercase tracking-[0.05em]">
+                          Secondary
+                        </Label>
+                        <div className="flex flex-wrap gap-2">
+                          {USER_PREFERENCE_COLORS.map((color) => (
+                            <button
+                              key={`secondary-${color.name}`}
+                              type="button"
+                              title={color.name}
+                              onClick={() =>
+                                setDraft((current) => ({
+                                  ...current,
+                                  secondaryColor: color.name,
+                                }))
+                              }
+                              className={cn(
+                                "h-6 w-6 rounded-full transition-all hover:scale-110 flex items-center justify-center",
+                                draft.secondaryColor === color.name &&
+                                  "ring-2 ring-white ring-offset-2 ring-offset-[#0E0E10]"
+                              )}
+                              style={{ backgroundColor: color.value }}
+                            >
+                              {draft.secondaryColor === color.name && (
+                                <CheckCircle2 className="h-3 w-3 text-white drop-shadow-sm" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  </TabsContent>
 
-                  {/* Primary Color */}
-                  <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 space-y-3">
-                    <Label className="text-[11px] text-[#9B9B9F] font-medium uppercase tracking-[0.05em]">
-                      Primary
-                    </Label>
-                    <div className="flex flex-wrap gap-2">
-                      {USER_PREFERENCE_COLORS.map((color) => (
-                        <button
-                          key={`primary-${color.name}`}
-                          type="button"
-                          title={color.name}
-                          onClick={() =>
-                            setDraft((current) => ({
-                              ...current,
-                              primaryColor: color.name,
-                            }))
-                          }
-                          className={cn(
-                            "h-6 w-6 rounded-full transition-all hover:scale-110 flex items-center justify-center",
-                            draft.primaryColor === color.name &&
-                              "ring-2 ring-white ring-offset-2 ring-offset-[#0E0E10]"
-                          )}
-                          style={{ backgroundColor: color.value }}
-                        >
-                          {draft.primaryColor === color.name && (
-                            <CheckCircle2 className="h-3 w-3 text-white drop-shadow-sm" />
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Secondary Color */}
-                  <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 space-y-3">
-                    <Label className="text-[11px] text-[#9B9B9F] font-medium uppercase tracking-[0.05em]">
-                      Secondary
-                    </Label>
-                    <div className="flex flex-wrap gap-2">
-                      {USER_PREFERENCE_COLORS.map((color) => (
-                        <button
-                          key={`secondary-${color.name}`}
-                          type="button"
-                          title={color.name}
-                          onClick={() =>
-                            setDraft((current) => ({
-                              ...current,
-                              secondaryColor: color.name,
-                            }))
-                          }
-                          className={cn(
-                            "h-6 w-6 rounded-full transition-all hover:scale-110 flex items-center justify-center",
-                            draft.secondaryColor === color.name &&
-                              "ring-2 ring-white ring-offset-2 ring-offset-[#0E0E10]"
-                          )}
-                          style={{ backgroundColor: color.value }}
-                        >
-                          {draft.secondaryColor === color.name && (
-                            <CheckCircle2 className="h-3 w-3 text-white drop-shadow-sm" />
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="ai" className="space-y-3 mt-4">
-                  <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 space-y-3">
-                    <Label className="text-[11px] text-[#9B9B9F] font-medium uppercase tracking-[0.05em]">
-                      Default Model
-                    </Label>
-                    <ModelSelector
-                      selectedModel={draft.defaultModel}
-                      onModelChange={(modelId) =>
-                        setDraft((current) => ({
-                          ...current,
-                          defaultModel: modelId,
-                        }))
-                      }
-                    />
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="preferences" className="space-y-3 mt-4">
-                  <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] divide-y divide-white/[0.04]">
-                    <div className="flex items-center justify-between px-4 py-3">
-                      <Label className="text-[13px] text-[#E7E7E9] cursor-pointer font-normal">
-                        Product Updates
+                  <TabsContent forceMount value="ai"
+                    className="transition-all duration-200 ease-out data-[state=active]:opacity-100 data-[state=active]:translate-y-0 data-[state=inactive]:opacity-0 data-[state=inactive]:translate-y-1 data-[state=inactive]:pointer-events-none data-[state=inactive]:absolute data-[state=inactive]:inset-x-0"
+                  >
+                    <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 space-y-3">
+                      <Label className="text-[11px] text-[#9B9B9F] font-medium uppercase tracking-[0.05em]">
+                        Default Model
                       </Label>
-                      <Switch
-                        checked={draft.contactPreferences.productUpdates}
-                        onCheckedChange={(checked) =>
+                      <ModelSelector
+                        selectedModel={draft.defaultModel}
+                        onModelChange={(modelId) =>
                           setDraft((current) => ({
                             ...current,
-                            contactPreferences: {
-                              ...current.contactPreferences,
-                              productUpdates: checked,
-                            },
+                            defaultModel: modelId,
                           }))
                         }
                       />
                     </div>
-                    <div className="flex items-center justify-between px-4 py-3">
-                      <Label className="text-[13px] text-[#E7E7E9] cursor-pointer font-normal">
-                        Marketing Emails
-                      </Label>
-                      <Switch
-                        checked={draft.contactPreferences.marketingEmails}
-                        onCheckedChange={(checked) =>
-                          setDraft((current) => ({
-                            ...current,
-                            contactPreferences: {
-                              ...current.contactPreferences,
-                              marketingEmails: checked,
-                            },
-                          }))
-                        }
-                      />
+                  </TabsContent>
+
+                  <TabsContent forceMount value="preferences"
+                    className="transition-all duration-200 ease-out data-[state=active]:opacity-100 data-[state=active]:translate-y-0 data-[state=inactive]:opacity-0 data-[state=inactive]:translate-y-1 data-[state=inactive]:pointer-events-none data-[state=inactive]:absolute data-[state=inactive]:inset-x-0"
+                  >
+                    <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] divide-y divide-white/[0.04]">
+                      <div className="flex items-center justify-between px-4 py-3">
+                        <Label className="text-[13px] text-[#E7E7E9] cursor-pointer font-normal">
+                          Product Updates
+                        </Label>
+                        <Switch
+                          checked={draft.contactPreferences.productUpdates}
+                          onCheckedChange={(checked) =>
+                            setDraft((current) => ({
+                              ...current,
+                              contactPreferences: {
+                                ...current.contactPreferences,
+                                productUpdates: checked,
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between px-4 py-3">
+                        <Label className="text-[13px] text-[#E7E7E9] cursor-pointer font-normal">
+                          Marketing Emails
+                        </Label>
+                        <Switch
+                          checked={draft.contactPreferences.marketingEmails}
+                          onCheckedChange={(checked) =>
+                            setDraft((current) => ({
+                              ...current,
+                              contactPreferences: {
+                                ...current.contactPreferences,
+                                marketingEmails: checked,
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between px-4 py-3">
+                        <Label className="text-[13px] text-[#E7E7E9] cursor-pointer font-normal">
+                          Private Projects
+                        </Label>
+                        <Switch
+                          checked={draft.privacyPreferences.privateProjectsByDefault}
+                          onCheckedChange={(checked) =>
+                            setDraft((current) => ({
+                              ...current,
+                              privacyPreferences: {
+                                ...current.privacyPreferences,
+                                privateProjectsByDefault: checked,
+                              },
+                            }))
+                          }
+                        />
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between px-4 py-3">
-                      <Label className="text-[13px] text-[#E7E7E9] cursor-pointer font-normal">
-                        Private Projects
-                      </Label>
-                      <Switch
-                        checked={draft.privacyPreferences.privateProjectsByDefault}
-                        onCheckedChange={(checked) =>
-                          setDraft((current) => ({
-                            ...current,
-                            privacyPreferences: {
-                              ...current.privacyPreferences,
-                              privateProjectsByDefault: checked,
-                            },
-                          }))
-                        }
-                      />
-                    </div>
-                  </div>
-                </TabsContent>
+                  </TabsContent>
+                </div>
               </Tabs>
+
+              {/* Save button at the end */}
+              <div className="pt-2">
+                <Button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  size="sm"
+                  className="h-7 text-[11px] rounded-lg bg-white text-black hover:bg-[#E7E7E9] font-medium"
+                >
+                  {isSaving && (
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  )}
+                  Save
+                </Button>
+              </div>
             </div>
           </ScrollArea>
         )}

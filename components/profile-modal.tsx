@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAccountModals } from "@/components/account-modal-provider";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 interface ProfileModalProps {
   open: boolean;
@@ -51,7 +51,6 @@ interface ProfileResponse {
 export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
   const { update: updateSession } = useSession();
   const { showPricing } = useAccountModals();
-  const { toast } = useToast();
   const [profile, setProfile] = useState<ProfileResponse["profile"] | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -86,10 +85,8 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
         console.error("Failed to load profile:", error);
         if (!cancelled) {
           setLoadError("We couldn't load your profile details right now.");
-          toast({
-            title: "Profile unavailable",
+          toast.error("Profile unavailable", {
             description: "We couldn't load your profile details right now.",
-            variant: "destructive",
           });
         }
       } finally {
@@ -142,20 +139,17 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
       );
       setDisplayName(data.profile.name);
       await updateSession();
-      toast({
-        title: "Profile updated",
+      toast.success("Profile updated", {
         description: "Your display name has been saved.",
       });
       onOpenChange(false);
     } catch (error) {
       console.error("Failed to update profile:", error);
-      toast({
-        title: "Update failed",
+      toast.error("Update failed", {
         description:
           error instanceof Error
             ? error.message
             : "We couldn't save your profile changes.",
-        variant: "destructive",
       });
     } finally {
       setIsSaving(false);
@@ -196,28 +190,13 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
           ) : (
             <div className="p-5 space-y-5">
               {/* Header */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-lg font-bold tracking-tight text-[#E7E7E9]">
-                    Profile
-                  </h1>
-                  <p className="text-[11px] text-[#9B9B9F] mt-0.5">
-                    Manage your display name and account details.
-                  </p>
-                </div>
-                {isDirty && (
-                  <Button
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    size="sm"
-                    className="h-7 text-[11px] rounded-lg bg-white text-black hover:bg-[#E7E7E9] font-medium"
-                  >
-                    {isSaving && (
-                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                    )}
-                    Save
-                  </Button>
-                )}
+              <div>
+                <h1 className="text-lg font-bold tracking-tight text-[#E7E7E9]">
+                  Profile
+                </h1>
+                <p className="text-[11px] text-[#9B9B9F] mt-0.5">
+                  Manage your display name and account details.
+                </p>
               </div>
 
               {/* Avatar + Name */}
@@ -330,6 +309,23 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
                   )}
                 </div>
               </div>
+
+              {/* Save button at the end */}
+              {isDirty && (
+                <div className="pt-2">
+                  <Button
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    size="sm"
+                    className="h-7 text-[11px] rounded-lg bg-white text-black hover:bg-[#E7E7E9] font-medium"
+                  >
+                    {isSaving && (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    )}
+                    Save
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </ScrollArea>

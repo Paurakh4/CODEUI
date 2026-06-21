@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/tooltip"
 import { useLiveCredits } from "@/hooks/use-live-credits"
 import { cn } from "@/lib/utils"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import type { SubscriptionTier } from "@/lib/pricing"
 
 type ViewMode = "preview" | "design" | "code"
@@ -88,7 +88,6 @@ export function TopNav({
   const [copied, setCopied] = useState(false)
   const copyResetTimeoutRef = useRef<number | null>(null)
   const { showPricing, showSettings } = useAccountModals()
-  const { toast } = useToast()
   const { credits: liveCredits, refreshCredits } = useLiveCredits({
     refreshIntervalMs: 30_000,
   })
@@ -151,10 +150,8 @@ export function TopNav({
       const html = iframe?.contentDocument?.documentElement?.outerHTML?.trim()
 
       if (!html) {
-        toast({
-          title: "Copy failed",
+        toast.error("Copy failed", {
           description: "Preview HTML is not ready yet.",
-          variant: "destructive",
         })
         return
       }
@@ -166,8 +163,7 @@ export function TopNav({
         window.clearTimeout(copyResetTimeoutRef.current)
       }
 
-      toast({
-        title: "Copied HTML",
+      toast.success("Copied HTML", {
         description: "The current preview HTML was copied to your clipboard.",
       })
       copyResetTimeoutRef.current = window.setTimeout(() => {
@@ -176,10 +172,8 @@ export function TopNav({
       }, 2200)
     } catch (error) {
       console.error("Failed to copy HTML:", error)
-      toast({
-        title: "Copy failed",
+      toast.error("Copy failed", {
         description: "The preview HTML could not be copied.",
-        variant: "destructive",
       })
     }
   }, [getPreviewIframe, toast])

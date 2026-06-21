@@ -6,7 +6,7 @@ import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import type { AccountStatus, UserRole } from "@/lib/admin/rbac"
 import type { SubscriptionTier } from "@/lib/pricing"
 
@@ -51,7 +51,6 @@ export function CustomerManagementForm({
   readOnlyReason,
 }: CustomerManagementFormProps) {
   const router = useRouter()
-  const { toast } = useToast()
   const [role, setRole] = useState(initialRole)
   const [accountStatus, setAccountStatus] = useState(initialAccountStatus)
   const [subscriptionTier, setSubscriptionTier] = useState(initialSubscriptionTier)
@@ -109,10 +108,8 @@ export function CustomerManagementForm({
     }
 
     if (!hasChanges) {
-      toast({
-        title: "No changes to save",
+      toast.error("No changes to save", {
         description: "Adjust a role, status, tier, credit field, or note before saving.",
-        variant: "destructive",
       })
       return
     }
@@ -121,28 +118,22 @@ export function CustomerManagementForm({
     const topupCreditsValue = Number(topupCredits)
 
     if (!Number.isInteger(monthlyCreditsValue) || monthlyCreditsValue < 0) {
-      toast({
-        title: "Invalid monthly credits",
+      toast.error("Invalid monthly credits", {
         description: "Monthly credits must be a non-negative whole number.",
-        variant: "destructive",
       })
       return
     }
 
     if (!Number.isInteger(topupCreditsValue) || topupCreditsValue < 0) {
-      toast({
-        title: "Invalid top-up credits",
+      toast.error("Invalid top-up credits", {
         description: "Top-up credits must be a non-negative whole number.",
-        variant: "destructive",
       })
       return
     }
 
     if (reason.trim().length < 3) {
-      toast({
-        title: "Reason required",
+      toast.error("Reason required", {
         description: "Enter a short reason so the change is clear in the audit log.",
-        variant: "destructive",
       })
       return
     }
@@ -192,17 +183,14 @@ export function CustomerManagementForm({
         throw new Error(data?.error || "Failed to update customer")
       }
 
-      toast({
-        title: "Customer updated",
+      toast.success("Customer updated", {
         description: "Role, status, tier, or credits were updated successfully.",
       })
       setReason("")
       router.refresh()
     } catch (error) {
-      toast({
-        title: "Update failed",
+      toast.error("Update failed", {
         description: error instanceof Error ? error.message : "Failed to update customer",
-        variant: "destructive",
       })
     } finally {
       setIsSaving(false)

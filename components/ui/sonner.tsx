@@ -20,11 +20,30 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={activeTheme}
       className="toaster group"
+      position="bottom-right"
+      closeButton
+      richColors
+      visibleToasts={3}
+      toastOptions={{
+        duration: 5000,
+      }}
       style={
         {
-          '--normal-bg': 'var(--popover)',
-          '--normal-text': 'var(--popover-foreground)',
-          '--normal-border': 'var(--border)',
+          '--normal-bg': 'var(--toast-glass)',
+          '--normal-text': 'var(--foreground)',
+          '--normal-border': 'var(--toast-border)',
+          '--error-bg': 'var(--toast-glass-error)',
+          '--error-text': 'var(--foreground)',
+          '--error-border': 'var(--toast-border)',
+          '--success-bg': 'var(--toast-glass-success)',
+          '--success-text': 'var(--foreground)',
+          '--success-border': 'var(--toast-border)',
+          '--warning-bg': 'var(--toast-glass-warning)',
+          '--warning-text': 'var(--foreground)',
+          '--warning-border': 'var(--toast-border)',
+          '--info-bg': 'var(--toast-glass-info)',
+          '--info-text': 'var(--foreground)',
+          '--info-border': 'var(--toast-border)',
         } as React.CSSProperties
       }
       {...props}

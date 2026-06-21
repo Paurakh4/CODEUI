@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Loader2, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 
 interface ProjectManagementFormProps {
   projectId: string
@@ -25,7 +25,6 @@ export function ProjectManagementForm({
   readOnlyReason,
 }: ProjectManagementFormProps) {
   const router = useRouter()
-  const { toast } = useToast()
   const [name, setName] = useState(initialName)
   const [emoji, setEmoji] = useState(initialEmoji || "🎨")
   const [visibility, setVisibility] = useState(initialIsPrivate ? "private" : "public")
@@ -43,10 +42,8 @@ export function ProjectManagementForm({
 
   const validateReason = () => {
     if (reason.trim().length < 3) {
-      toast({
-        title: "Reason required",
+      toast.error("Reason required", {
         description: "Enter a short reason so the audit log explains the change.",
-        variant: "destructive",
       })
       return false
     }
@@ -62,10 +59,8 @@ export function ProjectManagementForm({
     }
 
     if (!hasChanges) {
-      toast({
-        title: "No changes to save",
+      toast.error("No changes to save", {
         description: "Adjust the project metadata or privacy setting first.",
-        variant: "destructive",
       })
       return
     }
@@ -105,17 +100,14 @@ export function ProjectManagementForm({
         throw new Error(data?.error || "Failed to update project")
       }
 
-      toast({
-        title: "Project updated",
+      toast.success("Project updated", {
         description: "Project metadata was updated successfully.",
       })
       setReason("")
       router.refresh()
     } catch (error) {
-      toast({
-        title: "Update failed",
+      toast.error("Update failed", {
         description: error instanceof Error ? error.message : "Failed to update project",
-        variant: "destructive",
       })
     } finally {
       setIsSaving(false)
@@ -154,17 +146,14 @@ export function ProjectManagementForm({
         throw new Error(data?.error || "Failed to delete project")
       }
 
-      toast({
-        title: "Project deleted",
+      toast.success("Project deleted", {
         description: "Project metadata and stored assets were removed.",
       })
       router.push("/admin/projects")
       router.refresh()
     } catch (error) {
-      toast({
-        title: "Delete failed",
+      toast.error("Delete failed", {
         description: error instanceof Error ? error.message : "Failed to delete project",
-        variant: "destructive",
       })
     } finally {
       setIsDeleting(false)

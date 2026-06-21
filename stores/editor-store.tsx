@@ -12,7 +12,7 @@ import React, {
 } from "react"
 import { useSession } from "next-auth/react"
 import { useTheme } from "next-themes"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { CODEUI_GOD_MODE_MODEL_ID } from "@/lib/ai-models"
 import { createDefaultUserPreferences } from "@/lib/user-preferences"
 
@@ -303,7 +303,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const [catalogDefaultModelId, setCatalogDefaultModelId] = useState<string | null>(null)
   const persistedSelectedModelRef = useRef<string | null>(null)
   const hasExplicitSelectedModelRef = useRef(false)
-  const { toast } = useToast()
   const { data: session, status } = useSession()
   const { setTheme: applyTheme } = useTheme()
   const applyThemeRef = useRef(applyTheme)
@@ -434,10 +433,8 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       })
       .catch(err => {
         console.error('Failed to fetch models:', err)
-        toast({
-          title: "Model Unavailable",
+        toast.error("Model Unavailable", {
           description: "Failed to load models. Using fallback models.",
-          variant: "destructive",
         })
         const fallbackModels = [
           { id: CODEUI_GOD_MODE_MODEL_ID, name: "Gemini 3 Flash Preview" },

@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { useSession } from "next-auth/react"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { 
   Bug, 
   Lightbulb, 
@@ -32,7 +32,6 @@ interface FeedbackModalProps {
 
 export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
   const { data: session } = useSession()
-  const { toast } = useToast()
   const [type, setType] = React.useState<FeedbackType>("general")
   const [message, setMessage] = React.useState("")
   const [isSubmitting, setIsSubmitting] = React.useState(false)
@@ -81,8 +80,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
       }
 
       setIsSuccess(true)
-      toast({
-        title: "Feedback sent",
+      toast.success("Feedback sent", {
         description: "Thanks. Your feedback was submitted successfully.",
       })
 
