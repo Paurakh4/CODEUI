@@ -792,6 +792,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isSavingRef = useRef(false)
   const lastSavedContentRef = useRef<string>("")
+  // ponytail: ref not state — avoids re-render cascade when projectId changes from "new" to real UUID
+  const createdProjectIdRef = useRef<string | null>(null)
 
   // Auth
   const { data: session, status: sessionStatus } = useSession()
@@ -837,6 +839,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     setHtmlContent(EMPTY_HTML)
     htmlContentRef.current = EMPTY_HTML
     lastSavedContentRef.current = ""
+    createdProjectIdRef.current = null
     setPreviewUpdateSignal({ token: 0, mode: "full" })
     setViewMode("preview")
     setDeviceMode("desktop")
@@ -1023,18 +1026,57 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     }
   }, [])
 
+  // ponytail: creates the project in DB on first explicit save. Returns the effective project ID.
+  // Uses a ref (not state) to avoid re-render cascades when projectId transitions from "new" to UUID.
+  const ensureProjectCreated = useCallback(async (content?: string, name?: string): Promise<string | null> => {
+    if (createdProjectIdRef.current) return createdProjectIdRef.current
+    if (projectId && projectId !== "new") return projectId
+    if (!session?.user?.id) return null
+
+    const id = crypto.randomUUID()
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          name: name || projectName || "Untitled Project",
+          htmlContent: content || htmlContentRef.current || "",
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        toast.error(data?.error || "Failed to create project")
+        return null
+      }
+      createdProjectIdRef.current = id
+      lastSavedContentRef.current = content || htmlContentRef.current || ""
+      setHasUnsavedChanges(false)
+      // Update URL silently so refreshes work, without triggering React re-render
+      window.history.replaceState(window.history.state, "", `/project/${id}`)
+      return id
+    } catch (error) {
+      console.error("Error creating project:", error)
+      toast.error("Failed to create project")
+      return null
+    }
+  }, [projectId, projectName, session?.user?.id, toast])
+
   // Save project to MongoDB
   const saveProjectToMongo = useCallback(async (content: string, name?: string) => {
-    if (!projectId || projectId === "new" || !session?.user?.id) return
+    if (!session?.user?.id) return
     if (isSavingRef.current) return
     if (content === lastSavedContentRef.current && !name) return
+
+    const effectiveId = await ensureProjectCreated(content, name)
+    if (!effectiveId) return
     
     isSavingRef.current = true
     try {
       const updateData: Record<string, string> = { htmlContent: content }
       if (name) updateData.name = name
 
-      const res = await fetch(`/api/projects/${projectId}`, {
+      const res = await fetch(`/api/projects/${effectiveId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updateData),
@@ -1051,7 +1093,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     } finally {
       isSavingRef.current = false
     }
-  }, [projectId, session?.user?.id])
+  }, [session?.user?.id, ensureProjectCreated])
 
   // Debounced auto-save (2 seconds after last change)
   const debouncedSave = useDebouncedCallback((content: string) => {
@@ -1060,10 +1102,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
   // Save messages to MongoDB
   const saveMessageToMongo = useCallback(async (message: { role: "user" | "assistant"; content: string; thinkingContent?: string; images?: string[] }) => {
-    if (!projectId || projectId === "new" || !session?.user?.id) return
+    if (!session?.user?.id) return
+
+    const effectiveId = await ensureProjectCreated()
+    if (!effectiveId) return
     
     try {
-      await fetch(`/api/projects/${projectId}/messages`, {
+      await fetch(`/api/projects/${effectiveId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(message),
@@ -1071,7 +1116,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     } catch (error) {
       console.error("Error saving message:", error)
     }
-  }, [projectId, session?.user?.id])
+  }, [session?.user?.id, ensureProjectCreated])
 
   const handleEnhancePrompt = useCallback(async (prompt: string, model?: string) => {
     const trimmedPrompt = prompt.trim()
@@ -1199,10 +1244,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     description?: string,
     options?: CheckpointOptions
   ) => {
-    if (!projectId || projectId === "new" || !session?.user?.id) return null
+    if (!session?.user?.id) return null
+
+    const effectiveId = await ensureProjectCreated(htmlContent)
+    if (!effectiveId) return null
     
     try {
-      const res = await fetch(`/api/projects/${projectId}/versions`, {
+      const res = await fetch(`/api/projects/${effectiveId}/versions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1224,7 +1272,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       console.error("Error saving version:", error)
       return null
     }
-  }, [projectId, session?.user?.id])
+  }, [session?.user?.id, ensureProjectCreated])
 
   const createCheckpoint = useCallback(async (
     description?: string,
@@ -1240,7 +1288,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
     setVersions((prev) => [...prev, nextVersion])
     setCurrentVersionId(nextVersion.id)
-    if (savedVersion || !projectId || projectId === "new" || !session?.user?.id) {
+    if (savedVersion || !session?.user?.id) {
       lastSavedContentRef.current = content
       setHasUnsavedChanges(false)
     }
@@ -1250,7 +1298,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         description: description || "Saved a new version.",
       })
     }
-  }, [getStableCheckpointHtml, htmlContent, makeLocalVersion, normalizeVersion, projectId, saveVersionToMongo, session?.user?.id, toast])
+  }, [getStableCheckpointHtml, htmlContent, makeLocalVersion, normalizeVersion, saveVersionToMongo, session?.user?.id, toast])
 
   // Load project from MongoDB on mount (if projectId exists)
   useEffect(() => {
@@ -2609,6 +2657,12 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
   }, [downloadFile, exportFormat, htmlContent, projectName, state, toast])
 
   const handleSaveCheckpoint = useCallback(async () => {
+    // ponytail: explicit Save creates the project if it doesn't exist yet
+    if (!createdProjectIdRef.current && projectId === "new" && session?.user?.id) {
+      const effectiveId = await ensureProjectCreated(htmlContentRef.current, projectName)
+      if (!effectiveId) return
+    }
+
     const description = viewMode === "design"
       ? "Manual checkpoint (design mode)"
       : "Manual checkpoint"
@@ -2617,7 +2671,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       kind: "manual",
       trigger: "manual-save",
     })
-  }, [createCheckpoint, viewMode])
+  }, [createCheckpoint, ensureProjectCreated, projectId, projectName, session?.user?.id, viewMode])
 
   const applyVersionSnapshot = useCallback((version: HistoryVersion) => {
     if (!version || !canUseStableProjectHtml(version.htmlContent)) {

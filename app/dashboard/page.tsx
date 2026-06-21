@@ -177,6 +177,12 @@ function DashboardContent() {
       return
     }
 
+    // ponytail: no-prompt starts go to /project/new — project is created only on explicit Save
+    if (!prompt) {
+      router.push("/project/new")
+      return
+    }
+
     const id = crypto.randomUUID()
     const projectName = prompt ? deriveProjectNameFromPrompt(prompt) : undefined
     const requestBody: { id: string; prompt?: string; name?: string } = { id }
