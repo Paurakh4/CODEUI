@@ -157,6 +157,7 @@ export type EditorAction =
   | { type: "SET_THEME"; payload: "light" | "dark" }
   | { type: "SET_CODE_VERSION_HASH"; payload: string }
   | { type: "SET_PROJECT"; payload: Project }
+  | { type: "CHECKPOINT"; payload: { html: string; label: string } }
   | { type: "RESET_STATE" }
 
 // Reducer
@@ -262,6 +263,23 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "SET_CODE_VERSION_HASH":
       return { ...state, codeVersionHash: action.payload }
 
+    case "CHECKPOINT": {
+      const checkpoint: Version = {
+        id: createEditorStoreId("checkpoint"),
+        htmlContent: action.payload.html,
+        timestamp: new Date(),
+        description: action.payload.label,
+      }
+      const allVersions = [...state.versions, checkpoint]
+      const trimmed = allVersions.slice(-10)
+      const currentId = checkpoint.id
+      return {
+        ...state,
+        versions: trimmed,
+        currentVersionId: currentId,
+      }
+    }
+
     case "SET_PROJECT":
       return {
         ...state,
@@ -300,6 +318,7 @@ interface EditorContextValue {
   setSecondaryColor: (color: string) => void
   setTheme: (theme: "light" | "dark") => void
   setCodeVersionHash: (hash: string) => void
+  checkpoint: (html: string, label: string) => void
 }
 
 const EditorContext = createContext<EditorContextValue | null>(null)
@@ -641,6 +660,10 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "SET_CODE_VERSION_HASH", payload: hash })
   }, [])
 
+  const checkpoint = useCallback((html: string, label: string) => {
+    dispatch({ type: "CHECKPOINT", payload: { html, label } })
+  }, [])
+
   const value: EditorContextValue = {
     state,
     dispatch,
@@ -659,6 +682,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     setSecondaryColor,
     setTheme,
     setCodeVersionHash,
+    checkpoint,
   }
 
   return (

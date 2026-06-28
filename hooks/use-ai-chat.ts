@@ -10,6 +10,7 @@ import {
 import { isPatchRepairRecoveryMode, isRecoveryModeActive, type RecoveryModeValue } from "@/lib/recovery-mode"
 import { createRepromptLogger } from "@/lib/utils/reprompt-logger"
 import type { DesignTokens } from "@/lib/design-tokens"
+import { splitMultiPartPrompt, shouldSplitPrompt, type SplitPrompt } from "@/lib/reprompting/prompt-splitter"
 
 export interface ConversationHistoryItem {
   role: "user" | "assistant"
@@ -58,6 +59,20 @@ export interface ContentWipeRejectedData {
   lossRatio: number
 }
 
+export interface MultiStageProgressEvent {
+  currentStage: number
+  totalStages: number
+  stagePrompt: string
+  stageKind: SplitPrompt["kind"]
+}
+
+export interface MultiStageStageResult {
+  stageIndex: number
+  success: boolean
+  html: string
+  error?: string
+}
+
 export interface HexWarningData {
   message: string
   missingHex: string[]
@@ -85,6 +100,9 @@ interface UseAIChatOptions {
   onProjectNameUpdate?: (name: string) => void
   onNewFile?: (filePath: string, content: string) => void
   onError?: (error: Error) => void
+  onMultiStageProgress?: (progress: MultiStageProgressEvent) => void
+  onMultiStageCheckpoint?: (html: string, label: string) => void
+  onMultiStageStageComplete?: (result: MultiStageStageResult) => void
 }
 
 interface SendMessageOptions {
@@ -267,7 +285,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
                 ? (errorData as { reason?: string }).reason
                 : undefined
               const error = new Error(errorMessage)
-              ;(error as Error & { reason?: string }).reason = errorReason
+                ; (error as Error & { reason?: string }).reason = errorReason
               throw error
             }
 
@@ -392,7 +410,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
           return new Promise<ReadableStreamReadResult<Uint8Array>>((resolve, reject) => {
             const handleAbort = () => {
               cleanup()
-              void reader.cancel().catch(() => {})
+              void reader.cancel().catch(() => { })
               reject(new DOMException("The request was aborted.", "AbortError"))
             }
 
@@ -421,7 +439,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
         while (true) {
           if (!isRequestActive()) {
             logger.info("Cancelling stale request", { phase: "stream", requestId })
-            await reader.cancel().catch(() => {})
+            await reader.cancel().catch(() => { })
             return null
           }
 
@@ -439,7 +457,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
           const blocks = buffer.split("\n\n")
           buffer = blocks.pop() || ""
           if (!processSseBlocks(blocks)) {
-            await reader.cancel().catch(() => {})
+            await reader.cancel().catch(() => { })
             return null
           }
         }
@@ -524,8 +542,111 @@ export function useAIChat(options: UseAIChatOptions = {}) {
     abortActiveRequest(false)
   }, [abortActiveRequest])
 
+  const sendMultiStageMessage = useCallback(
+    async (options: SendMessageOptions): Promise<string | null> => {
+      const { prompt, currentHtml, ...rest } = options
+
+      if (!shouldSplitPrompt(prompt)) {
+        return sendMessage(options)
+      }
+
+      const parts = splitMultiPartPrompt(prompt)
+      if (parts.length < 2) {
+        return sendMessage(options)
+      }
+
+      const totalStages = parts.length
+      let workingHtml = currentHtml ?? ""
+      const stageResults: MultiStageStageResult[] = []
+
+      logger.info("Starting multi-stage generation", {
+        phase: "multi-stage",
+        totalStages,
+        parts: parts.map((p) => ({ kind: p.kind, text: p.text.slice(0, 80) })),
+      })
+
+      for (let i = 0; i < totalStages; i++) {
+        const part = parts[i]
+
+        optionsRef.current.onMultiStageProgress?.({
+          currentStage: i + 1,
+          totalStages,
+          stagePrompt: part.text,
+          stageKind: part.kind,
+        })
+
+        optionsRef.current.onMultiStageCheckpoint?.(
+          workingHtml,
+          `Stage ${i + 1}/${totalStages}: ${part.text.slice(0, 60)}`,
+        )
+
+        const stageResult = await sendMessage({
+          ...rest,
+          prompt: part.text,
+          currentHtml: workingHtml,
+          isFollowUp: true,
+        })
+
+        if (!stageResult) {
+          logger.warn("Multi-stage stage failed, continuing with previous HTML", {
+            phase: "multi-stage",
+            stageIndex: i + 1,
+            totalStages,
+          })
+
+          stageResults.push({
+            stageIndex: i,
+            success: false,
+            html: workingHtml,
+            error: "Stage returned null — previous HTML preserved",
+          })
+
+          optionsRef.current.onMultiStageStageComplete?.({
+            stageIndex: i,
+            success: false,
+            html: workingHtml,
+            error: "Stage returned null — previous HTML preserved",
+          })
+          continue
+        }
+
+        workingHtml = stageResult
+
+        stageResults.push({
+          stageIndex: i,
+          success: true,
+          html: workingHtml,
+        })
+
+        optionsRef.current.onMultiStageStageComplete?.({
+          stageIndex: i,
+          success: true,
+          html: workingHtml,
+        })
+
+        logger.info("Multi-stage stage completed", {
+          phase: "multi-stage",
+          stageIndex: i + 1,
+          totalStages,
+          htmlLength: workingHtml.length,
+        })
+      }
+
+      logger.info("Multi-stage generation complete", {
+        phase: "multi-stage",
+        totalStages,
+        successfulStages: stageResults.filter((r) => r.success).length,
+        finalHtmlLength: workingHtml.length,
+      })
+
+      return workingHtml
+    },
+    [sendMessage],
+  )
+
   return {
     sendMessage,
+    sendMultiStageMessage,
     cancel,
     reset,
     isGenerating,

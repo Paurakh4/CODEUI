@@ -672,6 +672,7 @@ export async function POST(req: NextRequest) {
     // If a model returns full HTML instead, the finalizer applies it as a
     // fallback and logs a diffCompliant warning.
     const surgicalMode = repromptIntent !== null &&
+      repromptIntent.kind !== "structural" &&
       !isRecoveryModeActive(recoveryMode)
 
     // ── No-op detection for follow-up prompts ──
@@ -711,7 +712,10 @@ export async function POST(req: NextRequest) {
         : getCombinedSystemPrompt()
 
     const modelContextWindow = (await getRuntimeModelByIdForUser(userId, model))?.contextLength ?? getModelById(model)?.contextLength
-    const continuationThresholdTokens = CONTINUATION_THRESHOLD_TOKENS
+    const continuationThresholdTokens = Math.min(
+      CONTINUATION_THRESHOLD_TOKENS,
+      Math.floor((modelContextWindow ?? 64_000) * 0.6),
+    )
     const continuationThresholdChars = continuationThresholdTokens * 4
     const conversationBudgetTokens = Math.floor((modelContextWindow ?? 64_000) * 0.15)
     const historyMessages = normalizeConversationHistory(conversationHistory, conversationBudgetTokens)

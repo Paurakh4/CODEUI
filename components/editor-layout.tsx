@@ -36,6 +36,7 @@ import { isVisionCapableModel } from "@/lib/ai-models"
 import { extractDesignTokensFromHtml, type DesignTokens } from "@/lib/design-tokens"
 import { isVaguePrompt } from "@/lib/reprompting/page-health-check"
 import { stripConflictMarkerLines } from "@/lib/reprompting/conflict-marker-sanitizer"
+import { shouldSplitPrompt } from "@/lib/reprompting/prompt-splitter"
 import { cn, fastHash } from "@/lib/utils"
 import { convertHtmlToReactComponent, generateExportPrompt, sanitizeFileName } from "@/lib/utils/export"
 import { deriveProjectNameFromPrompt, isDefaultProjectName, normalizeProjectName } from "@/lib/utils/project-name"
@@ -647,8 +648,9 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     setPrimaryColor,
     setSecondaryColor,
     setTheme,
+    checkpoint,
   } = useEditor()
-  
+
   const storageKey = projectId ? `editor_state_${projectId}` : "editor_state"
 
   // UI State
@@ -666,7 +668,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
   const [hasGeneratedOnce, setHasGeneratedOnce] = useState(false)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
   const [exportFormat, setExportFormat] = useState<ExportFormat>("html")
-  
+
   // Project State
   const [projectName, setProjectName] = useState("untitled-project")
   const [htmlContent, setHtmlContent] = useState(EMPTY_HTML)
@@ -705,7 +707,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null)
   const [panelPosition, setPanelPosition] = useState<{ x: number; y: number } | null>(null)
-  
+
   // Chat State
   const [messages, setMessages] = useState<Message[]>([])
   const [expandedThinkingIds, setExpandedThinkingIds] = useState<Set<string>>(new Set())
@@ -807,7 +809,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
   // Style History for undo/redo
   const [styleHistoryState, styleHistoryActions] = useStyleHistory(30)
-  
+
   // Track pending style updates for smooth animations
   const pendingStyleUpdate = useRef<{ property: string; value: StyleProperty } | null>(null)
   const lastAppliedHtml = useRef<string>("")
@@ -837,7 +839,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     token: 0,
     mode: "full",
   })
-  
+
   // MongoDB sync refs
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isSavingRef = useRef(false)
@@ -848,7 +850,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
   // Auth
   const { data: session, status: sessionStatus } = useSession()
   const { showSignIn } = useAuthDialog()
-  
+
   const [isRestored, setIsRestored] = useState(false)
   const [isLoadingProject, setIsLoadingProject] = useState(false)
 
@@ -873,7 +875,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     lastPatchFailureRef.current = null
 
     setPendingRecovery(null)
-  clearPendingDesignDiscovery()
+    clearPendingDesignDiscovery()
     setMessages([])
     setExpandedThinkingIds(new Set())
     setSelectedElement(null)
@@ -981,9 +983,9 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     return describeTargetedUpdateFailure(
       lastPatchFailureRef.current ?? (validationError
         ? {
-            kind: "response-validation-failed",
-            detail: validationError,
-          }
+          kind: "response-validation-failed",
+          detail: validationError,
+        }
         : null),
     )
   }, [])
@@ -1061,7 +1063,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
         if (propertyName in element) {
           try {
-            ;(element as unknown as Record<string, boolean>)[propertyName] = isEnabled
+            ; (element as unknown as Record<string, boolean>)[propertyName] = isEnabled
           } catch {
             // Ignore readonly DOM property assignments
           }
@@ -1130,7 +1132,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
     const effectiveId = await ensureProjectCreated(content, name)
     if (!effectiveId) return
-    
+
     isSavingRef.current = true
     try {
       const updateData: Record<string, string> = { htmlContent: content }
@@ -1141,7 +1143,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updateData),
       })
-      
+
       if (res.ok) {
         lastSavedContentRef.current = content
         // ponytail: track last persisted HTML to clear orange dot when restored
@@ -1169,7 +1171,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
     const effectiveId = await ensureProjectCreated()
     if (!effectiveId) return
-    
+
     try {
       await fetch(`/api/projects/${effectiveId}/messages`, {
         method: "POST",
@@ -1323,7 +1325,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
     const effectiveId = await ensureProjectCreated(htmlContent)
     if (!effectiveId) return null
-    
+
     try {
       const res = await fetch(`/api/projects/${effectiveId}/versions`, {
         method: "POST",
@@ -1378,69 +1380,69 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
   // Load project from MongoDB on mount (if projectId exists)
   useEffect(() => {
     if (!projectId || projectId === "new" || !session?.user?.id) return
-    
+
     let cancelled = false
     setIsLoadingProject(true)
 
-    ;(async () => {
-      try {
-        const res = await fetch(`/api/projects/${projectId}`)
-        if (!res.ok) {
-          if (res.status === 404) {
-            toast.error("Project not found")
-            router.push("/dashboard")
+      ; (async () => {
+        try {
+          const res = await fetch(`/api/projects/${projectId}`)
+          if (!res.ok) {
+            if (res.status === 404) {
+              toast.error("Project not found")
+              router.push("/dashboard")
+            }
+            return
           }
-          return
-        }
 
-        const data = await res.json()
-        if (cancelled) return
+          const data = await res.json()
+          if (cancelled) return
 
-        const project = data.project
-        if (project) {
-          setProjectName(project.name || "Untitled Project")
-          if (typeof project.htmlContent === "string" && project.htmlContent.trim().length > 0) {
-            setHtmlContent(project.htmlContent)
-            htmlContentRef.current = project.htmlContent
-            lastAppliedHtml.current = isCompleteHtmlDocument(project.htmlContent)
-              ? project.htmlContent.trim()
-              : EMPTY_HTML
-            requestStableHtmlRef.current = lastAppliedHtml.current
-            lastSavedContentRef.current = project.htmlContent
-          } else {
-            setHtmlContent(EMPTY_HTML)
-            htmlContentRef.current = EMPTY_HTML
-            lastAppliedHtml.current = EMPTY_HTML
-            requestStableHtmlRef.current = EMPTY_HTML
-            lastSavedContentRef.current = ""
+          const project = data.project
+          if (project) {
+            setProjectName(project.name || "Untitled Project")
+            if (typeof project.htmlContent === "string" && project.htmlContent.trim().length > 0) {
+              setHtmlContent(project.htmlContent)
+              htmlContentRef.current = project.htmlContent
+              lastAppliedHtml.current = isCompleteHtmlDocument(project.htmlContent)
+                ? project.htmlContent.trim()
+                : EMPTY_HTML
+              requestStableHtmlRef.current = lastAppliedHtml.current
+              lastSavedContentRef.current = project.htmlContent
+            } else {
+              setHtmlContent(EMPTY_HTML)
+              htmlContentRef.current = EMPTY_HTML
+              lastAppliedHtml.current = EMPTY_HTML
+              requestStableHtmlRef.current = EMPTY_HTML
+              lastSavedContentRef.current = ""
+            }
+            // Restore messages from MongoDB
+            if (project.messages && project.messages.length > 0) {
+              const restoredMessages = dedupeAdjacentAssistantMessages<Message>(project.messages.map((m: { role: string; content: string; thinkingContent?: string; images?: string[]; createdAt: string }, index: number): Message => ({
+                id: createEditorEntityId(`mongo_${index}`),
+                role: normalizeMessageRole(m.role),
+                content: typeof m.content === "string" ? m.content : "",
+                thinkingContent: typeof m.thinkingContent === "string" ? m.thinkingContent : undefined,
+                images: Array.isArray(m.images) ? m.images : undefined,
+                timestamp: normalizeMessageTimestamp(m.createdAt),
+                isThinking: false,
+              })))
+              setMessages(restoredMessages)
+              setHasGeneratedOnce(restoredMessages.some((message) => message.role === "assistant"))
+            } else {
+              setHasGeneratedOnce(false)
+            }
           }
-          // Restore messages from MongoDB
-          if (project.messages && project.messages.length > 0) {
-            const restoredMessages = dedupeAdjacentAssistantMessages<Message>(project.messages.map((m: { role: string; content: string; thinkingContent?: string; images?: string[]; createdAt: string }, index: number): Message => ({
-              id: createEditorEntityId(`mongo_${index}`),
-              role: normalizeMessageRole(m.role),
-              content: typeof m.content === "string" ? m.content : "",
-              thinkingContent: typeof m.thinkingContent === "string" ? m.thinkingContent : undefined,
-              images: Array.isArray(m.images) ? m.images : undefined,
-              timestamp: normalizeMessageTimestamp(m.createdAt),
-              isThinking: false,
-            })))
-            setMessages(restoredMessages)
-            setHasGeneratedOnce(restoredMessages.some((message) => message.role === "assistant"))
-          } else {
-            setHasGeneratedOnce(false)
+        } catch (error) {
+          console.error("Error loading project:", error)
+          toast.error("Failed to load project")
+        } finally {
+          if (!cancelled) {
+            setIsLoadingProject(false)
+            setIsRestored(true)
           }
         }
-      } catch (error) {
-        console.error("Error loading project:", error)
-        toast.error("Failed to load project")
-      } finally {
-        if (!cancelled) {
-          setIsLoadingProject(false)
-          setIsRestored(true)
-        }
-      }
-    })()
+      })()
 
     return () => { cancelled = true }
   }, [projectId, session?.user?.id, router, toast])
@@ -1451,26 +1453,26 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
     let cancelled = false
 
-    ;(async () => {
-      try {
-        const res = await fetch(`/api/projects/${projectId}/versions`)
-        if (!res.ok) return
+      ; (async () => {
+        try {
+          const res = await fetch(`/api/projects/${projectId}/versions`)
+          if (!res.ok) return
 
-        const data = await res.json()
-        if (cancelled) return
+          const data = await res.json()
+          if (cancelled) return
 
-        if (Array.isArray(data?.versions)) {
-          const normalized = data.versions.map(normalizeVersion)
-          setVersions(normalized)
-          const latest = normalized[normalized.length - 1]
-          if (latest) {
-            setCurrentVersionId(latest.id)
+          if (Array.isArray(data?.versions)) {
+            const normalized = data.versions.map(normalizeVersion)
+            setVersions(normalized)
+            const latest = normalized[normalized.length - 1]
+            if (latest) {
+              setCurrentVersionId(latest.id)
+            }
           }
+        } catch (error) {
+          console.error("Error loading versions:", error)
         }
-      } catch (error) {
-        console.error("Error loading versions:", error)
-      }
-    })()
+      })()
 
     return () => {
       cancelled = true
@@ -1483,7 +1485,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
     // Skip localStorage restore if we're loading from MongoDB
     if (projectId && projectId !== "new" && session?.user?.id) return
-    
+
     const savedState = localStorage.getItem(storageKey)
     if (savedState) {
       try {
@@ -1561,10 +1563,10 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         : null
       const assistantMessageToPersist = targetMessage
         ? {
-            role: "assistant" as const,
-            content,
-            thinkingContent: targetMessage.thinkingContent,
-          }
+          role: "assistant" as const,
+          content,
+          thinkingContent: targetMessage.thinkingContent,
+        }
         : null
 
       // Auto-collapse the thinking panel once the response is finalized.
@@ -1644,6 +1646,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
   const {
     sendMessage: sendAIMessage,
+    sendMultiStageMessage: sendMultiStageAIMessage,
     cancel: cancelAI,
     isGenerating,
   } = useAIChat({
@@ -1763,11 +1766,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         return prev.map((message, index) =>
           index === prev.length - 1
             ? {
-                ...message,
-                isThinking: false,
-                content: message.content || "Generation cancelled.",
-                progressLabel: undefined,
-              }
+              ...message,
+              isThinking: false,
+              content: message.content || "Generation cancelled.",
+              progressLabel: undefined,
+            }
             : message,
         )
       })
@@ -1805,7 +1808,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       // Use the ref for synchronous access to current HTML
       const parser = new StreamParser({})
       const result = parser.applyPatch(htmlContentRef.current, search, replace, filePath)
-      
+
       if (result.success) {
         const nextHtml = result.content.trim()
         if (!isCompleteHtmlDocument(nextHtml)) {
@@ -1889,13 +1892,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
           ? `Missing requested UI scope: ${promptScopeValidation.missingRequirements.join(", ")}`
           : hasUnexpectedFullDocument
             ? "Received a full-document response for a targeted follow-up edit"
-          : missingExpectedFullDocument
-            ? "Expected a complete HTML document but did not receive one"
-          : validationError
-            ? validationError
-            : incompletePatches
-              ? `Received ${incompletePatches} incomplete patch block${incompletePatches > 1 ? "s" : ""}`
-              : `Patch update failed for ${failedFileSummary}`
+            : missingExpectedFullDocument
+              ? "Expected a complete HTML document but did not receive one"
+              : validationError
+                ? validationError
+                : incompletePatches
+                  ? `Received ${incompletePatches} incomplete patch block${incompletePatches > 1 ? "s" : ""}`
+                  : `Patch update failed for ${failedFileSummary}`
         const recoveryPrompt = hasPromptScopeIssues
           ? buildPromptScopeRecoveryPrompt(originalPrompt, promptScopeValidation.missingRequirements)
           : originalPrompt
@@ -2032,9 +2035,9 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       const fallbackSummary = isFollowUp
         ? buildFollowUpSummary(lastUserPromptRef.current, finalHtml)
         : buildGenerationSummary({
-            prompt: lastUserPromptRef.current,
-            html: finalHtml,
-          })
+          prompt: lastUserPromptRef.current,
+          html: finalHtml,
+        })
       const fallbackAssistantMessage = hasPromptScopeIssues && hasCompleteHtml
         ? `${fallbackSummary}\nScope note: ${scopeFailureMessage} The latest complete UI was kept in the editor.`
         : fallbackSummary
@@ -2124,9 +2127,9 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
                 : targetedFailureMessage
             : activeRequest.isFollowUp
               ? "Could not complete the update automatically. The previous page was kept."
-            : shouldRestorePreviousPage
-              ? `Error: ${error.message}. The previous page was restored.`
-              : `Error: ${error.message}`
+              : shouldRestorePreviousPage
+                ? `Error: ${error.message}. The previous page was restored.`
+                : `Error: ${error.message}`
           // ponytail: surface the reason from the server (Bug #2) and add retry hint.
           const reasonSuffix = errorReason ? ` Reason: ${errorReason}.` : ""
           const retryHint = activeRequest.isFollowUp && lastFailedRequestRef.current
@@ -2154,6 +2157,26 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       // Only fires on hard failure, not during intermediate recovery.
       if (!isRecoveryFailure && !pendingRecovery) {
         dequeueAndSend()
+      }
+    },
+    onMultiStageProgress: (progress) => {
+      updateAssistantProgress({
+        stage: "generating",
+        message: `Stage ${progress.currentStage}/${progress.totalStages}: ${progress.stagePrompt.slice(0, 50)}...`,
+        partNumber: progress.currentStage,
+        continuationCount: 0,
+        totalContentLength: 0,
+        thresholdReached: false,
+      })
+    },
+    onMultiStageCheckpoint: (html, label) => {
+      checkpoint(html, label)
+    },
+    onMultiStageStageComplete: (result) => {
+      if (!result.success) {
+        toast.warning(`Stage ${result.stageIndex + 1} failed`, {
+          description: "Previous content was preserved. Continuing with remaining stages.",
+        })
       }
     },
   })
@@ -2320,7 +2343,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
           role: entry.role,
           content: entry.content.trim(),
         }))
-      
+
       let selectedElementHtml = undefined
       if (isFollowUp && selectedElement) {
         selectedElementHtml = extractSelectedElementHtmlFromContent(htmlContentRef.current, selectedElement.id)
@@ -2346,12 +2369,15 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         // ── Build restore candidates from version history (Bug #3) ──
         const restoreCandidates = isFollowUp
           ? versions
-              .filter((v) => v.htmlContent && v.htmlContent.trim().length > 100)
-              .slice(0, 3)
-              .map((v) => v.htmlContent)
+            .filter((v) => v.htmlContent && v.htmlContent.trim().length > 100)
+            .slice(0, 3)
+            .map((v) => v.htmlContent)
           : undefined
 
-        await sendAIMessage({
+        const useMultiStage = isFollowUp && shouldSplitPrompt(trimmedMessage)
+        const sendFn = useMultiStage ? sendMultiStageAIMessage : sendAIMessage
+
+        await sendFn({
           prompt: trimmedMessage,
           currentHtml: isFollowUp ? htmlContentRef.current : undefined,
           selectedElement: selectedElementHtml,
@@ -2374,6 +2400,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       showSignIn,
       createCheckpoint,
       sendAIMessage,
+      sendMultiStageAIMessage,
       cancelAI,
       isGenerating,
       messages.length,
@@ -2723,8 +2750,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
   useEffect(() => {
     const fallbackOrphanedPrompt =
       messages.length === 1 &&
-      messages[0]?.role === "user" &&
-      !hasGeneratedOnce
+        messages[0]?.role === "user" &&
+        !hasGeneratedOnce
         ? messages[0].content.trim()
         : ""
     const promptToAutoStart = initialPrompt?.trim() || fallbackOrphanedPrompt
@@ -2812,7 +2839,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
     clearPendingDesignDiscovery()
     setMessages([])
-    
+
     if (projectId && projectId !== "new" && session?.user?.id) {
       try {
         await fetch(`/api/projects/${projectId}/messages`, {
@@ -3003,30 +3030,30 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     const panelHeight = 480 + 16 // max-h-[480px] + padding
     const offset = 12
     const sidebarWidth = sidebarOpen ? 380 : 0
-    
+
     // Get available viewport area (accounting for sidebar)
     const viewportWidth = window.innerWidth
     const viewportHeight = window.innerHeight
-    
+
     let left = clickPos.x + offset
     let top = clickPos.y
-    
+
     // Check right edge - if panel would overflow, position to left of cursor
     if (left + panelWidth > viewportWidth) {
       left = Math.max(sidebarWidth + 8, clickPos.x - panelWidth - offset)
     }
-    
+
     // Ensure left doesn't go behind sidebar
     left = Math.max(sidebarWidth + 8, left)
-    
+
     // Check bottom edge - if panel would overflow, position above cursor
     if (top + panelHeight > viewportHeight) {
       top = Math.max(60, viewportHeight - panelHeight - 8) // 60 for top nav
     }
-    
+
     // Ensure top doesn't go above viewport (accounting for top nav)
     top = Math.max(60, top)
-    
+
     return { left, top }
   }, [sidebarOpen])
 
@@ -3045,8 +3072,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
   // Apply style to DOM and update HTML
   const applyStyleToDOM = useCallback((
-    selector: string, 
-    property: string, 
+    selector: string,
+    property: string,
     value: StyleProperty,
     recordHistory: boolean = true
   ) => {
@@ -3056,17 +3083,17 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       const doc = parser.parseFromString(baseHtml, "text/html")
       const normalizedSelector = selector.trim()
       const element = selectElementSafely(doc, normalizedSelector)
-      
+
       if (element) {
         const htmlElement = element as HTMLElement
         const oldValue = htmlElement.style[property as any] || ''
-        
+
         // Apply the style
         htmlElement.style[property as any] = value.toString()
-        
+
         const newHtml = doc.documentElement.outerHTML
         commitHtmlContentUpdate(newHtml, { styleUpdate: true })
-        
+
         // Record in history if needed
         if (recordHistory) {
           const styleChange: StyleChange = {
@@ -3079,7 +3106,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
           }
           styleHistoryActions.pushChange(styleChange)
         }
-        
+
         return true
       }
     } catch (e) {
@@ -3151,13 +3178,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       }
       return
     }
-    
+
     // Apply the old values
     try {
       const baseHtml = htmlContentRef.current || htmlContent
       const parser = new DOMParser()
       const doc = parser.parseFromString(baseHtml, "text/html")
-      
+
       for (const change of undoneChanges) {
         const element = selectElementSafely(doc, change.selector)
         if (element) {
@@ -3168,7 +3195,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
           }
         }
       }
-      
+
       const newHtml = doc.documentElement.outerHTML
       commitHtmlContentUpdate(newHtml, { styleUpdate: true })
 
@@ -3177,7 +3204,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         const value = change.oldValue
         applyChangeToIframe(change.selector, change.property, value)
       }
-      
+
       if (selectedElement) {
         syncSelectedElementFromIframe(selectedElement.id, selectedElement.clickPosition)
       }
@@ -3200,13 +3227,13 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       }
       return
     }
-    
+
     // Apply the new values
     try {
       const baseHtml = htmlContentRef.current || htmlContent
       const parser = new DOMParser()
       const doc = parser.parseFromString(baseHtml, "text/html")
-      
+
       for (const change of redoneChanges) {
         const element = selectElementSafely(doc, change.selector)
         if (element) {
@@ -3217,7 +3244,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
           }
         }
       }
-      
+
       const newHtml = doc.documentElement.outerHTML
       commitHtmlContentUpdate(newHtml, { styleUpdate: true })
 
@@ -3226,7 +3253,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         const value = change.newValue
         applyChangeToIframe(change.selector, change.property, value)
       }
-      
+
       if (selectedElement) {
         syncSelectedElementFromIframe(selectedElement.id, selectedElement.clickPosition)
       }
@@ -3246,7 +3273,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       const liveElement = previewRef.current?.contentDocument
         ? selectElementSafely(previewRef.current.contentDocument, selectedElement.id)
         : null
-      
+
       if (domElement) {
         applyElementProperties(domElement, element.properties)
         if (liveElement) {
@@ -3301,7 +3328,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
               codeVersionHash={codeVersionHash}
             />
             {isDesignCanvasMode && selectedElement && panelPos && (
-              <div 
+              <div
                 className="fixed z-50"
                 style={{
                   left: panelPos.left,
@@ -3358,263 +3385,264 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       >
         <div className="flex h-full w-full flex-col bg-[#0a0a0a] sm:border border-zinc-800/80 sm:rounded-[20px] overflow-hidden sm:shadow-2xl">
           {/* Sidebar Header */}
-        <div className="h-8 px-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button
-              className="group p-0.5 rounded-md flex items-center justify-center relative"
-              onClick={() => {
-                if (onBack) {
-                  onBack()
-                } else {
-                  router.push("/dashboard")
-                }
-              }}
-            >
-              <img
-                src="/Codeui.svg"
-                alt="CodeUI"
-                className="h-5 w-auto group-hover:opacity-0 transition-opacity"
-              />
-              <ChevronLeft className="absolute w-4 h-4 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-            </button>
-            <div className="flex items-center gap-1">
-              <input
-                type="text"
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-                className="bg-transparent text-xs font-medium text-zinc-200 focus:outline-none focus:ring-1 focus:ring-white/[0.08] rounded px-1 -ml-1"
-              />
-              {hasUnsavedChanges && (
-                <span className="w-1.5 h-1.5 bg-orange-500 rounded-full" title="Unsaved changes" />
-              )}
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-0.5">
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="p-1 text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] rounded-md transition-colors"
-              title="Collapse sidebar"
-              aria-label="Collapse sidebar"
-            >
-              <PanelLeftClose className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={handleResetChat}
-              className="p-1 text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] rounded-md transition-colors"
-              title="Reset Chat"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Chat Messages */}
-        <div ref={chatScrollRef} className="flex-1 overflow-y-auto px-3 py-3 min-h-0 min-w-0">
-          {messages.length === 0 && !pendingDesignDiscovery ? (
-            <div className="flex flex-col items-center justify-center h-full text-center px-3">
-              <div className="mb-1.5 flex items-center justify-center">
-                <SolarCodeSquareLinear className="w-6 h-6 text-purple-400" />
-              </div>
-              <h3 className="text-sm font-semibold text-zinc-200 mb-1">
-                Start Building
-              </h3>
-              <p className="text-[11px] text-zinc-500 mb-3 max-w-[240px]">
-                Describe the website you want to create. Be as detailed as you like!
-              </p>
-              <div className="space-y-1.5 w-full">
-                {EXAMPLE_PROMPTS.slice(0, 3).map((prompt, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleSend(prompt)}
-                    className="w-full text-left text-[11px] text-zinc-400 hover:text-zinc-200 bg-white/[0.03] hover:bg-white/[0.04] rounded-md px-2.5 py-1.5 transition-colors"
-                  >
-                    {prompt.slice(0, 60)}...
-                  </button>
-                ))}
+          <div className="h-8 px-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <button
+                className="group p-0.5 rounded-md flex items-center justify-center relative"
+                onClick={() => {
+                  if (onBack) {
+                    onBack()
+                  } else {
+                    router.push("/dashboard")
+                  }
+                }}
+              >
+                <img
+                  src="/Codeui.svg"
+                  alt="CodeUI"
+                  className="h-5 w-auto group-hover:opacity-0 transition-opacity"
+                />
+                <ChevronLeft className="absolute w-4 h-4 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </button>
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  className="bg-transparent text-xs font-medium text-zinc-200 focus:outline-none focus:ring-1 focus:ring-white/[0.08] rounded px-1 -ml-1"
+                />
+                {hasUnsavedChanges && (
+                  <span className="w-1.5 h-1.5 bg-orange-500 rounded-full" title="Unsaved changes" />
+                )}
               </div>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {messages.map((message) => {
-                const thinkingPanelId = `thinking-panel-${message.id}`
-                const isStreamingThinking = message.role === "assistant" && message.isThinking
 
-                return (
-                <div key={message.id} className="space-y-1.5">
-                  <div
-                    className={cn(
-                      "flex",
-                      message.role === "user" ? "justify-end" : "justify-start"
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        "rounded-lg px-3 py-1.5 max-w-[90%]",
-                        message.role === "user"
-                          ? "bg-[#27272A] text-zinc-100"
-                          : "bg-transparent text-zinc-100"
-                      )}
+            <div className="flex items-center gap-0.5">
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="p-1 text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] rounded-md transition-colors"
+                title="Collapse sidebar"
+                aria-label="Collapse sidebar"
+              >
+                <PanelLeftClose className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={handleResetChat}
+                className="p-1 text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] rounded-md transition-colors"
+                title="Reset Chat"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Chat Messages */}
+          <div ref={chatScrollRef} className="flex-1 overflow-y-auto px-3 py-3 min-h-0 min-w-0">
+            {messages.length === 0 && !pendingDesignDiscovery ? (
+              <div className="flex flex-col items-center justify-center h-full text-center px-3">
+                <div className="mb-1.5 flex items-center justify-center">
+                  <SolarCodeSquareLinear className="w-6 h-6 text-purple-400" />
+                </div>
+                <h3 className="text-sm font-semibold text-zinc-200 mb-1">
+                  Start Building
+                </h3>
+                <p className="text-[11px] text-zinc-500 mb-3 max-w-[240px]">
+                  Describe the website you want to create. Be as detailed as you like!
+                </p>
+                <div className="space-y-1.5 w-full">
+                  {EXAMPLE_PROMPTS.slice(0, 3).map((prompt, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleSend(prompt)}
+                      className="w-full text-left text-[11px] text-zinc-400 hover:text-zinc-200 bg-white/[0.03] hover:bg-white/[0.04] rounded-md px-2.5 py-1.5 transition-colors"
                     >
-                      {message.role === "assistant" && message.isThinking && !message.content ? (
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-1.5">
-                            <TextShimmer className="font-mono text-xs" duration={1}>
-                              {message.progressLabel || "Generating code..."}
-                            </TextShimmer>
-                            <button
-                              onClick={cancelAI}
-                              aria-label="Cancel generation"
-                              className="p-0.5 rounded-md hover:bg-zinc-800 text-zinc-400"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </div>
-                      ) : message.role === "user" && message.content.length > LONG_USER_MSG_THRESHOLD ? (
-                        <div className="space-y-1.5">
-                          {/* Image thumbnails */}
-                          {message.images && message.images.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {message.images.map((dataUrl, i) => (
-                                <img
-                                  key={i}
-                                  src={dataUrl}
-                                  alt={`Attached image ${i + 1}`}
-                                  className="max-h-20 rounded-md border border-white/[0.06] object-cover"
-                                />
-                              ))}
-                            </div>
-                          ) : null}
-                          <MarkdownRenderer
-                            content={message.content}
-                            className={cn(
-                              "text-xs",
-                              !expandedUserMessages.has(message.id) && "line-clamp-3"
-                            )}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => toggleUserMessage(message.id)}
-                            className="flex items-center gap-1 text-[11px] text-zinc-500 transition-colors hover:text-zinc-300"
-                          >
-                            {expandedUserMessages.has(message.id) ? (
-                              <><ChevronUp className="w-3 h-3" /> Show less</>
-                            ) : (
-                              <><ChevronDown className="w-3 h-3" /> Show more</>
-                            )}
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="space-y-1.5">
-                          {/* Image thumbnails */}
-                          {message.images && message.images.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {message.images.map((dataUrl, i) => (
-                                <img
-                                  key={i}
-                                  src={dataUrl}
-                                  alt={`Attached image ${i + 1}`}
-                                  className="max-h-20 rounded-md border border-white/[0.06] object-cover"
-                                />
-                              ))}
-                            </div>
-                          ) : null}
-                          <MarkdownRenderer content={message.content} className="text-xs" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Thinking panel for assistant */}
-                  {message.role === "assistant" && message.thinkingContent && (() => {
-                    const sanitized = sanitizeThinkingForDisplay(message.thinkingContent)
-                    if (!sanitized.trim()) return null
-                    const isExpanded = isStreamingThinking || expandedThinkingIds.has(message.id)
-                    return (
-                    <div className="ml-2">
+                      {prompt.slice(0, 60)}...
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {messages.map((message) => {
+                  const thinkingPanelId = `thinking-panel-${message.id}`
+                  const isStreamingThinking = message.role === "assistant" && message.isThinking
+
+                  return (
+                    <div key={message.id} className="space-y-1.5">
                       <div
                         className={cn(
-                          "max-w-[85%] text-left transition-all",
-                          isExpanded
-                            ? "flex max-h-[160px] w-full flex-col overflow-hidden rounded-lg bg-zinc-900/50 pl-3"
-                            : "w-fit"
+                          "flex",
+                          message.role === "user" ? "justify-end" : "justify-start"
                         )}
                       >
-                        <button
-                          type="button"
-                          onClick={() => toggleThinking(message.id)}
-                          aria-expanded={isExpanded}
-                          aria-controls={thinkingPanelId}
+                        <div
                           className={cn(
-                            "flex items-center gap-1 text-[11px] text-zinc-500 transition-colors hover:text-zinc-300",
-                            isExpanded ? "pt-2 pb-1.5" : ""
+                            "rounded-lg px-3 py-1.5 max-w-[90%]",
+                            message.role === "user"
+                              ? "bg-[#27272A] text-zinc-100"
+                              : "bg-transparent text-zinc-100"
                           )}
                         >
-                          {isExpanded ? (
-                            <ChevronUp className="w-2.5 h-2.5" />
+                          {message.role === "assistant" && message.isThinking && !message.content ? (
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-1.5">
+                                <TextShimmer className="font-mono text-xs" duration={1}>
+                                  {message.progressLabel || "Generating code..."}
+                                </TextShimmer>
+                                <button
+                                  onClick={cancelAI}
+                                  aria-label="Cancel generation"
+                                  className="p-0.5 rounded-md hover:bg-zinc-800 text-zinc-400"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          ) : message.role === "user" && message.content.length > LONG_USER_MSG_THRESHOLD ? (
+                            <div className="space-y-1.5">
+                              {/* Image thumbnails */}
+                              {message.images && message.images.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {message.images.map((dataUrl, i) => (
+                                    <img
+                                      key={i}
+                                      src={dataUrl}
+                                      alt={`Attached image ${i + 1}`}
+                                      className="max-h-20 rounded-md border border-white/[0.06] object-cover"
+                                    />
+                                  ))}
+                                </div>
+                              ) : null}
+                              <MarkdownRenderer
+                                content={message.content}
+                                className={cn(
+                                  "text-xs",
+                                  !expandedUserMessages.has(message.id) && "line-clamp-3"
+                                )}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => toggleUserMessage(message.id)}
+                                className="flex items-center gap-1 text-[11px] text-zinc-500 transition-colors hover:text-zinc-300"
+                              >
+                                {expandedUserMessages.has(message.id) ? (
+                                  <><ChevronUp className="w-3 h-3" /> Show less</>
+                                ) : (
+                                  <><ChevronDown className="w-3 h-3" /> Show more</>
+                                )}
+                              </button>
+                            </div>
                           ) : (
-                            <ChevronDown className="w-2.5 h-2.5" />
+                            <div className="space-y-1.5">
+                              {/* Image thumbnails */}
+                              {message.images && message.images.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {message.images.map((dataUrl, i) => (
+                                    <img
+                                      key={i}
+                                      src={dataUrl}
+                                      alt={`Attached image ${i + 1}`}
+                                      className="max-h-20 rounded-md border border-white/[0.06] object-cover"
+                                    />
+                                  ))}
+                                </div>
+                              ) : null}
+                              <MarkdownRenderer content={message.content} className="text-xs" />
+                            </div>
                           )}
-                          Thinking
-                        </button>
-                        {isExpanded ? (
-                          <div
-                            id={thinkingPanelId}
-                            ref={isStreamingThinking ? activeThinkingScrollRef : undefined}
-                            className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2.5 pr-1 text-xs leading-5 text-zinc-500 thinking-markdown"
-                          >
-                            <MarkdownRenderer content={sanitized} />
-                          </div>
-                        ) : null}
+                        </div>
                       </div>
+
+                      {/* Thinking panel for assistant */}
+                      {message.role === "assistant" && message.thinkingContent && (() => {
+                        const sanitized = sanitizeThinkingForDisplay(message.thinkingContent)
+                        if (!sanitized.trim()) return null
+                        const isExpanded = isStreamingThinking || expandedThinkingIds.has(message.id)
+                        return (
+                          <div className="ml-2">
+                            <div
+                              className={cn(
+                                "max-w-[85%] text-left transition-all",
+                                isExpanded
+                                  ? "flex max-h-[160px] w-full flex-col overflow-hidden rounded-lg bg-zinc-900/50 pl-3"
+                                  : "w-fit"
+                              )}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => toggleThinking(message.id)}
+                                aria-expanded={isExpanded}
+                                aria-controls={thinkingPanelId}
+                                className={cn(
+                                  "flex items-center gap-1 text-[11px] text-zinc-500 transition-colors hover:text-zinc-300",
+                                  isExpanded ? "pt-2 pb-1.5" : ""
+                                )}
+                              >
+                                {isExpanded ? (
+                                  <ChevronUp className="w-2.5 h-2.5" />
+                                ) : (
+                                  <ChevronDown className="w-2.5 h-2.5" />
+                                )}
+                                Thinking
+                              </button>
+                              {isExpanded ? (
+                                <div
+                                  id={thinkingPanelId}
+                                  ref={isStreamingThinking ? activeThinkingScrollRef : undefined}
+                                  className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2.5 pr-1 text-xs leading-5 text-zinc-500 thinking-markdown"
+                                >
+                                  <MarkdownRenderer content={sanitized} />
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </div>
-                    )
-                  })()}
-                </div>
-              )})}
+                  )
+                })}
 
-              {pendingDesignDiscovery ? (
-                <div className="flex justify-start">
-                  <DesignDiscoveryBlock
-                    reasoning={pendingDesignDiscovery.reasoning}
-                    question={pendingDesignDiscovery.questions[pendingDesignDiscovery.currentQuestionIndex]}
-                    answer={pendingDesignDiscovery.questions[pendingDesignDiscovery.currentQuestionIndex]
-                      ? pendingDesignDiscovery.answers[pendingDesignDiscovery.questions[pendingDesignDiscovery.currentQuestionIndex].id]
-                      : undefined}
-                    currentQuestionIndex={pendingDesignDiscovery.currentQuestionIndex}
-                    totalQuestions={pendingDesignDiscovery.questions.length}
-                    isLoading={pendingDesignDiscovery.isLoading}
-                    isSubmitting={pendingDesignDiscovery.isSubmitting}
-                    onSelectOption={handleDesignDiscoveryOptionSelect}
-                    onCustomAnswerChange={handleDesignDiscoveryCustomAnswerChange}
-                    onCustomAnswerSubmit={handleDesignDiscoveryNext}
-                    onPrevious={handleDesignDiscoveryPrevious}
-                    onNext={handleDesignDiscoveryNext}
-                    onSkip={handleDesignDiscoverySkip}
-                  />
-                </div>
-              ) : null}
-            </div>
-          )}
-        </div>
+                {pendingDesignDiscovery ? (
+                  <div className="flex justify-start">
+                    <DesignDiscoveryBlock
+                      reasoning={pendingDesignDiscovery.reasoning}
+                      question={pendingDesignDiscovery.questions[pendingDesignDiscovery.currentQuestionIndex]}
+                      answer={pendingDesignDiscovery.questions[pendingDesignDiscovery.currentQuestionIndex]
+                        ? pendingDesignDiscovery.answers[pendingDesignDiscovery.questions[pendingDesignDiscovery.currentQuestionIndex].id]
+                        : undefined}
+                      currentQuestionIndex={pendingDesignDiscovery.currentQuestionIndex}
+                      totalQuestions={pendingDesignDiscovery.questions.length}
+                      isLoading={pendingDesignDiscovery.isLoading}
+                      isSubmitting={pendingDesignDiscovery.isSubmitting}
+                      onSelectOption={handleDesignDiscoveryOptionSelect}
+                      onCustomAnswerChange={handleDesignDiscoveryCustomAnswerChange}
+                      onCustomAnswerSubmit={handleDesignDiscoveryNext}
+                      onPrevious={handleDesignDiscoveryPrevious}
+                      onNext={handleDesignDiscoveryNext}
+                      onSkip={handleDesignDiscoverySkip}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
 
-        {/* Chat Input */}
-        <div className="p-3 border-t border-zinc-800">
-          <AI_Prompt 
-            onSend={handleSend}
-            onEnhance={handleEnhancePrompt}
-            onDraftChange={handleComposerDraftChange}
-            onCancel={cancelAI}
-            initialModelId={state.selectedModel}
-            onModelChange={setModel}
-            availableModels={state.availableModels}
-            isLoadingModels={state.isLoadingModels}
-            isGenerating={isGenerating}
-            queuedPrompt={queuedPrompt}
-            onCancelQueued={cancelQueuedPrompt}
-          />
-        </div>
+          {/* Chat Input */}
+          <div className="p-3 border-t border-zinc-800">
+            <AI_Prompt
+              onSend={handleSend}
+              onEnhance={handleEnhancePrompt}
+              onDraftChange={handleComposerDraftChange}
+              onCancel={cancelAI}
+              initialModelId={state.selectedModel}
+              onModelChange={setModel}
+              availableModels={state.availableModels}
+              isLoadingModels={state.isLoadingModels}
+              isGenerating={isGenerating}
+              queuedPrompt={queuedPrompt}
+              onCancelQueued={cancelQueuedPrompt}
+            />
+          </div>
         </div>
       </div>
 
