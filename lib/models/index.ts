@@ -48,3 +48,8 @@ export {
   type IAuthToken,
   type AuthTokenType,
 } from "./AuthToken";
+export {
+  default as UserApiKey,
+  type IUserApiKey,
+  type IUserApiKeyModel,
+} from "./UserApiKey";

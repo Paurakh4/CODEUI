@@ -15,13 +15,14 @@ import {
 import {
   getModelById,
   isVisionCapableModel,
+  isByokModelId,
 } from "@/lib/ai-models"
 import {
-  getRuntimeDefaultModelId,
-  getRuntimeModelById,
-  getRuntimeModelFallbackChain,
-  getRuntimeModelsById,
-  isRuntimeModelEnabled,
+  getRuntimeDefaultModelIdForUser,
+  getRuntimeModelByIdForUser,
+  getRuntimeModelFallbackChainForUser,
+  getRuntimeModelsByIdForUser,
+  isRuntimeModelEnabledForUser,
 } from "@/lib/admin/model-policies"
 import {
   calculateCreditDeduction,
@@ -381,7 +382,7 @@ async function streamOpenRouterResponse({
     try {
       nextChunk = await readStreamChunkWithTimeout(reader, readTimeoutMs, signal)
     } catch (error) {
-      await reader.cancel().catch(() => {})
+      await reader.cancel().catch(() => { })
       throw error
     }
 
@@ -412,7 +413,7 @@ async function streamOpenRouterResponse({
       }
 
       if (status === "stop") {
-        await reader.cancel().catch(() => {})
+        await reader.cancel().catch(() => { })
         return { contentLength, thresholdReached, completedNaturally }
       }
     }
@@ -500,7 +501,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const runtimeDefaultModelId = await getRuntimeDefaultModelId()
+    const userId = session.user.id
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const runtimeDefaultModelId = await getRuntimeDefaultModelIdForUser(userId)
 
     const body: RequestBody = await req.json()
     const {
@@ -531,7 +537,9 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    if (!(await isRuntimeModelEnabled(model))) {
+    const isByokModel = isByokModelId(model)
+
+    if (!(await isRuntimeModelEnabledForUser(userId, model))) {
       return NextResponse.json(
         { error: `Model \"${model}\" is not enabled or does not exist` },
         { status: 400 },
@@ -553,17 +561,13 @@ export async function POST(req: NextRequest) {
         (typeof prompt === "string" && prompt.includes(FULL_DOCUMENT_RECOVERY_FLAG)))
 
     const recoveryHeader = req.headers.get("x-codeui-recovery") === "1"
-    const shouldChargeCredits = !(isRecoveryRequest || recoveryHeader || isRecoveryModeActive(recoveryMode) || isFullDocumentRecovery)
+    const shouldChargeCredits = !isByokModel && !(isRecoveryRequest || recoveryHeader || isRecoveryModeActive(recoveryMode) || isFullDocumentRecovery)
     const sanitizedPrompt = prompt.replace(FULL_DOCUMENT_RECOVERY_FLAG, "").trim()
 
     let creditContext: CreditContext | null = null
 
     try {
       await connectDB()
-      const userId = session.user.id
-      if (!userId) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-      }
       const user = await User.findById(userId)
       if (!user) {
         return NextResponse.json({ error: "User not found" }, { status: 404 })
@@ -706,7 +710,7 @@ export async function POST(req: NextRequest) {
         ? FOLLOW_UP_SYSTEM_PROMPT
         : getCombinedSystemPrompt()
 
-    const modelContextWindow = (await getRuntimeModelById(model))?.contextLength ?? getModelById(model)?.contextLength
+    const modelContextWindow = (await getRuntimeModelByIdForUser(userId, model))?.contextLength ?? getModelById(model)?.contextLength
     const continuationThresholdTokens = CONTINUATION_THRESHOLD_TOKENS
     const continuationThresholdChars = continuationThresholdTokens * 4
     const conversationBudgetTokens = Math.floor((modelContextWindow ?? 64_000) * 0.15)
@@ -817,8 +821,8 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const fallbackChain = await getRuntimeModelFallbackChain(model)
-    const runtimeModelsById = await getRuntimeModelsById()
+    const fallbackChain = await getRuntimeModelFallbackChainForUser(userId, model)
+    const runtimeModelsById = await getRuntimeModelsByIdForUser(userId)
     const requestBase = {
       stream: true,
       max_tokens: UPSTREAM_MAX_TOKENS,
@@ -840,6 +844,7 @@ export async function POST(req: NextRequest) {
             model: runtimeModelsById.get(candidateModel),
             requestId,
             openRouterReadTimeoutMs: UPSTREAM_READ_TIMEOUT_MS,
+            userId,
           })
           const candidateResponse = await fetch(providerConfig.endpoint, {
             method: "POST",

@@ -13,11 +13,13 @@ import {
   Code,
   Paperclip,
   X,
+  Key,
 } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -26,7 +28,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
-import { isVisionCapableModel } from "@/lib/ai-models"
+import { isVisionCapableModel, isByokModelId } from "@/lib/ai-models"
+import { ByokProviderSheet } from "@/components/byok/byok-provider-sheet"
 
 // ponytail: image payload caps — large data URLs bloat Mongo docs; upgrade path = upload to media library + store URL
 const MAX_IMAGES_PER_MESSAGE = 4
@@ -109,6 +112,7 @@ export function DashboardPromptArea({
   onStartLandingPage,
   onStartBlankProject,
 }: DashboardPromptAreaProps) {
+  const [byokSheetOpen, setByokSheetOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([])
@@ -415,8 +419,21 @@ export function DashboardPromptArea({
                     >
                       <span className="text-[#9B9B9F]">{getModelIcon(model.id)}</span>
                       <span>{model.name}</span>
+                      {isByokModelId(model.id) && (
+                        <span className="ml-auto text-[9px] font-medium bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded">
+                          BYOK
+                        </span>
+                      )}
                     </DropdownMenuItem>
                   ))}
+                  <DropdownMenuSeparator className="bg-white/[0.04]" />
+                  <DropdownMenuItem
+                    onClick={() => setByokSheetOpen(true)}
+                    className="gap-2 focus:bg-[#1B1B1F] focus:text-[#E7E7E9] cursor-pointer py-1.5 text-xs text-purple-300"
+                  >
+                    <Key className="w-3 h-3" />
+                    <span>Add Provider</span>
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -445,6 +462,13 @@ export function DashboardPromptArea({
           />
         </div>
       </div>
+      <ByokProviderSheet
+        open={byokSheetOpen}
+        onOpenChange={setByokSheetOpen}
+        onProvidersChanged={() => {
+          window.dispatchEvent(new Event("byok-providers-changed"))
+        }}
+      />
     </div>
   )
 }

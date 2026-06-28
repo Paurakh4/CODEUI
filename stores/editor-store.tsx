@@ -73,28 +73,28 @@ export interface EditorState {
   // Current project
   project: Project | null
   htmlContent: string
-  
+
   // UI State
   viewMode: ViewMode
   deviceMode: DeviceMode
   sidebarOpen: boolean
-  
+
   // AI State
   messages: Message[]
   isGenerating: boolean
-  
+
   // Editor State
   hasUnsavedChanges: boolean
   selectedElement: string | null
   isApplyingPatch: boolean
-  
+
   // Version History
   versions: Version[]
   currentVersionId: string | null
 
   // Code version hash — used for preview sync (Bug #2)
   codeVersionHash: string
-  
+
   // Settings
   selectedModel: string
   availableModels: { id: string; name: string }[]
@@ -108,23 +108,23 @@ export interface EditorState {
 export const initialState: EditorState = {
   project: null,
   htmlContent: EMPTY_HTML,
-  
+
   viewMode: "preview",
   deviceMode: "desktop",
   sidebarOpen: true,
-  
+
   messages: [],
   isGenerating: false,
-  
+
   hasUnsavedChanges: false,
   selectedElement: null,
   isApplyingPatch: false,
-  
+
   // Version History
   versions: [],
   currentVersionId: null,
   codeVersionHash: "",
-  
+
   selectedModel: CODEUI_GOD_MODE_MODEL_ID,
   availableModels: [],
   isLoadingModels: true,
@@ -163,10 +163,10 @@ export type EditorAction =
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
     case "SET_HTML_CONTENT":
-      return { 
-        ...state, 
-        htmlContent: action.payload, 
-        hasUnsavedChanges: true 
+      return {
+        ...state,
+        htmlContent: action.payload,
+        hasUnsavedChanges: true
       }
 
     case "SET_HTML_CONTENT_INITIAL":
@@ -175,22 +175,22 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         htmlContent: action.payload,
         hasUnsavedChanges: false,
       }
-    
+
     case "SET_VIEW_MODE":
       return { ...state, viewMode: action.payload }
-    
+
     case "SET_DEVICE_MODE":
       return { ...state, deviceMode: action.payload }
-    
+
     case "TOGGLE_SIDEBAR":
       return { ...state, sidebarOpen: !state.sidebarOpen }
-    
+
     case "SET_SIDEBAR_OPEN":
       return { ...state, sidebarOpen: action.payload }
-    
+
     case "ADD_MESSAGE":
       return { ...state, messages: [...state.messages, action.payload] }
-    
+
     case "UPDATE_MESSAGE": {
       const { id, updates } = action.payload
       return {
@@ -200,19 +200,19 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ),
       }
     }
-    
+
     case "SET_GENERATING":
       return { ...state, isGenerating: action.payload }
-    
+
     case "SET_UNSAVED_CHANGES":
       return { ...state, hasUnsavedChanges: action.payload }
-    
+
     case "SET_SELECTED_ELEMENT":
       return { ...state, selectedElement: action.payload }
-    
+
     case "SET_APPLYING_PATCH":
       return { ...state, isApplyingPatch: action.payload }
-    
+
     case "CREATE_VERSION": {
       const newVersion: Version = {
         id: createEditorStoreId("version"),
@@ -227,7 +227,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         hasUnsavedChanges: false,
       }
     }
-    
+
     case "RESTORE_VERSION": {
       const version = state.versions.find((v) => v.id === action.payload)
       if (version) {
@@ -240,7 +240,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
       return state
     }
-    
+
     case "SET_MODEL":
       return { ...state, selectedModel: action.payload }
 
@@ -249,19 +249,19 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case "SET_IS_LOADING_MODELS":
       return { ...state, isLoadingModels: action.payload }
-    
+
     case "SET_PRIMARY_COLOR":
       return { ...state, primaryColor: action.payload }
-    
+
     case "SET_SECONDARY_COLOR":
       return { ...state, secondaryColor: action.payload }
-    
+
     case "SET_THEME":
       return { ...state, theme: action.payload }
 
     case "SET_CODE_VERSION_HASH":
       return { ...state, codeVersionHash: action.payload }
-    
+
     case "SET_PROJECT":
       return {
         ...state,
@@ -270,10 +270,10 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         versions: action.payload.versions,
         hasUnsavedChanges: false,
       }
-    
+
     case "RESET_STATE":
       return initialState
-    
+
     default:
       return state
   }
@@ -283,7 +283,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 interface EditorContextValue {
   state: EditorState
   dispatch: React.Dispatch<EditorAction>
-  
+
   // Convenience actions
   setHtmlContent: (content: string) => void
   setViewMode: (mode: ViewMode) => void
@@ -396,25 +396,25 @@ export function EditorProvider({ children }: { children: ReactNode }) {
 
     let cancelled = false
 
-    ;(async () => {
-      try {
-        const res = await fetch("/api/user/settings", { cache: "no-store" })
+      ; (async () => {
+        try {
+          const res = await fetch("/api/user/settings", { cache: "no-store" })
 
-        if (!res.ok) {
-          throw new Error("Failed to fetch user settings")
-        }
+          if (!res.ok) {
+            throw new Error("Failed to fetch user settings")
+          }
 
-        const data = await res.json()
-        if (!cancelled && data.settings) {
-          applyPersistedSettings(data.settings)
+          const data = await res.json()
+          if (!cancelled && data.settings) {
+            applyPersistedSettings(data.settings)
+          }
+        } catch (error) {
+          console.error("Failed to fetch user settings:", error)
+          if (!cancelled) {
+            hydrateGuestSettings()
+          }
         }
-      } catch (error) {
-        console.error("Failed to fetch user settings:", error)
-        if (!cancelled) {
-          hydrateGuestSettings()
-        }
-      }
-    })()
+      })()
 
     return () => {
       cancelled = true
@@ -422,14 +422,14 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   }, [applyPersistedSettings, hydrateGuestSettings, session?.user?.id, status])
 
   // Fetch available models
-  useEffect(() => {
+  const fetchModels = useCallback(() => {
     fetch('/api/ai/models')
       .then(res => res.json())
       .then(data => {
         if (data.models && Array.isArray(data.models)) {
           const defaultModelId =
             typeof data.defaultModelId === "string" &&
-            data.models.some((model: { id: string }) => model.id === data.defaultModelId)
+              data.models.some((model: { id: string }) => model.id === data.defaultModelId)
               ? data.defaultModelId
               : null
 
@@ -456,6 +456,17 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         dispatch({ type: "SET_IS_LOADING_MODELS", payload: false })
       })
   }, [toast])
+
+  useEffect(() => {
+    fetchModels()
+  }, [fetchModels])
+
+  // Refetch models when BYOK providers change
+  useEffect(() => {
+    const handleByokChange = () => fetchModels()
+    window.addEventListener("byok-providers-changed", handleByokChange)
+    return () => window.removeEventListener("byok-providers-changed", handleByokChange)
+  }, [fetchModels])
 
   useEffect(() => {
     if (!hasHydratedSelectedModel || state.isLoadingModels || state.availableModels.length === 0) return
@@ -500,24 +511,24 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     persistedSelectedModelRef.current = state.selectedModel
     let cancelled = false
 
-    ;(async () => {
-      try {
-        const response = await fetch("/api/user/settings", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ defaultModel: state.selectedModel }),
-        })
+      ; (async () => {
+        try {
+          const response = await fetch("/api/user/settings", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ defaultModel: state.selectedModel }),
+          })
 
-        if (!response.ok) {
-          throw new Error("Failed to persist selected model")
+          if (!response.ok) {
+            throw new Error("Failed to persist selected model")
+          }
+        } catch (error) {
+          if (!cancelled) {
+            persistedSelectedModelRef.current = previousPersistedModel
+            console.error("Failed to persist selected model:", error)
+          }
         }
-      } catch (error) {
-        if (!cancelled) {
-          persistedSelectedModelRef.current = previousPersistedModel
-          console.error("Failed to persist selected model:", error)
-        }
-      }
-    })()
+      })()
 
     return () => {
       cancelled = true
@@ -563,19 +574,19 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const setHtmlContent = useCallback((content: string) => {
     dispatch({ type: "SET_HTML_CONTENT", payload: content })
   }, [])
-  
+
   const setViewMode = useCallback((mode: ViewMode) => {
     dispatch({ type: "SET_VIEW_MODE", payload: mode })
   }, [])
-  
+
   const setDeviceMode = useCallback((mode: DeviceMode) => {
     dispatch({ type: "SET_DEVICE_MODE", payload: mode })
   }, [])
-  
+
   const toggleSidebar = useCallback(() => {
     dispatch({ type: "TOGGLE_SIDEBAR" })
   }, [])
-  
+
   const addMessage = useCallback((message: Omit<Message, "id" | "timestamp">) => {
     const id = createEditorStoreId("message")
     dispatch({
@@ -588,11 +599,11 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     })
     return id
   }, [])
-  
+
   const updateMessage = useCallback((id: string, updates: Partial<Message>) => {
     dispatch({ type: "UPDATE_MESSAGE", payload: { id, updates } })
   }, [])
-  
+
   const setGenerating = useCallback((generating: boolean) => {
     dispatch({ type: "SET_GENERATING", payload: generating })
   }, [])
@@ -600,11 +611,11 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const setApplyingPatch = useCallback((applying: boolean) => {
     dispatch({ type: "SET_APPLYING_PATCH", payload: applying })
   }, [])
-  
+
   const createVersion = useCallback((description?: string) => {
     dispatch({ type: "CREATE_VERSION", payload: { description } })
   }, [])
-  
+
   const restoreVersion = useCallback((versionId: string) => {
     dispatch({ type: "RESTORE_VERSION", payload: versionId })
   }, [])
@@ -629,7 +640,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   const setCodeVersionHash = useCallback((hash: string) => {
     dispatch({ type: "SET_CODE_VERSION_HASH", payload: hash })
   }, [])
-  
+
   const value: EditorContextValue = {
     state,
     dispatch,
@@ -649,7 +660,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     setTheme,
     setCodeVersionHash,
   }
-  
+
   return (
     <EditorContext.Provider value={value}>
       {children}

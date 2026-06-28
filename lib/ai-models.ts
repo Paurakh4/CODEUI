@@ -9,7 +9,7 @@ export interface AIModel {
   id: string
   name: string
   provider: string
-  sourceProvider?: "openrouter" | "pxroute" | "custom"
+  sourceProvider?: "openrouter" | "pxroute" | "custom" | "byok"
   customProviderId?: string
   // Raw model id sent to the upstream API. Only set for custom providers where
   // the catalog id is namespaced (e.g. `custom:opencode-zen:gpt-5.5`).
@@ -29,6 +29,7 @@ export const DEFAULT_PROMPT_ENHANCE_MODEL_ID = "x-ai/grok-build-0.1"
 export const PXROUTE_SOURCE_PROVIDER = "pxroute" as const
 export const OPENROUTER_SOURCE_PROVIDER = "openrouter" as const
 export const CUSTOM_SOURCE_PROVIDER = "custom" as const
+export const BYOK_SOURCE_PROVIDER = "byok" as const
 
 export const PXROUTE_MODEL_IDS = [
   "claude-opus-4-8",
@@ -45,8 +46,13 @@ export type ModelSourceProvider =
   | typeof OPENROUTER_SOURCE_PROVIDER
   | typeof PXROUTE_SOURCE_PROVIDER
   | typeof CUSTOM_SOURCE_PROVIDER
+  | typeof BYOK_SOURCE_PROVIDER
 
 export function resolveModelSourceProvider(model?: Pick<AIModel, "provider" | "sourceProvider"> | null): ModelSourceProvider {
+  if (model?.sourceProvider === BYOK_SOURCE_PROVIDER) {
+    return BYOK_SOURCE_PROVIDER
+  }
+
   if (model?.sourceProvider === PXROUTE_SOURCE_PROVIDER) {
     return PXROUTE_SOURCE_PROVIDER
   }
@@ -75,6 +81,24 @@ export function parseCustomModelId(catalogId: string): { providerId: string; ups
   const match = /^custom:([^:]+):(.+)$/.exec(catalogId)
   if (!match) return null
   return { providerId: match[1], upstreamModelId: match[2] }
+}
+
+/**
+ * Build a namespaced catalog id for a BYOK (user-level) provider model.
+ * Format: `byok:${providerId}:${upstreamModelId}`
+ */
+export function buildByokModelId(providerId: string, upstreamModelId: string) {
+  return `byok:${providerId}:${upstreamModelId}`
+}
+
+export function parseByokModelId(catalogId: string): { providerId: string; upstreamModelId: string } | null {
+  const match = /^byok:([^:]+):(.+)$/.exec(catalogId)
+  if (!match) return null
+  return { providerId: match[1], upstreamModelId: match[2] }
+}
+
+export function isByokModelId(catalogId: string): boolean {
+  return catalogId.startsWith("byok:")
 }
 
 /**
@@ -539,12 +563,12 @@ export function getModelFallbackChain(primaryModelId?: string): string[] {
 export function getModelsRecord(): Record<string, Omit<AIModel, 'id'>> {
   const enabled = getEnabledModels()
   const record: Record<string, Omit<AIModel, 'id'>> = {}
-  
+
   enabled.forEach(model => {
     const { id, ...rest } = model
     record[id] = rest
   })
-  
+
   return record
 }
 

@@ -2,6 +2,7 @@ import {
   OPENROUTER_SOURCE_PROVIDER,
   PXROUTE_SOURCE_PROVIDER,
   CUSTOM_SOURCE_PROVIDER,
+  BYOK_SOURCE_PROVIDER,
   resolveModelSourceProvider,
   type AIModel,
   type ModelSourceProvider,
@@ -81,8 +82,38 @@ export async function resolveProviderRequestConfig(options: {
   model?: Pick<AIModel, "provider" | "sourceProvider" | "customProviderId" | "upstreamModelId"> | null
   requestId: string
   openRouterReadTimeoutMs?: number
+  userId?: string
 }): Promise<AIProviderRequestConfig> {
   const sourceProvider = resolveModelSourceProvider(options.model)
+
+  if (sourceProvider === BYOK_SOURCE_PROVIDER) {
+    const customProviderId = options.model?.customProviderId
+    if (!customProviderId) {
+      throw new Error("BYOK provider model is missing a provider reference")
+    }
+    if (!options.userId) {
+      throw new Error("BYOK provider requires a user session")
+    }
+
+    const provider = await resolveByokProviderConfig(options.userId, customProviderId)
+    const baseUrl = provider.baseUrl.replace(/\/+$/, "")
+    const endpoint = baseUrl.endsWith("/chat/completions")
+      ? baseUrl
+      : `${baseUrl}/chat/completions`
+
+    return {
+      endpoint,
+      apiKey: provider.apiKey,
+      sourceProvider,
+      readTimeoutMs: getOpenRouterReadTimeoutMs(),
+      upstreamModelId: options.model?.upstreamModelId ?? options.modelId,
+      headers: {
+        Authorization: `Bearer ${provider.apiKey}`,
+        "Content-Type": "application/json",
+        "X-CodeUI-Request-ID": options.requestId,
+      },
+    }
+  }
 
   if (sourceProvider === PXROUTE_SOURCE_PROVIDER) {
     const apiKey = process.env.PXROUTE_API_KEY
@@ -164,6 +195,11 @@ async function resolveCustomProviderConfig(providerId: string) {
     throw new Error(`Custom provider "${providerId}" is no longer configured`)
   }
   return { baseUrl: provider.baseUrl, apiKey: provider.apiKey }
+}
+
+async function resolveByokProviderConfig(userId: string, providerId: string) {
+  const { getDecryptedProvider } = await import("@/lib/byok/user-providers")
+  return getDecryptedProvider(userId, providerId)
 }
 
 function extractTextContent(content: unknown): string {

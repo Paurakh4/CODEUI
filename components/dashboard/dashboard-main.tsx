@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Sparkles, Bot, Zap } from "lucide-react"
+import { Sparkles, Bot, Zap, Key } from "lucide-react"
 import { useState, useEffect, useCallback } from "react"
 import { FeedbackModal } from "@/components/feedback-modal"
 import { PricingModal } from "@/components/pricing-modal"
@@ -195,6 +195,7 @@ export function DashboardMain({
   }, [onStart, selectedModelId])
 
   const getModelIcon = (modelId: string) => {
+    if (modelId.startsWith("byok:")) return <Key className="w-3.5 h-3.5" />
     if (modelId.includes("gemini") || modelId.includes("google"))
       return <Sparkles className="w-3.5 h-3.5" />
     if (modelId.includes("r1")) return <Bot className="w-3.5 h-3.5" />
@@ -381,10 +382,10 @@ export function DashboardMain({
 
   return (
     <SidebarProvider defaultOpen={true} className="h-svh max-h-[100dvh] overflow-hidden">
-        {/* Grain overlay */}
-        <div className="grain-overlay" />
+      {/* Grain overlay */}
+      <div className="grain-overlay" />
 
-        <DashboardSidebar
+      <DashboardSidebar
         projects={projects}
         isLoadingProjects={isLoadingProjects}
         onStart={onStart}
@@ -419,12 +420,12 @@ export function DashboardMain({
             <div
               className={cn(
                 "flex items-center justify-between gap-2 rounded-lg border px-3 py-2 shadow-md backdrop-blur-md",
-                  billingSyncState === "processing" &&
-                    "border-white/10 bg-white/5 text-[#E7E7E9]",
-                  billingSyncState === "confirmed" &&
-                    "border-white/10 bg-white/5 text-[#E7E7E9]",
+                billingSyncState === "processing" &&
+                "border-white/10 bg-white/5 text-[#E7E7E9]",
+                billingSyncState === "confirmed" &&
+                "border-white/10 bg-white/5 text-[#E7E7E9]",
                 billingSyncState === "failed" &&
-                   "border-white/10 bg-white/5 text-[#E7E7E9]",
+                "border-white/10 bg-white/5 text-[#E7E7E9]",
               )}
             >
               <div className="min-w-0">

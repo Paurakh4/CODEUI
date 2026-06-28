@@ -248,8 +248,33 @@ export async function getPublicModelCatalog() {
   }
 }
 
+/**
+ * Returns the public model catalog merged with the user's BYOK models.
+ * For unauthenticated users (no userId), falls back to the plain public catalog.
+ */
+export async function getPublicModelCatalogForUser(userId?: string) {
+  const catalog = await getPublicModelCatalog()
+
+  if (!userId) {
+    return catalog
+  }
+
+  const { getUserByokModels } = await import("@/lib/byok/user-providers")
+  const byokModels = await getUserByokModels(userId)
+
+  return {
+    defaultModelId: catalog.defaultModelId,
+    models: [...catalog.models, ...byokModels],
+  }
+}
+
 export async function isRuntimeModelEnabled(modelId: string) {
   const catalog = await getPublicModelCatalog()
+  return catalog.models.some((model) => model.id === modelId)
+}
+
+export async function isRuntimeModelEnabledForUser(userId: string, modelId: string) {
+  const catalog = await getPublicModelCatalogForUser(userId)
   return catalog.models.some((model) => model.id === modelId)
 }
 
@@ -258,13 +283,28 @@ export async function getRuntimeModelById(modelId: string) {
   return catalog.models.find((model) => model.id === modelId)
 }
 
+export async function getRuntimeModelByIdForUser(userId: string, modelId: string) {
+  const catalog = await getPublicModelCatalogForUser(userId)
+  return catalog.models.find((model) => model.id === modelId)
+}
+
 export async function getRuntimeModelsById() {
   const catalog = await getPublicModelCatalog()
   return new Map(catalog.models.map((model) => [model.id, model]))
 }
 
+export async function getRuntimeModelsByIdForUser(userId: string) {
+  const catalog = await getPublicModelCatalogForUser(userId)
+  return new Map(catalog.models.map((model) => [model.id, model]))
+}
+
 export async function getRuntimeDefaultModelId() {
   const catalog = await getPublicModelCatalog()
+  return catalog.defaultModelId
+}
+
+export async function getRuntimeDefaultModelIdForUser(userId?: string) {
+  const catalog = await getPublicModelCatalogForUser(userId)
   return catalog.defaultModelId
 }
 
@@ -283,6 +323,60 @@ export async function getRuntimeModelFallbackChain(primaryModelId?: string) {
 
   return buildModelFallbackChain({
     enabledModels: enabled,
+    defaultModelId: catalog.defaultModelId,
+    primaryModelId,
+  })
+}
+
+/**
+ * Build a fallback chain for a user. When the primary model is a BYOK model,
+ * the fallback chain is restricted to BYOK models from the same provider —
+ * no cross-provider fallback to platform models (which would consume credits).
+ * When the primary is a platform model, the standard platform fallback chain
+ * is used (BYOK models are excluded).
+ */
+export async function getRuntimeModelFallbackChainForUser(
+  userId: string,
+  primaryModelId?: string,
+) {
+  const catalog = await getPublicModelCatalogForUser(userId)
+  const enabled = catalog.models
+
+  if (enabled.length === 0) {
+    return []
+  }
+
+  if (primaryModelId && primaryModelId.startsWith("byok:")) {
+    const byokModels = enabled.filter((m) => m.sourceProvider === "byok")
+    if (byokModels.length === 0) {
+      return [primaryModelId].filter((id) => enabled.some((m) => m.id === id))
+    }
+
+    const primaryModel = byokModels.find((m) => m.id === primaryModelId)
+    const primaryProviderId = primaryModel?.customProviderId
+
+    const sameProviderByok = primaryProviderId
+      ? byokModels.filter((m) => m.customProviderId === primaryProviderId)
+      : byokModels
+
+    const chain: string[] = []
+    const seen = new Set<string>()
+
+    const pushIfEnabled = (id?: string) => {
+      if (!id || seen.has(id) || !enabled.some((m) => m.id === id)) return
+      seen.add(id)
+      chain.push(id)
+    }
+
+    pushIfEnabled(primaryModelId)
+    sameProviderByok.forEach((m) => pushIfEnabled(m.id))
+
+    return chain
+  }
+
+  const platformModels = enabled.filter((m) => m.sourceProvider !== "byok")
+  return buildModelFallbackChain({
+    enabledModels: platformModels,
     defaultModelId: catalog.defaultModelId,
     primaryModelId,
   })

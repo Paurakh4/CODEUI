@@ -1,14 +1,21 @@
 import { NextResponse } from "next/server"
-import { getPublicModelCatalog } from "@/lib/admin/model-policies"
+import { auth } from "@/lib/auth"
+import { getPublicModelCatalog, getPublicModelCatalogForUser } from "@/lib/admin/model-policies"
 
 /**
  * GET /api/ai/models
- * Returns the list of enabled AI models based on environment configuration
+ * Returns the list of enabled AI models based on environment configuration.
+ * For authenticated users, also includes their BYOK (Bring Your Own Key) models.
  */
 export async function GET() {
   try {
-    const catalog = await getPublicModelCatalog()
-    
+    const session = await auth()
+    const userId = session?.user?.id
+
+    const catalog = userId
+      ? await getPublicModelCatalogForUser(userId)
+      : await getPublicModelCatalog()
+
     return NextResponse.json({
       models: catalog.models,
       count: catalog.models.length,
