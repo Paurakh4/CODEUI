@@ -17,7 +17,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
     const project = await Project.findOne({ _id: id, isPrivate: false })
       .select("_id userId name emoji htmlContent views likes createdAt updatedAt")
-      .populate("userId", "name email")
+      .populate("userId", "name email image")
       .lean()
 
     if (!project) {
@@ -26,16 +26,16 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
     const viewerHasLiked = session?.user?.id
       ? Boolean(
-          await ProjectLike.findOne({
-            projectId: id,
-            userId: session.user.id,
-          })
-            .select("_id")
-            .lean()
-        )
+        await ProjectLike.findOne({
+          projectId: id,
+          userId: session.user.id,
+        })
+          .select("_id")
+          .lean()
+      )
       : false
 
-    const owner = project.userId as { name?: string; email?: string } | null
+    const owner = project.userId as { name?: string; email?: string; image?: string } | null
 
     return NextResponse.json({
       project: {
@@ -46,6 +46,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
         views: project.views,
         likes: project.likes,
         ownerName: getPublicOwnerName(owner || undefined),
+        ownerImage: owner?.image || null,
         createdAt: project.createdAt,
         updatedAt: project.updatedAt,
         viewerHasLiked,

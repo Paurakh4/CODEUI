@@ -3,7 +3,7 @@ import { SITE_NAME } from "@/lib/site-config"
 
 export const metadata = {
   title: `Discover | ${SITE_NAME}`,
-  description: "Browse public CodeUI projects from the community.",
+  description: "Explore what the community is building.",
 }
 
 export default function DiscoverPage() {

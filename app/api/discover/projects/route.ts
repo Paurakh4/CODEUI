@@ -27,7 +27,7 @@ export async function GET(request: Request) {
     const [projects, totalProjects] = await Promise.all([
       Project.find(filters)
         .select("_id userId name emoji htmlContent views likes createdAt updatedAt")
-        .populate("userId", "name email")
+        .populate("userId", "name email image")
         .sort(getDiscoverSortStage(query.sort))
         .skip(offset)
         .limit(query.pageSize)
@@ -38,19 +38,19 @@ export async function GET(request: Request) {
     const projectIds = projects.map((project) => project._id.toString())
     const likedProjectIds = session?.user?.id
       ? new Set(
-          (
-            await ProjectLike.find({
-              userId: session.user.id,
-              projectId: { $in: projectIds },
-            })
-              .select("projectId")
-              .lean()
-          ).map((item) => item.projectId)
-        )
+        (
+          await ProjectLike.find({
+            userId: session.user.id,
+            projectId: { $in: projectIds },
+          })
+            .select("projectId")
+            .lean()
+        ).map((item) => item.projectId)
+      )
       : new Set<string>()
 
     const items = projects.map((project) => {
-      const owner = project.userId as { name?: string; email?: string } | null
+      const owner = project.userId as { name?: string; email?: string; image?: string } | null
 
       return {
         id: project._id.toString(),
@@ -60,6 +60,8 @@ export async function GET(request: Request) {
         views: project.views,
         likes: project.likes,
         ownerName: getPublicOwnerName(owner || undefined),
+        ownerImage: owner?.image || null,
+        featured: project.likes >= 5,
         createdAt: project.createdAt,
         updatedAt: project.updatedAt,
         viewerHasLiked: likedProjectIds.has(project._id.toString()),
