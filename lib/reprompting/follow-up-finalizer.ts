@@ -25,6 +25,8 @@ import { isCompleteHtmlDocument } from "@/lib/ai-update-recovery"
 import { StreamParser } from "@/lib/parsers/stream-parser"
 import { normalizeHtml } from "@/lib/reprompting/normalize-html"
 import { escapeRegExp } from "@/lib/utils/regex-helper"
+import { stripThinkingBlocks } from "@/lib/reprompting/thinking-stripper"
+import { parseJsonDiff } from "@/lib/reprompting/json-diff-parser"
 
 export type FollowUpFinalizerStrategy =
   | "passthrough"
@@ -32,6 +34,7 @@ export type FollowUpFinalizerStrategy =
   | "extracted-from-narration"
   | "fenced-block"
   | "search-replace"
+  | "json-diff"
 
 export interface FollowUpFinalizerSuccess {
   ok: true
@@ -54,35 +57,6 @@ export interface FollowUpFinalizerFailure {
 export type FollowUpFinalizerResult =
   | FollowUpFinalizerSuccess
   | FollowUpFinalizerFailure
-
-const THINKING_TAG_PATTERNS: RegExp[] = [
-  /<think(?:ing)?[^>]*>[\s\S]*?<\/think(?:ing)?>/gi,
-  /<reasoning[^>]*>[\s\S]*?<\/reasoning>/gi,
-  /<reflection[^>]*>[\s\S]*?<\/reflection>/gi,
-  /<analysis[^>]*>[\s\S]*?<\/analysis>/gi,
-  /<scratchpad[^>]*>[\s\S]*?<\/scratchpad>/gi,
-]
-
-// When output is truncated mid-thought, providers can leave an unmatched
-// opening tag. Drop everything from the open tag up to the first DOCTYPE/html.
-const UNCLOSED_THINKING_PATTERNS: RegExp[] = [
-  /<think(?:ing)?[^>]*>[\s\S]*?(?=<!DOCTYPE|<html\b)/i,
-  /<reasoning[^>]*>[\s\S]*?(?=<!DOCTYPE|<html\b)/i,
-  /<reflection[^>]*>[\s\S]*?(?=<!DOCTYPE|<html\b)/i,
-  /<analysis[^>]*>[\s\S]*?(?=<!DOCTYPE|<html\b)/i,
-  /<scratchpad[^>]*>[\s\S]*?(?=<!DOCTYPE|<html\b)/i,
-]
-
-function stripThinkingBlocks(content: string): string {
-  let result = content
-  for (const pattern of THINKING_TAG_PATTERNS) {
-    result = result.replace(pattern, "")
-  }
-  for (const pattern of UNCLOSED_THINKING_PATTERNS) {
-    result = result.replace(pattern, "")
-  }
-  return result
-}
 
 function stripBom(content: string): string {
   return content.replace(/^\uFEFF/, "")
@@ -227,6 +201,31 @@ function tryApplyPatches(content: string, currentHtml: string): {
   return { html: working, appliedPatchCount: applied }
 }
 
+function tryApplyJsonDiffEdits(
+  rawContent: string,
+  currentHtml: string,
+): { html: string; appliedPatchCount: number; skippedEdits: number } | null {
+  const parsed = parseJsonDiff(rawContent)
+  if (!parsed) return null
+
+  const parser = new StreamParser({})
+  let working = currentHtml
+  let applied = 0
+
+  for (const edit of parsed.edits) {
+    const result = parser.applyPatch(working, edit.search, edit.replace, "index.html")
+    if (result.success) {
+      working = result.content
+      applied += 1
+    }
+  }
+
+  if (applied === 0 || working === currentHtml) return null
+  if (!isStrictCompleteHtmlDocument(working)) return null
+
+  return { html: working, appliedPatchCount: applied, skippedEdits: parsed.skipped }
+}
+
 export interface FinalizeFollowUpInput {
   rawContent: string
   currentHtml: string
@@ -236,12 +235,20 @@ export interface FinalizeFollowUpInput {
    * surgical edit mode where the model is explicitly asked to return patches.
    */
   preferPatches?: boolean
+  /**
+   * When true, JSON diff parsing is tried FIRST (before all other strategies).
+   * Use when the model was prompted with JSON_DIFF_SYSTEM_PROMPT and
+   * `responseFormat: { type: "json_object" }`. If JSON parsing fails or
+   * patches don't apply, falls back to preferPatches / text strategies.
+   */
+  preferJsonDiff?: boolean
 }
 
 /**
  * Convert any reasonable model response into a complete HTML document.
  *
  * Strategy ordering (cheapest first):
+ *   0. (If preferJsonDiff) Parse JSON diff edits and apply patches.
  *   1. Pass-through (already a strict complete document).
  *   2. Strip thinking tags, then re-check.
  *   3a. (If preferPatches) Apply SEARCH/REPLACE patches against prior HTML.
@@ -264,6 +271,23 @@ export function finalizeFollowUpResponse(
   const cleaned = stripBom(input.rawContent ?? "")
   if (!cleaned.trim()) {
     return { ok: false, reason: "The model returned an empty response." }
+  }
+
+  // ── JSON diff strategy (primary when preferJsonDiff is set) ──
+  // Try first, before passthrough, because JSON-mode output is never a
+  // raw HTML document. If parsing or patch application fails, fall through
+  // to the text-based strategies below.
+  if (input.preferJsonDiff && input.currentHtml && isStrictCompleteHtmlDocument(input.currentHtml)) {
+    const jsonDiffed = tryApplyJsonDiffEdits(cleaned, input.currentHtml)
+    if (jsonDiffed) {
+      return {
+        ok: true,
+        html: normalizeHtml(jsonDiffed.html),
+        strategy: "json-diff",
+        appliedPatchCount: jsonDiffed.appliedPatchCount,
+        diffCompliant: true,
+      }
+    }
   }
 
   const passthrough = tryStrictPassthrough(cleaned)

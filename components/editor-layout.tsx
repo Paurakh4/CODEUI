@@ -555,6 +555,63 @@ function getRenderableStreamingHtml(value: string): string | null {
 }
 
 /**
+ * Extract partial (incomplete) HTML from a streaming response for live
+ * "brick-by-brick" preview. Unlike getRenderableStreamingHtml, this does
+ * NOT require a closing </html> tag — the browser iframe auto-closes
+ * unclosed tags when rendering via srcdoc.
+ *
+ * Returns null until the content starts with <!DOCTYPE or <html (after
+ * stripping thinking tags and code fences), so we don't flash narration
+ * or thinking content into the preview.
+ */
+function getPartialStreamingHtml(value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed || hasStreamProtocolMarkers(trimmed)) {
+    return null
+  }
+
+  // Strip closed thinking tags
+  let cleaned = trimmed
+    .replace(/<think(?:ing)?[^>]*>[\s\S]*?<\/think(?:ing)?>/gi, "")
+    .replace(/<reasoning[^>]*>[\s\S]*?<\/reasoning>/gi, "")
+    .replace(/<reflection[^>]*>[\s\S]*?<\/reflection>/gi, "")
+    .replace(/<analysis[^>]*>[\s\S]*?<\/analysis>/gi, "")
+    .replace(/<scratchpad[^>]*>[\s\S]*?<\/scratchpad>/gi, "")
+
+  // Strip UNCLOSED thinking tags — during streaming, the model may emit
+  // an opening <thinking> tag that hasn't been closed yet. Remove
+  // everything from the opening tag up to the first <!DOCTYPE or <html.
+  cleaned = cleaned
+    .replace(/<think(?:ing)?[^>]*>[\s\S]*?(?=<!DOCTYPE|<html)/i, "")
+    .replace(/<reasoning[^>]*>[\s\S]*?(?=<!DOCTYPE|<html)/i, "")
+    .replace(/<reflection[^>]*>[\s\S]*?(?=<!DOCTYPE|<html)/i, "")
+
+  // Also handle the case where thinking text appears before the HTML
+  // without any thinking tags at all (plain narration before doctype)
+  // — extract from the first <!DOCTYPE or <html onwards.
+  const htmlStartIdx = cleaned.search(/<!DOCTYPE|<html/i)
+  if (htmlStartIdx > 0) {
+    cleaned = cleaned.slice(htmlStartIdx)
+  }
+
+  // Strip leading code fence if present
+  const fencedMatch = cleaned.match(/^```html?\s*([\s\S]*)$/i)
+  if (fencedMatch) {
+    cleaned = fencedMatch[1].replace(/\s*```$/, "").trim()
+  }
+
+  cleaned = cleaned.trim()
+  if (!cleaned) return null
+
+  // Only start rendering once we see the beginning of an HTML document
+  if (!cleaned.startsWith("<!DOCTYPE") && !cleaned.startsWith("<html")) {
+    return null
+  }
+
+  return cleaned
+}
+
+/**
  * Sanitize thinking content for display — strip raw CSS, code fences, and
  * `<style>` blocks that are part of the model's chain-of-thought, not meant
  * for the user. Keeps natural-language reasoning intact.
@@ -607,6 +664,10 @@ function stripDisplayFences(raw: string): string {
   // Remove thinking tags and their content (model reasoning in raw output).
   result = result.replace(/<think(?:ing)?[^>]*>[\s\S]*?<\/think(?:ing)?>/gi, "")
   result = result.replace(/<reasoning[^>]*>[\s\S]*?<\/reasoning>/gi, "")
+  // Strip UNCLOSED thinking tags — during streaming the closing tag may
+  // not have been emitted yet. Remove from opening tag to first <!DOCTYPE/<html.
+  result = result.replace(/<think(?:ing)?[^>]*>[\s\S]*?(?=<!DOCTYPE|<html)/i, "")
+  result = result.replace(/<reasoning[^>]*>[\s\S]*?(?=<!DOCTYPE|<html)/i, "")
   // Strip SEARCH/REPLACE + UPDATE_FILE/PROJECT_NAME/NEW_FILE conflict-marker
   // LINES (keep the content between them) so Monaco never flashes
   // `<<<<<<< SEARCH` / `=======` / `>>>>>>> REPLACE` during follow-up drafts.
@@ -830,6 +891,10 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     stableHtml: string
   } | null>(null)
   const previewRef = useRef<HTMLIFrameElement>(null)
+  // Throttle timer for streaming preview updates — avoids reloading the
+  // iframe on every token chunk. Only fires at most once per 250ms.
+  const streamingPreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const streamingPreviewPendingRef = useRef<string | null>(null)
   const activeAiRequestRef = useRef<{
     isFollowUp: boolean
     recoveryMode?: RecoveryMode
@@ -944,6 +1009,36 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     setHtmlContent(nextHtml)
     setCodeVersionHash(fastHash(nextHtml.trim()))
     setHasUnsavedChanges(true)
+  }, [])
+
+  /**
+   * Throttled streaming preview — updates the iframe at most once per
+   * ~250ms during initial generation so the user sees the UI build
+   * "brick by brick" without janky re-renders on every token.
+   *
+   * Does NOT update stablePreviewHtmlRef or lastAppliedHtml — those are
+   * only set by the final commitHtmlContentUpdate when the document is
+   * complete.
+   */
+  const commitStreamingPreview = useCallback((partialHtml: string) => {
+    streamingPreviewPendingRef.current = partialHtml
+
+    if (streamingPreviewTimerRef.current !== null) return
+
+    streamingPreviewTimerRef.current = setTimeout(() => {
+      streamingPreviewTimerRef.current = null
+      const pending = streamingPreviewPendingRef.current
+      if (pending === null) return
+      streamingPreviewPendingRef.current = null
+
+      htmlContentRef.current = pending
+      setPreviewUpdateSignal((prev) => ({
+        token: prev.token + 1,
+        mode: "full",
+      }))
+      setHtmlContent(pending)
+      setCodeVersionHash(fastHash(pending.trim()))
+    }, 120)
   }, [])
 
   const restorePreservedHtml = useCallback((preferredHtml?: string | null) => {
@@ -1625,9 +1720,14 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
   }, [])
 
   const finalizeGenerationSuccess = useCallback(() => {
+    // Flush any pending streaming preview timer
+    if (streamingPreviewTimerRef.current !== null) {
+      clearTimeout(streamingPreviewTimerRef.current)
+      streamingPreviewTimerRef.current = null
+    }
+    streamingPreviewPendingRef.current = null
     setDraftAiOutput("")
     setApplyingPatch(false)
-    setViewMode("preview")
     setHasGeneratedOnce(true)
     lastPatchFailureRef.current = null
     requestStableHtmlRef.current = selectStableHtmlDocument(
@@ -1655,10 +1755,27 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       // so Monaco never shows ```html or <thinking> markers.
       setDraftAiOutput(stripDisplayFences(content))
 
-      const streamingHtml = getRenderableStreamingHtml(content)
       const activeRequest = activeAiRequestRef.current
-      if (streamingHtml && !activeRequest.isFollowUp) {
-        commitHtmlContentUpdate(streamingHtml)
+      if (activeRequest.isFollowUp) return
+
+      // For initial generation, try complete HTML first (final commit).
+      const completeHtml = getRenderableStreamingHtml(content)
+      if (completeHtml) {
+        // Flush any pending throttled preview first
+        if (streamingPreviewTimerRef.current !== null) {
+          clearTimeout(streamingPreviewTimerRef.current)
+          streamingPreviewTimerRef.current = null
+        }
+        streamingPreviewPendingRef.current = null
+        commitHtmlContentUpdate(completeHtml)
+        return
+      }
+
+      // No complete document yet — feed partial HTML to the throttled
+      // streaming preview so the user sees the UI build "brick by brick".
+      const partialHtml = getPartialStreamingHtml(content)
+      if (partialHtml) {
+        commitStreamingPreview(partialHtml)
       }
     },
     // Follow-up requests buffer their committed content server-side so the
@@ -1690,6 +1807,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     onNoop: (reason) => {
       resetActiveAiRequest()
       lastFailedRequestRef.current = null
+      if (streamingPreviewTimerRef.current !== null) {
+        clearTimeout(streamingPreviewTimerRef.current)
+        streamingPreviewTimerRef.current = null
+      }
+      streamingPreviewPendingRef.current = null
       setDraftAiOutput("")
       setApplyingPatch(false)
       setViewMode("preview")
@@ -1705,6 +1827,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       const activeRequest = activeAiRequestRef.current
       resetActiveAiRequest()
       lastFailedRequestRef.current = null
+      if (streamingPreviewTimerRef.current !== null) {
+        clearTimeout(streamingPreviewTimerRef.current)
+        streamingPreviewTimerRef.current = null
+      }
+      streamingPreviewPendingRef.current = null
       recoveryInFlightRef.current = false
       promptScopeRecoveryInFlightRef.current = false
       scopeRecoveryAttemptsRef.current = 0
@@ -1738,6 +1865,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       const activeRequest = activeAiRequestRef.current
       resetActiveAiRequest()
       lastFailedRequestRef.current = null
+      if (streamingPreviewTimerRef.current !== null) {
+        clearTimeout(streamingPreviewTimerRef.current)
+        streamingPreviewTimerRef.current = null
+      }
+      streamingPreviewPendingRef.current = null
       recoveryInFlightRef.current = false
       promptScopeRecoveryInFlightRef.current = false
       scopeRecoveryAttemptsRef.current = 0
@@ -1940,7 +2072,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         }
 
         setDraftAiOutput("")
-        setViewMode("code")
         return
       }
 
@@ -1975,7 +2106,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         })
 
         setDraftAiOutput("")
-        setViewMode("code")
         return
       }
 
@@ -2088,6 +2218,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         }
       }
       resetActiveAiRequest()
+      if (streamingPreviewTimerRef.current !== null) {
+        clearTimeout(streamingPreviewTimerRef.current)
+        streamingPreviewTimerRef.current = null
+      }
+      streamingPreviewPendingRef.current = null
       const isRecoveryFailure = recoveryInFlightRef.current
       const isPromptScopeRecoveryFailure = promptScopeRecoveryInFlightRef.current
       const shouldRestorePreviousPage = activeRequest.isFollowUp || Boolean(activeRecoveryMode)
@@ -2200,7 +2335,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     const activeAssistantMessage = messagesRef.current[messagesRef.current.length - 1]
 
     setApplyingPatch(true)
-    setViewMode("code")
     setDraftAiOutput("")
     activeAiRequestRef.current = {
       isFollowUp: true,
@@ -2332,7 +2466,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       }
 
       lastUserPromptRef.current = trimmedMessage
-      setViewMode("code")
       setDraftAiOutput("")
 
       setApplyingPatch(true)
@@ -3295,7 +3428,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
   // Render content based on view mode
   const renderContent = () => {
+    // liveDraftHtml is only used for the code editor view during generation.
+    // The preview uses throttled htmlContent (updated via commitStreamingPreview)
+    // to avoid re-rendering the iframe on every token.
     const liveDraftHtml = getRenderableStreamingHtml(draftAiOutput)
+      ?? getPartialStreamingHtml(draftAiOutput)
 
     switch (viewMode) {
       case "preview":
@@ -3308,9 +3445,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
           // intermediate states (Bug #3). Initial generation still streams.
           (isGenerating && activeAiRequestRef.current.isFollowUp
             ? stablePreviewHtmlRef.current
-            : isGenerating
-              ? liveDraftHtml
-              : null) ??
+            : null) ??
           htmlContent
         return (
           <div className="flex h-full min-h-0 relative overflow-hidden">
@@ -3351,11 +3486,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
           </div>
         )
       case "code":
-        const liveEditorValue = liveDraftHtml || draftAiOutput || htmlContent
+        const liveEditorValue = liveDraftHtml || htmlContent || draftAiOutput
 
         return (
           <CodeEditor
-            value={isGenerating ? liveEditorValue : htmlContent}
+            value={liveEditorValue}
             onChange={handleCodeChange}
             readOnly={isGenerating}
             className="h-full"
@@ -3409,7 +3544,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
                   type="text"
                   value={projectName}
                   onChange={(e) => setProjectName(e.target.value)}
-                  className="bg-transparent text-xs font-medium text-zinc-200 focus:outline-none focus:ring-1 focus:ring-white/[0.08] rounded px-1 -ml-1"
+                  className="bg-transparent text-xs font-medium text-zinc-200 focus:outline-none rounded px-1 -ml-1"
                 />
                 {hasUnsavedChanges && (
                   <span className="w-1.5 h-1.5 bg-orange-500 rounded-full" title="Unsaved changes" />

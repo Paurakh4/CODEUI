@@ -117,9 +117,21 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
+    outline: none;
   }
+
   body {
     @apply bg-background text-foreground;
+  }
+
+  :focus-visible {
+    outline: 1.5px solid var(--ring);
+    outline-offset: 1px;
+    border-radius: inherit;
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
   }
 }

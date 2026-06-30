@@ -155,8 +155,8 @@ export function AdminFeedbackCenter({
     data.feedback.find((feedback) => feedback.id === selectedFeedbackId) ?? data.feedback[0] ?? null
   const hasDraftChanges = selectedFeedback
     ? adminNoteDraft.trim() !== selectedFeedback.adminNote ||
-      responseMessageDraft.trim() !== selectedFeedback.responseMessage ||
-      sendEmail
+    responseMessageDraft.trim() !== selectedFeedback.responseMessage ||
+    sendEmail
     : false
 
   useEffect(() => {
@@ -183,8 +183,8 @@ export function AdminFeedbackCenter({
       const payload = (await response.json().catch(() => null)) as
         | AdminFeedbackPageData
         | {
-            error?: string
-          }
+          error?: string
+        }
         | null
 
       if (!response.ok) {
@@ -413,7 +413,7 @@ export function AdminFeedbackCenter({
                     pageSize: Number(event.target.value) as AdminFeedbackQuery["pageSize"],
                   }))
                 }
-                className="h-10 rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] outline-none transition-colors focus:ring-2 focus:ring-white/10"
+                className="h-10 rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] outline-none transition-colors focus-visible:border-white/[0.10]"
               >
                 {ADMIN_FEEDBACK_PAGE_SIZES.map((size) => (
                   <option key={size} value={size}>

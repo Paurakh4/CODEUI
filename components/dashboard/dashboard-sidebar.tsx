@@ -379,7 +379,7 @@ export function DashboardSidebar({
                     onFocus={() => setIsSearchFocused(true)}
                     onBlur={() => setTimeout(() => setIsSearchFocused(false), 120)}
                     placeholder="Search projects..."
-                    className="w-full h-7 bg-[#0E0E10] border border-white/[0.04] rounded-lg pl-7 pr-2.5 text-[11px] text-[#E7E7E9] placeholder:text-[#9B9B9F] outline-none focus-visible:ring-1 focus-visible:ring-white transition-colors"
+                    className="w-full h-7 bg-[#0E0E10] border border-white/[0.04] rounded-lg pl-7 pr-2.5 text-[11px] text-[#E7E7E9] placeholder:text-[#9B9B9F] outline-none focus-visible:border-white/[0.10] transition-colors"
                     aria-label="Search projects"
                   />
                   {isSearchFocused && normalizedQuery && (
@@ -516,7 +516,7 @@ export function DashboardSidebar({
               </div>
               <span className="text-[11px] font-bold text-[#E7E7E9] tabular-nums">{userTotalCredits}</span>
             </div>
-            
+
             <div className="relative h-1 w-full bg-[#050505] rounded-full overflow-hidden">
               <div
                 className="absolute inset-y-0 left-0 rounded-full transition-all duration-500 bg-[#E7E7E9]"
@@ -574,7 +574,7 @@ export function DashboardSidebar({
               }
             >
               {projectPendingDelete !== null &&
-              deletingProjectId === projectPendingDelete.id ? (
+                deletingProjectId === projectPendingDelete.id ? (
                 <span className="flex items-center gap-2">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   Deleting...

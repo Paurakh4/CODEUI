@@ -198,7 +198,7 @@ export function ProjectManagementForm({
           value={visibility}
           onChange={(event) => setVisibility(event.target.value as "public" | "private")}
           disabled={readOnly || isSaving || isDeleting}
-          className="h-10 w-full rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] outline-none transition-colors focus:ring-2 focus:ring-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+          className="h-10 w-full rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] outline-none transition-colors focus-visible:border-white/[0.10] disabled:cursor-not-allowed disabled:opacity-60"
         >
           <option value="private">Private</option>
           <option value="public">Public</option>

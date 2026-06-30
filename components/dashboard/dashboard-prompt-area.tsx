@@ -442,7 +442,7 @@ export function DashboardPromptArea({
               onClick={handleSubmit}
               disabled={isStartingProject || !canSubmit}
               aria-label="Send prompt"
-              className="flex items-center justify-center h-7 w-7 bg-[#121212] text-white rounded-lg transition-all hover:bg-[#1B1B1F] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E0E10]"
+              className="flex items-center justify-center h-7 w-7 bg-[#121212] text-white rounded-lg transition-all hover:bg-[#1B1B1F] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none"
             >
               {isStartingProject ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
@@ -485,7 +485,7 @@ function ActionButton({
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#0E0E10] border border-white/[0.04] text-xs text-[#E7E7E9] hover:bg-[#1B1B1F] hover:border-white/[0.06] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#050505]"
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#0E0E10] border border-white/[0.04] text-xs text-[#E7E7E9] hover:bg-[#1B1B1F] hover:border-white/[0.06] transition-colors focus-visible:outline-none"
     >
       {icon}
       <span>{label}</span>

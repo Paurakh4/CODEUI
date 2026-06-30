@@ -176,25 +176,25 @@ type ResizeHandleDirection = "ne" | "nw" | "se" | "sw"
 
 type CanvasInteraction =
   | {
-      type: "pan"
-      pointerId: number
-      startPointer: CanvasPoint
-      startCanvasOffset: CanvasPoint
-    }
+    type: "pan"
+    pointerId: number
+    startPointer: CanvasPoint
+    startCanvasOffset: CanvasPoint
+  }
   | {
-      type: "move"
-      pointerId: number
-      startPointer: CanvasPoint
-      startFramePosition: CanvasPoint
-    }
+    type: "move"
+    pointerId: number
+    startPointer: CanvasPoint
+    startFramePosition: CanvasPoint
+  }
   | {
-      type: "resize"
-      pointerId: number
-      direction: ResizeHandleDirection
-      startPointer: CanvasPoint
-      startFramePosition: CanvasPoint
-      startFrameSize: FrameSize
-    }
+    type: "resize"
+    pointerId: number
+    direction: ResizeHandleDirection
+    startPointer: CanvasPoint
+    startFramePosition: CanvasPoint
+    startFrameSize: FrameSize
+  }
 
 export function PreviewFrame({
   htmlContent,
@@ -222,6 +222,10 @@ export function PreviewFrame({
   const lastRenderedHashRef = useRef<string>("")
   const [isLoading, setIsLoading] = useState(true)
   const [reloadToken, setReloadToken] = useState(0)
+  // Track whether we're in streaming mode (initial generation) so we
+  // can use incremental DOM updates instead of full srcdoc reloads.
+  const isStreamingPreviewRef = useRef(false)
+  const lastStreamedHtmlRef = useRef<string>("")
   const [canvasOffset, setCanvasOffset] = useState<CanvasPoint>({ x: 0, y: 0 })
   const [framePosition, setFramePosition] = useState<CanvasPoint>({ x: 0, y: 0 })
   const [frameSize, setFrameSize] = useState<FrameSize>(deviceDimensions[deviceMode])
@@ -806,20 +810,96 @@ export function PreviewFrame({
     if (codeVersionHash) {
       lastRenderedHashRef.current = codeVersionHash
     }
-    
+
+    // ── Streaming preview ──
+    // During initial generation, the HTML is incomplete (no </html>).
+    // The first streaming update uses srcdoc to establish the document.
+    // Subsequent updates write directly into the iframe's document via
+    // innerHTML — this avoids a full navigation/reload cycle (which
+    // causes white flashing) and lets the browser incrementally render
+    // new elements as they stream in.
+    const syncDocumentWithoutReload = (targetDoc: Document, nextHtml: string) => {
+      const parsedDoc = new DOMParser().parseFromString(nextHtml, "text/html")
+      targetDoc.head.innerHTML = parsedDoc.head.innerHTML
+      targetDoc.body.innerHTML = parsedDoc.body.innerHTML
+      targetDoc.documentElement.lang = parsedDoc.documentElement.lang
+
+      targetDoc.querySelectorAll("script").forEach((script) => {
+        const replacement = targetDoc.createElement("script")
+        Array.from(script.attributes).forEach((attribute) => {
+          replacement.setAttribute(attribute.name, attribute.value)
+        })
+        replacement.textContent = script.textContent
+        script.replaceWith(replacement)
+      })
+    }
+
+    const isCompleteDoc = /<\/html>/i.test(htmlContent)
+    const wasStreaming = isStreamingPreviewRef.current
+
+    if (!isCompleteDoc && htmlContent.trim().length > 0) {
+      // Only skip if the content hasn't actually changed
+      if (lastStreamedHtmlRef.current === htmlContent) {
+        setIsLoading(false)
+        return
+      }
+
+      isStreamingPreviewRef.current = true
+      lastStreamedHtmlRef.current = htmlContent
+
+      try {
+        const doc = iframe.contentDocument
+        if (doc && wasStreaming) {
+          syncDocumentWithoutReload(doc, htmlContent)
+        } else {
+          // First streaming update — establish the document via srcdoc
+          iframe.srcdoc = htmlContent
+        }
+      } catch {
+        // Fallback to srcdoc if direct DOM write fails
+        iframe.srcdoc = htmlContent
+      }
+
+      setIsLoading(false)
+      return
+    }
+
+    // Complete document — do a final clean load
+    if (wasStreaming) {
+      try {
+        const doc = iframe.contentDocument
+        if (doc) {
+          syncDocumentWithoutReload(doc, htmlContent)
+          isStreamingPreviewRef.current = false
+          lastStreamedHtmlRef.current = ""
+          setIsLoading(false)
+          return
+        }
+      } catch {
+        iframe.srcdoc = htmlContent
+        isStreamingPreviewRef.current = false
+        lastStreamedHtmlRef.current = ""
+        setIsLoading(false)
+        return
+      }
+
+      isStreamingPreviewRef.current = false
+      lastStreamedHtmlRef.current = ""
+    }
+
     setIsLoading(true)
-    
+
     // Handle load event
     const handleLoad = () => {
       setIsLoading(false)
     }
-    
+
     iframe.onload = handleLoad
-    
+
     // Use srcdoc for reliable content rendering
     // This ensures the entire document is parsed before rendering
     iframe.srcdoc = htmlContent
-    
+
     return () => {
       iframe.onload = null
     }
@@ -827,6 +907,10 @@ export function PreviewFrame({
 
   // Refresh the preview
   const handleRefresh = useCallback(() => {
+    const iframe = iframeRef.current
+    if (iframe) {
+      iframe.srcdoc = ""
+    }
     setReloadToken((prev) => prev + 1)
   }, [])
 
@@ -1159,14 +1243,14 @@ export function PreviewFrame({
           <RefreshCw className="h-4 w-4" />
         </button>
       </div>
-      
+
       {/* Loading indicator */}
       {isLoading && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-zinc-950/72 backdrop-blur-sm">
           <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
         </div>
       )}
-      
+
       <div
         ref={canvasViewportRef}
         className="relative flex-1 overflow-hidden bg-black"
@@ -1270,7 +1354,7 @@ export function PreviewFrame({
           </div>
         </div>
       </div>
-      
+
       {/* Floating Device info pill */}
       {showInfoPill ? (
         <div className="absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border border-zinc-800/60 bg-zinc-900/80 px-2.5 py-1 text-[10px] text-zinc-500 shadow-2xl backdrop-blur-md">
@@ -1302,31 +1386,31 @@ const resizeHandleConfig: Array<{
   positionClassName: string
   cursorClassName: string
 }> = [
-  {
-    direction: "nw",
-    label: "from top left",
-    positionClassName: "-left-2 -top-2",
-    cursorClassName: "cursor-nwse-resize",
-  },
-  {
-    direction: "ne",
-    label: "from top right",
-    positionClassName: "-right-2 -top-2",
-    cursorClassName: "cursor-nesw-resize",
-  },
-  {
-    direction: "sw",
-    label: "from bottom left",
-    positionClassName: "-bottom-2 -left-2",
-    cursorClassName: "cursor-nesw-resize",
-  },
-  {
-    direction: "se",
-    label: "from bottom right",
-    positionClassName: "-bottom-2 -right-2",
-    cursorClassName: "cursor-nwse-resize",
-  },
-]
+    {
+      direction: "nw",
+      label: "from top left",
+      positionClassName: "-left-2 -top-2",
+      cursorClassName: "cursor-nwse-resize",
+    },
+    {
+      direction: "ne",
+      label: "from top right",
+      positionClassName: "-right-2 -top-2",
+      cursorClassName: "cursor-nesw-resize",
+    },
+    {
+      direction: "sw",
+      label: "from bottom left",
+      positionClassName: "-bottom-2 -left-2",
+      cursorClassName: "cursor-nesw-resize",
+    },
+    {
+      direction: "se",
+      label: "from bottom right",
+      positionClassName: "-bottom-2 -right-2",
+      cursorClassName: "cursor-nwse-resize",
+    },
+  ]
 
 // Helper function to get a unique path to an element
 function getElementPath(element: HTMLElement): string {
@@ -1341,11 +1425,11 @@ function getElementPath(element: HTMLElement): string {
   if (current === doc.body) {
     return "body"
   }
-  
+
   while (current && current !== doc.documentElement) {
     let selector = current.tagName.toLowerCase()
     if (!selector) break
-    
+
     if (current.id) {
       selector += `#${CSS.escape(current.id)}`
       path.unshift(selector)
@@ -1359,7 +1443,7 @@ function getElementPath(element: HTMLElement): string {
         selector += `.${classes.map(c => CSS.escape(c)).join(".")}`
       }
     }
-    
+
     // Add nth-child for disambiguation
     const parent = current.parentElement
     if (parent) {
@@ -1371,25 +1455,25 @@ function getElementPath(element: HTMLElement): string {
         selector += `:nth-of-type(${index})`
       }
     }
-    
+
     path.unshift(selector)
     current = current.parentElement
   }
-  
+
   return path.join(" > ") || element.tagName.toLowerCase()
 }
 
 function rgbToHex(rgb: string): string {
   if (rgb.startsWith('#')) return rgb;
   if (rgb === 'transparent' || rgb === 'rgba(0, 0, 0, 0)') return 'transparent';
-  
+
   const match = rgb.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*[\d.]+)?\)$/);
   if (!match) return rgb;
-  
+
   const r = parseInt(match[1]);
   const g = parseInt(match[2]);
   const b = parseInt(match[3]);
-  
+
   return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
 }
 

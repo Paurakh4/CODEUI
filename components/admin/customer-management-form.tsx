@@ -212,7 +212,7 @@ export function CustomerManagementForm({
             value={role}
             onChange={(event) => setRole(event.target.value as UserRole)}
             disabled={readOnly || isSaving}
-            className="h-10 w-full rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] outline-none transition-colors focus:ring-2 focus:ring-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-10 w-full rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] outline-none transition-colors focus-visible:border-white/[0.10] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {availableRoles.map((value) => (
               <option key={value} value={value}>
@@ -228,7 +228,7 @@ export function CustomerManagementForm({
             value={accountStatus}
             onChange={(event) => setAccountStatus(event.target.value as AccountStatus)}
             disabled={readOnly || isSaving}
-            className="h-10 w-full rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] outline-none transition-colors focus:ring-2 focus:ring-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-10 w-full rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] outline-none transition-colors focus-visible:border-white/[0.10] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {accountStatuses.map((value) => (
               <option key={value} value={value}>
@@ -244,7 +244,7 @@ export function CustomerManagementForm({
             value={subscriptionTier}
             onChange={(event) => setSubscriptionTier(event.target.value as SubscriptionTier)}
             disabled={readOnly || isSaving}
-            className="h-10 w-full rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] outline-none transition-colors focus:ring-2 focus:ring-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-10 w-full rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] outline-none transition-colors focus-visible:border-white/[0.10] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {subscriptionTiers.map((value) => (
               <option key={value} value={value}>

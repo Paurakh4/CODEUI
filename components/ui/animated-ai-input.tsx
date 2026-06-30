@@ -21,13 +21,13 @@ const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024 // 5 MB
 const IMAGE_DOWNSCALE_MAX_DIM = 1024 // px — keeps data URLs sane
 
 interface AttachedImage {
-  id: string
-  dataUrl: string
-  name: string
+    id: string
+    dataUrl: string
+    name: string
 }
 
 function generateImageId() {
-  return `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    return `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 /**
@@ -35,37 +35,37 @@ function generateImageId() {
  * Preserves aspect ratio. Returns a data URL (JPEG 0.85 quality).
  */
 function downscaleImage(file: File, maxDim: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      const img = new Image()
-      img.onload = () => {
-        let { width, height } = img
-        if (width <= maxDim && height <= maxDim) {
-          // No downscale needed — return the original data URL
-          resolve(reader.result as string)
-          return
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+            const img = new Image()
+            img.onload = () => {
+                let { width, height } = img
+                if (width <= maxDim && height <= maxDim) {
+                    // No downscale needed — return the original data URL
+                    resolve(reader.result as string)
+                    return
+                }
+                const ratio = Math.min(maxDim / width, maxDim / height)
+                width = Math.round(width * ratio)
+                height = Math.round(height * ratio)
+                const canvas = document.createElement("canvas")
+                canvas.width = width
+                canvas.height = height
+                const ctx = canvas.getContext("2d")
+                if (!ctx) {
+                    reject(new Error("Failed to get canvas context"))
+                    return
+                }
+                ctx.drawImage(img, 0, 0, width, height)
+                resolve(canvas.toDataURL("image/jpeg", 0.85))
+            }
+            img.onerror = () => reject(new Error("Failed to load image for downscale"))
+            img.src = reader.result as string
         }
-        const ratio = Math.min(maxDim / width, maxDim / height)
-        width = Math.round(width * ratio)
-        height = Math.round(height * ratio)
-        const canvas = document.createElement("canvas")
-        canvas.width = width
-        canvas.height = height
-        const ctx = canvas.getContext("2d")
-        if (!ctx) {
-          reject(new Error("Failed to get canvas context"))
-          return
-        }
-        ctx.drawImage(img, 0, 0, width, height)
-        resolve(canvas.toDataURL("image/jpeg", 0.85))
-      }
-      img.onerror = () => reject(new Error("Failed to load image for downscale"))
-      img.src = reader.result as string
-    }
-    reader.onerror = () => reject(new Error("Failed to read file"))
-    reader.readAsDataURL(file)
-  })
+        reader.onerror = () => reject(new Error("Failed to read file"))
+        reader.readAsDataURL(file)
+    })
 }
 
 interface UseAutoResizeTextareaProps {
@@ -127,7 +127,7 @@ interface AI_PromptProps {
     onCancel?: () => void;
     initialModelId?: string;
     onModelChange?: (modelId: string) => void;
-    availableModels?: Array<{id: string, name: string}>;
+    availableModels?: Array<{ id: string, name: string }>;
     isLoadingModels?: boolean;
     isGenerating?: boolean;
     /** Single-slot queued prompt shown while generating (Bug #5). */
@@ -136,12 +136,12 @@ interface AI_PromptProps {
     onCancelQueued?: () => void;
 }
 
-export function AI_Prompt({ 
-    onSend, 
+export function AI_Prompt({
+    onSend,
     onEnhance,
     onDraftChange,
     onCancel,
-    initialModelId, 
+    initialModelId,
     onModelChange,
     availableModels: propAvailableModels,
     isLoadingModels: propIsLoadingModels,
@@ -158,10 +158,10 @@ export function AI_Prompt({
         minHeight: 52,
         maxHeight: 100,
     });
-    
+
     // State for models
     const [selectedModelId, setSelectedModelId] = useState(initialModelId || CODEUI_GOD_MODE_MODEL_ID);
-    const [localAvailableModels, setLocalAvailableModels] = useState<Array<{id: string, name: string}>>([]);
+    const [localAvailableModels, setLocalAvailableModels] = useState<Array<{ id: string, name: string }>>([]);
     const [localIsLoadingModels, setLocalIsLoadingModels] = useState(true);
 
     const availableModels = propAvailableModels || localAvailableModels;
@@ -195,7 +195,7 @@ export function AI_Prompt({
                     const models = data.models.map((m: any) => ({ id: m.id, name: m.name }));
                     const defaultModelId =
                         typeof data.defaultModelId === "string" &&
-                        models.some((model: { id: string }) => model.id === data.defaultModelId)
+                            models.some((model: { id: string }) => model.id === data.defaultModelId)
                             ? data.defaultModelId
                             : undefined;
                     setLocalAvailableModels(models);
@@ -230,44 +230,44 @@ export function AI_Prompt({
     }, [propAvailableModels, initialModelId]);
 
     const addFiles = useCallback(async (files: FileList | File[]) => {
-      if (!isVisionCapableModel(selectedModelId)) {
-        // ponytail: block image attach when model doesn't support vision — prevents the send-time error
-        return
-      }
-
-      const imageFiles: File[] = []
-      for (let i = 0; i < files.length; i += 1) {
-        const file = files[i]
-        if (!file.type.startsWith("image/")) continue
-        if (file.size > MAX_IMAGE_SIZE_BYTES) {
-          // ponytail: toast not available in this component; caller can observe via onSend
-          console.warn(`Image "${file.name}" exceeds ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024} MB limit, skipping`)
-          continue
+        if (!isVisionCapableModel(selectedModelId)) {
+            // ponytail: block image attach when model doesn't support vision — prevents the send-time error
+            return
         }
-        imageFiles.push(file)
-      }
 
-      const remaining = MAX_IMAGES_PER_MESSAGE - attachedImages.length
-      const toAdd = imageFiles.slice(0, remaining)
+        const imageFiles: File[] = []
+        for (let i = 0; i < files.length; i += 1) {
+            const file = files[i]
+            if (!file.type.startsWith("image/")) continue
+            if (file.size > MAX_IMAGE_SIZE_BYTES) {
+                // ponytail: toast not available in this component; caller can observe via onSend
+                console.warn(`Image "${file.name}" exceeds ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024} MB limit, skipping`)
+                continue
+            }
+            imageFiles.push(file)
+        }
 
-      const newImages: AttachedImage[] = await Promise.all(
-        toAdd.map(async (file) => ({
-          id: generateImageId(),
-          dataUrl: await downscaleImage(file, IMAGE_DOWNSCALE_MAX_DIM),
-          name: file.name,
-        }))
-      )
+        const remaining = MAX_IMAGES_PER_MESSAGE - attachedImages.length
+        const toAdd = imageFiles.slice(0, remaining)
 
-      setAttachedImages((prev) => [...prev, ...newImages].slice(0, MAX_IMAGES_PER_MESSAGE))
+        const newImages: AttachedImage[] = await Promise.all(
+            toAdd.map(async (file) => ({
+                id: generateImageId(),
+                dataUrl: await downscaleImage(file, IMAGE_DOWNSCALE_MAX_DIM),
+                name: file.name,
+            }))
+        )
 
-      // Reset file input so the same file can be re-selected
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ""
-      }
+        setAttachedImages((prev) => [...prev, ...newImages].slice(0, MAX_IMAGES_PER_MESSAGE))
+
+        // Reset file input so the same file can be re-selected
+        if (fileInputRef.current) {
+            fileInputRef.current.value = ""
+        }
     }, [attachedImages.length, selectedModelId])
 
     const removeImage = useCallback((id: string) => {
-      setAttachedImages((prev) => prev.filter((img) => img.id !== id))
+        setAttachedImages((prev) => prev.filter((img) => img.id !== id))
     }, [])
 
     const handleSubmit = useCallback(() => {
@@ -320,97 +320,97 @@ export function AI_Prompt({
 
     // Paste handler: intercept clipboard images
     const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-      const items = e.clipboardData?.items
-      if (!items) return
+        const items = e.clipboardData?.items
+        if (!items) return
 
-      const files: File[] = []
-      for (let i = 0; i < items.length; i += 1) {
-        const item = items[i]
-        if (item.type.startsWith("image/")) {
-          const file = item.getAsFile()
-          if (file) files.push(file)
+        const files: File[] = []
+        for (let i = 0; i < items.length; i += 1) {
+            const item = items[i]
+            if (item.type.startsWith("image/")) {
+                const file = item.getAsFile()
+                if (file) files.push(file)
+            }
         }
-      }
 
-      if (files.length > 0) {
-        e.preventDefault()
-        void addFiles(files)
-      }
+        if (files.length > 0) {
+            e.preventDefault()
+            void addFiles(files)
+        }
     }, [addFiles])
 
     // Drag-and-drop handlers
     const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setIsDraggingOver(true)
+        e.preventDefault()
+        e.stopPropagation()
+        setIsDraggingOver(true)
     }, [])
 
     const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setIsDraggingOver(false)
+        e.preventDefault()
+        e.stopPropagation()
+        setIsDraggingOver(false)
     }, [])
 
     const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setIsDraggingOver(false)
-      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        void addFiles(e.dataTransfer.files)
-      }
+        e.preventDefault()
+        e.stopPropagation()
+        setIsDraggingOver(false)
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            void addFiles(e.dataTransfer.files)
+        }
     }, [addFiles])
 
     // File input change handler
     const handleFileInputChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files && e.target.files.length > 0) {
-        void addFiles(e.target.files)
-      }
+        if (e.target.files && e.target.files.length > 0) {
+            void addFiles(e.target.files)
+        }
     }, [addFiles])
-    
+
     const selectedModel = availableModels.find(m => m.id === selectedModelId) || availableModels[0];
     const canSubmit = value.trim().length > 0 || attachedImages.length > 0
 
     return (
         <div className="w-full">
             <div
-              className={cn(
-                "rounded-xl border overflow-hidden transition-colors",
-                isDraggingOver
-                  ? "border-blue-500/50 bg-blue-500/[0.04]"
-                  : "border-white/[0.06] bg-white/[0.03]"
-              )}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
+                className={cn(
+                    "rounded-xl border overflow-hidden transition-colors",
+                    isDraggingOver
+                        ? "border-blue-500/50 bg-blue-500/[0.04]"
+                        : "border-white/[0.06] bg-white/[0.03]"
+                )}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
             >
                 <div className="relative">
                     <div className="relative flex flex-col">
 
                         {/* Image preview chips */}
                         {attachedImages.length > 0 ? (
-                          <div className="flex flex-wrap gap-1.5 px-2.5 pt-2.5">
-                            {attachedImages.map((img) => (
-                              <div
-                                key={img.id}
-                                className="relative group rounded-md overflow-hidden border border-white/[0.08] bg-black/20"
-                                style={{ width: 48, height: 48 }}
-                              >
-                                <img
-                                  src={img.dataUrl}
-                                  alt={img.name}
-                                  className="w-full h-full object-cover"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => removeImage(img.id)}
-                                  aria-label={`Remove ${img.name}`}
-                                  className="absolute top-0 right-0 p-0.5 rounded-bl-md bg-black/60 text-white/80 hover:bg-black/80 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                  <X className="w-2.5 h-2.5" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
+                            <div className="flex flex-wrap gap-1.5 px-2.5 pt-2.5">
+                                {attachedImages.map((img) => (
+                                    <div
+                                        key={img.id}
+                                        className="relative group rounded-md overflow-hidden border border-white/[0.08] bg-black/20"
+                                        style={{ width: 48, height: 48 }}
+                                    >
+                                        <img
+                                            src={img.dataUrl}
+                                            alt={img.name}
+                                            className="w-full h-full object-cover"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => removeImage(img.id)}
+                                            aria-label={`Remove ${img.name}`}
+                                            className="absolute top-0 right-0 p-0.5 rounded-bl-md bg-black/60 text-white/80 hover:bg-black/80 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            <X className="w-2.5 h-2.5" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
                         ) : null}
 
                         {/* Queued prompt chip (Bug #5) */}
@@ -489,7 +489,7 @@ export function AI_Prompt({
                                         <DropdownMenuTrigger asChild>
                                             <Button
                                                 variant="ghost"
-                                                className="flex items-center gap-1 h-6 pl-1 pr-1.5 text-[11px] rounded-md dark:text-white hover:bg-black/10 dark:hover:bg-white/10 focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-blue-500"
+                                                className="flex items-center gap-1 h-6 pl-1 pr-1.5 text-[11px] rounded-md dark:text-white hover:bg-black/10 dark:hover:bg-white/10 focus-visible:outline-none"
                                                 disabled={isLoadingModels || isEnhancing}
                                             >
                                                 <AnimatePresence mode="wait">
@@ -558,7 +558,7 @@ export function AI_Prompt({
                                     <label
                                         className={cn(
                                             "rounded-md p-1 bg-black/5 dark:bg-white/5",
-                                            "hover:bg-black/10 dark:hover:bg-white/10 focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-blue-500",
+                                            "hover:bg-black/10 dark:hover:bg-white/10 focus-visible:outline-none",
                                             "text-black/40 dark:text-white/40 hover:text-black dark:hover:text-white",
                                             (isGenerating || isEnhancing || !isVisionCapableModel(selectedModelId)) && "opacity-50 cursor-not-allowed pointer-events-none",
                                             !isGenerating && !isEnhancing && isVisionCapableModel(selectedModelId) && "cursor-pointer"
@@ -582,7 +582,7 @@ export function AI_Prompt({
                                     type="button"
                                     className={cn(
                                         "rounded-md p-1 bg-black/5 dark:bg-white/5",
-                                        "focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-blue-500",
+                                        "focus-visible:outline-none",
                                         isGenerating
                                             ? "bg-rose-500/10 text-rose-500 hover:bg-rose-500/15 dark:text-rose-300"
                                             : "hover:bg-black/10 dark:hover:bg-white/10"

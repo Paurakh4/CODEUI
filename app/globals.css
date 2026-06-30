@@ -243,14 +243,27 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
+    outline: none;
   }
   body {
     @apply bg-background text-foreground;
     font-synthesis: none;
     font-synthesis-weight: none;
   }
-  
+
+  /* Subtle global focus-visible style for keyboard accessibility */
+  :focus-visible {
+    outline: 1.5px solid var(--ring);
+    outline-offset: 1px;
+    border-radius: inherit;
+  }
+
+  /* Remove focus-visible for mouse-only interactions */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
   /* Apply smooth scrolling globally */
   html {
     scroll-behavior: auto;

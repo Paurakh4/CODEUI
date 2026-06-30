@@ -6,7 +6,7 @@ import { User, UsageLog } from "@/lib/models"
 import {
   getCombinedSystemPrompt,
 } from "@/lib/prompts/frontend-design"
-import { FOLLOW_UP_REPAIR_INSTRUCTION, FOLLOW_UP_SYSTEM_PROMPT, SURGICAL_EDIT_SYSTEM_PROMPT, SURGICAL_EDIT_REPAIR_INSTRUCTION, COPY_CONSISTENCY_INSTRUCTION, COLOR_EXHAUSTIVENESS_INSTRUCTION, HARDENED_PRESERVATION_INSTRUCTION } from "@/lib/prompts/reprompt-system"
+import { FOLLOW_UP_REPAIR_INSTRUCTION, FOLLOW_UP_SYSTEM_PROMPT, SURGICAL_EDIT_SYSTEM_PROMPT, SURGICAL_EDIT_REPAIR_INSTRUCTION, JSON_DIFF_SYSTEM_PROMPT, JSON_DIFF_REPAIR_INSTRUCTION, COPY_CONSISTENCY_INSTRUCTION, COLOR_EXHAUSTIVENESS_INSTRUCTION, HARDENED_PRESERVATION_INSTRUCTION } from "@/lib/prompts/reprompt-system"
 import {
   isFullDocumentRecoveryMode,
   isRecoveryModeActive,
@@ -204,8 +204,9 @@ function shouldContinueGeneration(options: {
   thresholdReached: boolean
   continuationCount: number
   isFollowUp: boolean
+  jsonDiffMode?: boolean
 }): boolean {
-  const { aggregateContent, thresholdReached, continuationCount, isFollowUp } = options
+  const { aggregateContent, thresholdReached, continuationCount, isFollowUp, jsonDiffMode } = options
 
   if (!thresholdReached || continuationCount >= MAX_CONTINUATIONS) {
     return false
@@ -213,6 +214,19 @@ function shouldContinueGeneration(options: {
 
   if (hasCompleteHtmlDocument(aggregateContent)) {
     return false
+  }
+
+  // JSON diff mode: if the aggregate is valid JSON with an edits array,
+  // no continuation is needed.
+  if (jsonDiffMode) {
+    try {
+      const parsed = JSON.parse(aggregateContent.trim())
+      if (parsed && typeof parsed === "object" && Array.isArray(parsed.edits)) {
+        return false
+      }
+    } catch {
+      // not valid JSON yet — may need continuation
+    }
   }
 
   const incompletePatchCount = detectIncompletePatchBlocks(aggregateContent)
@@ -243,6 +257,7 @@ function buildContinuationPrompt(originalPrompt: string, partNumber: number): st
     "Preserve the exact response format already in progress.",
     "Do not simplify the UI or omit requested features to save space.",
     "Maintain full prompt fidelity and continue implementing the complete requested scope.",
+    "If you were returning JSON edits, continue with additional JSON edit objects only.",
     "If you were returning SEARCH/REPLACE blocks, continue with SEARCH/REPLACE blocks only.",
     "If you were returning a full HTML document, continue the same document until it is complete and properly closed.",
     "Output only the continuation content.",
@@ -675,6 +690,14 @@ export async function POST(req: NextRequest) {
       repromptIntent.kind !== "structural" &&
       !isRecoveryModeActive(recoveryMode)
 
+    // ── JSON diff mode (preferred over text SEARCH/REPLACE) ──
+    // When surgicalMode is active, use structured JSON diff output instead
+    // of free-form SEARCH/REPLACE text. JSON mode is enforced at the
+    // provider level, eliminating thinking tags, fences, and narration.
+    // Falls back to text strategies if JSON parsing or patch application
+    // fails.
+    const jsonDiffMode = surgicalMode
+
     // ── No-op detection for follow-up prompts ──
     // Before spending credits on an upstream call, check if the current
     // HTML already satisfies the request. Heuristic fast-path first, then
@@ -705,11 +728,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const systemPrompt = surgicalMode
-      ? SURGICAL_EDIT_SYSTEM_PROMPT
-      : isFollowUp
-        ? FOLLOW_UP_SYSTEM_PROMPT
-        : getCombinedSystemPrompt()
+    const systemPrompt = jsonDiffMode
+      ? JSON_DIFF_SYSTEM_PROMPT
+      : surgicalMode
+        ? SURGICAL_EDIT_SYSTEM_PROMPT
+        : isFollowUp
+          ? FOLLOW_UP_SYSTEM_PROMPT
+          : getCombinedSystemPrompt()
 
     const modelContextWindow = (await getRuntimeModelByIdForUser(userId, model))?.contextLength ?? getModelById(model)?.contextLength
     const continuationThresholdTokens = Math.min(
@@ -786,9 +811,11 @@ export async function POST(req: NextRequest) {
       })
 
       const recoveryInstruction = isRecoveryModeActive(recoveryMode)
-        ? surgicalMode
-          ? `\n\n${SURGICAL_EDIT_REPAIR_INSTRUCTION.trim()}`
-          : `\n\n${FOLLOW_UP_REPAIR_INSTRUCTION.trim()}`
+        ? jsonDiffMode
+          ? `\n\n${JSON_DIFF_REPAIR_INSTRUCTION.trim()}`
+          : surgicalMode
+            ? `\n\n${SURGICAL_EDIT_REPAIR_INSTRUCTION.trim()}`
+            : `\n\n${FOLLOW_UP_REPAIR_INSTRUCTION.trim()}`
         : ""
 
       const textContent = [
@@ -831,6 +858,7 @@ export async function POST(req: NextRequest) {
       stream: true,
       max_tokens: UPSTREAM_MAX_TOKENS,
       temperature: surgicalMode ? 0.1 : isFollowUp ? 0.25 : 0.7,
+      ...(jsonDiffMode ? { response_format: { type: "json_object" } } : {}),
     }
 
     const requestOpenRouterStream = async (partMessages: Message[]): Promise<UpstreamRequestResult> => {
@@ -1096,9 +1124,11 @@ export async function POST(req: NextRequest) {
               "The previous follow-up attempt was rejected before it reached the editor.",
               `Rejection reason: ${reason}`,
               "Try again from the original current HTML and original user request.",
-              surgicalMode
-                ? SURGICAL_EDIT_REPAIR_INSTRUCTION.trim()
-                : FOLLOW_UP_REPAIR_INSTRUCTION.trim(),
+              jsonDiffMode
+                ? JSON_DIFF_REPAIR_INSTRUCTION.trim()
+                : surgicalMode
+                  ? SURGICAL_EDIT_REPAIR_INSTRUCTION.trim()
+                  : FOLLOW_UP_REPAIR_INSTRUCTION.trim(),
             ].join("\n\n"),
           },
         ]
@@ -1115,6 +1145,7 @@ export async function POST(req: NextRequest) {
             rawContent: aggregatedContent,
             currentHtml: currentHtml ?? "",
             preferPatches: surgicalMode,
+            preferJsonDiff: jsonDiffMode,
           })
 
           if (finalized.ok) {
@@ -1272,6 +1303,7 @@ export async function POST(req: NextRequest) {
               thresholdReached: partResult.thresholdReached,
               continuationCount,
               isFollowUp,
+              jsonDiffMode,
             })
 
             if (!needsContinuation) {
@@ -1403,6 +1435,7 @@ export async function POST(req: NextRequest) {
                 thresholdReached: partResult.thresholdReached,
                 continuationCount,
                 isFollowUp,
+                jsonDiffMode,
               })
 
               if (!needsContinuation) {

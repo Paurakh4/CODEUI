@@ -138,7 +138,7 @@ function useSectionState(storageKey: string = "style-panel-sections") {
         else next.add(sectionName)
         try {
           localStorage.setItem(storageKey, JSON.stringify([...next]))
-        } catch {}
+        } catch { }
         return next
       })
     },
@@ -156,7 +156,7 @@ function useSectionState(storageKey: string = "style-panel-sections") {
         const next = new Set(sectionNames)
         try {
           localStorage.setItem(storageKey, JSON.stringify([...next]))
-        } catch {}
+        } catch { }
         return next
       })
     },
@@ -167,7 +167,7 @@ function useSectionState(storageKey: string = "style-panel-sections") {
     setExpandedSections(() => {
       try {
         localStorage.setItem(storageKey, JSON.stringify([]))
-      } catch {}
+      } catch { }
       return new Set()
     })
   }, [storageKey])
@@ -250,9 +250,9 @@ function toCssLength(value: number, unit: string = "px") {
   const normalized = Number.isInteger(value)
     ? value.toString()
     : value
-        .toFixed(2)
-        .replace(/\.00$/, "")
-        .replace(/(\.\d*[1-9])0+$/, "$1")
+      .toFixed(2)
+      .replace(/\.00$/, "")
+      .replace(/(\.\d*[1-9])0+$/, "$1")
   return `${normalized}${unit}`
 }
 
@@ -290,7 +290,7 @@ function IconButton({
           aria-pressed={active}
           className={cn(
             "inline-flex items-center justify-center rounded-md transition-all duration-150",
-            "focus:outline-none focus-visible:ring-1 focus-visible:ring-white/[0.08]",
+            "focus:outline-none",
             size === "sm" ? "h-6 w-6" : "h-7 w-7",
             disabled && "cursor-not-allowed opacity-40",
             !disabled && variant === "default" && [
@@ -396,7 +396,7 @@ function SegmentedControl<T extends string = string>({
               aria-label={opt.tooltip || opt.label}
               className={cn(
                 "flex-1 inline-flex items-center justify-center gap-1 rounded-[5px] text-[11px] font-medium transition-all duration-150",
-                "focus:outline-none focus-visible:ring-1 focus-visible:ring-stone-400/60",
+                "focus:outline-none",
                 size === "sm" ? "h-6 px-1.5" : "h-7 px-2",
                 isActive
                   ? "bg-white/[0.08] text-zinc-100"
@@ -452,7 +452,7 @@ function PresetChips({ values, activeValue, onSelect, label }: PresetChipsProps)
               aria-pressed={isActive}
               className={cn(
                 "h-6 rounded-full px-2.5 text-[10.5px] font-medium tracking-wide transition-all duration-150",
-                "focus:outline-none focus-visible:ring-1 focus-visible:ring-stone-400/60",
+                "focus:outline-none",
                 isActive
                   ? "bg-white/[0.08] text-zinc-100"
                   : "bg-white/[0.03] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200 border border-white/[0.04]"
@@ -593,7 +593,7 @@ function NumberInput({
             if (e.key === "Enter") {
               e.preventDefault()
               commit(localValue)
-              ;(e.target as HTMLInputElement).blur()
+                ; (e.target as HTMLInputElement).blur()
             } else if (e.key === "ArrowUp") {
               e.preventDefault()
               handleStep(1)
@@ -836,7 +836,7 @@ function DimensionNumberInput({ value, placeholder, onChange, onCommit }: Dimens
           e.preventDefault()
           const parsed = parseFloat(local)
           if (Number.isFinite(parsed)) onCommit(parsed)
-          ;(e.target as HTMLInputElement).blur()
+            ; (e.target as HTMLInputElement).blur()
         }
       }}
       className="min-w-0 flex-1 bg-transparent px-1.5 text-center text-[11.5px] font-mono text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
@@ -934,7 +934,7 @@ function Slider({
                   if (e.key === "Enter") {
                     e.preventDefault()
                     apply(localValue, true)
-                    ;(e.target as HTMLInputElement).blur()
+                      ; (e.target as HTMLInputElement).blur()
                   }
                 }}
                 className="h-6 w-12 rounded-md border border-white/[0.06] bg-white/[0.03] px-1 text-right text-[11px] font-mono text-zinc-100 outline-none transition-colors focus:border-white/[0.10] focus:bg-white/[0.04]"
@@ -1126,7 +1126,7 @@ function StyledDropdown({ label, value, onChange, onReset, options, placeholder 
             "h-7 w-full appearance-none rounded-md border border-stone-800/80 bg-stone-900/60 px-2.5 pr-7",
             "text-[11.5px] font-medium text-stone-100 cursor-pointer",
             "transition-colors hover:border-stone-700 hover:bg-stone-800/60",
-            "focus:outline-none focus:border-stone-500/70 focus:ring-1 focus:ring-stone-500/30"
+            "focus:outline-none focus:border-stone-500/70"
           )}
         >
           <option value="" className="bg-stone-900">
@@ -1175,7 +1175,7 @@ function StyledTextArea({ label, value, onChange, onReset, placeholder, rows = 2
           "w-full resize-none rounded-md border border-stone-800/80 bg-stone-900/60 px-2.5 py-1.5",
           "text-[11.5px] font-mono text-stone-100 placeholder:text-stone-600",
           "transition-colors hover:border-stone-700",
-          "focus:outline-none focus:border-stone-500/70 focus:bg-stone-900 focus:ring-1 focus:ring-stone-500/30"
+          "focus:outline-none focus:border-stone-500/70 focus:bg-stone-900"
         )}
       />
     </div>
@@ -1199,7 +1199,7 @@ function StyledToggle({ label, checked, onChange }: StyledToggleProps) {
         onClick={() => onChange(!checked)}
         className={cn(
           "relative h-5 w-9 rounded-full transition-colors duration-150",
-          "focus:outline-none focus-visible:ring-1 focus-visible:ring-stone-400/60",
+          "focus:outline-none",
           checked ? "bg-stone-100" : "bg-stone-800"
         )}
       >
@@ -1309,7 +1309,7 @@ function StyledTextInput({
                   onImmediateChange(localValue)
                 }
               }
-              ;(e.target as HTMLInputElement).blur()
+              ; (e.target as HTMLInputElement).blur()
             }
           }}
           placeholder={placeholder}
@@ -1621,7 +1621,7 @@ function PositionInput({ numeric, onChange, onCommit, className, placeholder }: 
           e.preventDefault()
           const parsed = parseFloat(local)
           if (Number.isFinite(parsed)) onCommit(parsed)
-          ;(e.target as HTMLInputElement).blur()
+            ; (e.target as HTMLInputElement).blur()
         }
       }}
       className={className}
@@ -2288,9 +2288,9 @@ export function StylePanel({
                   values={SPACING_PRESETS}
                   onSelect={(v) => {
                     const value = toCssLength(Number(v))
-                    ;["marginTop", "marginRight", "marginBottom", "marginLeft"].forEach((p) =>
-                      handleImmediateStyleChange(p, value)
-                    )
+                      ;["marginTop", "marginRight", "marginBottom", "marginLeft"].forEach((p) =>
+                        handleImmediateStyleChange(p, value)
+                      )
                   }}
                 />
                 <div className="h-px bg-stone-800/60" />
@@ -2305,9 +2305,9 @@ export function StylePanel({
                   values={SPACING_PRESETS}
                   onSelect={(v) => {
                     const value = toCssLength(Number(v))
-                    ;["paddingTop", "paddingRight", "paddingBottom", "paddingLeft"].forEach((p) =>
-                      handleImmediateStyleChange(p, value)
-                    )
+                      ;["paddingTop", "paddingRight", "paddingBottom", "paddingLeft"].forEach((p) =>
+                        handleImmediateStyleChange(p, value)
+                      )
                   }}
                 />
               </>
