@@ -15,7 +15,8 @@
  *   1. Direct JSON.parse (fast path — provider enforced JSON mode).
  *   2. Strip markdown fences / thinking tags, then JSON.parse.
  *   3. Extract the outermost { ... } substring, then JSON.parse.
- *   4. If all fail, return null (caller falls back to text strategies).
+ *   4. Salvage complete edit objects from truncated JSON (regex-based).
+ *   5. If all fail, return null (caller falls back to text strategies).
  */
 
 import { stripThinkingBlocks } from "./thinking-stripper"
@@ -42,9 +43,21 @@ export function parseJsonDiff(rawContent: string): JsonDiffParseResult | null {
   if (!rawContent || !rawContent.trim()) return null
 
   const json = tryParseJson(rawContent)
-  if (json === null) return null
+  if (json !== null) {
+    return extractEdits(json)
+  }
 
-  return extractEdits(json)
+  // Salvage mode: extract complete edit objects from truncated JSON.
+  // This handles the case where the model's JSON output was cut mid-object
+  // due to token limits, or where a broken continuation concatenated two
+  // JSON objects. We use regex to find complete {"search":"...","replace":"..."}
+  // objects anywhere in the content.
+  const salvaged = salvageEditsFromTruncatedJson(rawContent)
+  if (salvaged && salvaged.length > 0) {
+    return { edits: salvaged, skipped: 0 }
+  }
+
+  return null
 }
 
 // ---------------------------------------------------------------------------
@@ -111,6 +124,63 @@ function stripCodeFences(content: string): string {
     .replace(/^```(?:json)?\s*\n?/i, "")
     .replace(/\n?```\s*$/i, "")
     .trim()
+}
+
+/**
+ * Salvage complete edit objects from truncated or concatenated JSON.
+ *
+ * When the model's JSON output is truncated mid-object (e.g. due to token
+ * limits) or when a broken continuation concatenates two JSON objects,
+ * JSON.parse fails. This function uses regex to find complete
+ * {"search":"...","replace":"..."} objects anywhere in the content,
+ * regardless of surrounding structure.
+ *
+ * Handles escaped quotes, newlines, and other JSON escape sequences inside
+ * string values.
+ */
+function salvageEditsFromTruncatedJson(content: string): JsonDiffEdit[] | null {
+  // Match complete edit objects: {"search":"...","replace":"..."}
+  // The regex handles escaped characters inside string values.
+  // It tolerates whitespace between keys/values and accepts both
+  // "search"/"replace" and "replace"/"search" key orders.
+  const editRegex =
+    /\{\s*"(?:search|replace)"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"(?:search|replace)"\s*:\s*"((?:[^"\\]|\\.)*)"\s*\}/g
+
+  const edits: JsonDiffEdit[] = []
+  let match: RegExpExecArray | null
+
+  while ((match = editRegex.exec(content)) !== null) {
+    const val1 = unescapeJsonString(match[1])
+    const val2 = unescapeJsonString(match[2])
+
+    // Determine which is search and which is replace by checking the
+    // key names in the match.
+    const key1Match = match[0].match(/"(search|replace)"\s*:/)
+    const key1 = key1Match?.[1] ?? "search"
+
+    const search = key1 === "search" ? val1 : val2
+    const replace = key1 === "search" ? val2 : val1
+
+    if (search.trim() === "" && replace.trim() === "") {
+      continue
+    }
+
+    edits.push({ search, replace })
+  }
+
+  return edits.length > 0 ? edits : null
+}
+
+function unescapeJsonString(s: string): string {
+  return s
+    .replace(/\\n/g, "\n")
+    .replace(/\\r/g, "\r")
+    .replace(/\\t/g, "\t")
+    .replace(/\\"/g, '"')
+    .replace(/\\\//g, "/")
+    .replace(/\\\\/g, "\\")
+    .replace(/\\b/g, "\b")
+    .replace(/\\f/g, "\f")
 }
 
 function extractEdits(json: unknown): JsonDiffParseResult | null {

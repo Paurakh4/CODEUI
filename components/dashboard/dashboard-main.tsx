@@ -17,7 +17,7 @@ import { toast } from "sonner"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar"
 import { DashboardTopNav } from "@/components/dashboard/dashboard-top-nav"
-import { DashboardPromptArea } from "@/components/dashboard/dashboard-prompt-area"
+import { PromptInput } from "@/components/ui/prompt-input"
 import { DashboardProjectsGrid } from "@/components/dashboard/dashboard-projects-grid"
 
 const TIER_CREDITS: Record<SubscriptionTier, number> = {
@@ -60,7 +60,7 @@ export function DashboardMain({
 }: DashboardMainProps) {
   const { data: session } = useSession()
   const { showSignIn } = useAuthDialog()
-  const { state, setModel } = useEditor()
+  const { state, setModel, setThinkingEffort } = useEditor()
   const selectedModelId = state.selectedModel
   const availableModels = state.availableModels
   const isLoadingModels = state.isLoadingModels
@@ -116,12 +116,11 @@ export function DashboardMain({
     }
   }, [billingSyncState, refreshCredits])
 
-  const handleSend = (images?: Array<{ dataUrl: string }>) => {
-    if (!promptValue.trim() || isStartingProject) return
+  const handleSendFromInput = (message: string, images?: Array<{ dataUrl: string }>) => {
+    if (!message.trim() || isStartingProject) return
 
     const imageUrls = images?.map((img) => img.dataUrl) ?? []
 
-    // Block non-vision models when images are attached
     if (imageUrls.length > 0 && !isVisionCapableModel(selectedModelId)) {
       toast.error("Pick a vision-capable model", {
         description: "The selected model does not support image input. Switch to Gemini, Claude, GPT, or another vision-capable model.",
@@ -129,12 +128,12 @@ export function DashboardMain({
       return
     }
 
-    onStart(promptValue.trim(), selectedModelId, imageUrls.length > 0 ? imageUrls : undefined)
+    onStart(message.trim(), selectedModelId, imageUrls.length > 0 ? imageUrls : undefined)
   }
 
-  const handleEnhancePrompt = useCallback(async () => {
-    const trimmedPrompt = promptValue.trim()
-    if (!trimmedPrompt || isEnhancing) return
+  const handleEnhancePrompt = useCallback(async (message: string) => {
+    const trimmedPrompt = message.trim()
+    if (!trimmedPrompt) return
     if (!session?.user) {
       showSignIn()
       return
@@ -185,7 +184,7 @@ export function DashboardMain({
     } finally {
       setIsEnhancing(false)
     }
-  }, [isEnhancing, promptValue, selectedModelId, session?.user, showSignIn, toast])
+  }, [selectedModelId, session?.user, showSignIn, toast])
 
   const startLandingPage = useCallback(() => {
     onStart(
@@ -203,9 +202,6 @@ export function DashboardMain({
       return <Zap className="w-3.5 h-3.5" />
     return <Bot className="w-3.5 h-3.5" />
   }
-
-  const selectedModelName =
-    availableModels.find((m) => m.id === selectedModelId)?.name || "Model"
 
   const sessionUser = session?.user as {
     monthlyCredits?: number
@@ -388,7 +384,6 @@ export function DashboardMain({
       <DashboardSidebar
         projects={projects}
         isLoadingProjects={isLoadingProjects}
-        onStart={onStart}
         onOpenPricing={() => setPricingOpen(true)}
         onViewChange={setView}
         userTier={userTier}
@@ -454,19 +449,19 @@ export function DashboardMain({
         {/* Main Content Area */}
         <div className="relative z-10 flex-1 flex flex-col">
           {view === "dashboard" ? (
-            <DashboardPromptArea
+            <PromptInput
               promptValue={promptValue}
               onPromptValueChange={setPromptValue}
-              onSend={handleSend}
+              onSend={handleSendFromInput}
               onEnhance={handleEnhancePrompt}
-              isEnhancing={isEnhancing}
               isStartingProject={isStartingProject}
               selectedModelId={selectedModelId}
-              selectedModelName={selectedModelName}
               availableModels={availableModels}
               isLoadingModels={isLoadingModels}
               getModelIcon={getModelIcon}
               onModelChange={setModel}
+              thinkingEffort={state.thinkingEffort}
+              onThinkingEffortChange={setThinkingEffort}
               onStartLandingPage={startLandingPage}
               onStartBlankProject={() => {
                 if (!isStartingProject) {

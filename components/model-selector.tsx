@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Check, ChevronDown, Sparkles, Zap, Brain } from "lucide-react"
+import { Check, ChevronDown, ChevronRight, Sparkles, Zap, Brain, Gauge } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
@@ -9,21 +9,28 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
-import { ALL_MODELS, type AIModel } from "@/lib/ai-models"
+import { ALL_MODELS, THINKING_EFFORT_OPTIONS, type AIModel, type ThinkingEffort } from "@/lib/ai-models"
 
 interface ModelSelectorProps {
   selectedModel: string
   onModelChange: (modelId: string) => void
   disabled?: boolean
+  thinkingEffort?: ThinkingEffort
+  onThinkingEffortChange?: (effort: ThinkingEffort) => void
 }
 
 export function ModelSelector({
   selectedModel,
   onModelChange,
   disabled = false,
+  thinkingEffort = "high",
+  onThinkingEffortChange,
 }: ModelSelectorProps) {
   const [open, setOpen] = useState(false)
   const [enabledModels, setEnabledModels] = useState<AIModel[]>(ALL_MODELS)
@@ -59,6 +66,7 @@ export function ModelSelector({
   }, [])
 
   const currentModel = enabledModels.find((m) => m.id === selectedModel) || enabledModels[0]
+  const currentSupportsThinking = currentModel?.supportsThinkingEffort === true
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -76,6 +84,12 @@ export function ModelSelector({
           <span className="max-w-[120px] truncate">
             {isLoading ? "Loading..." : currentModel.name}
           </span>
+          {currentSupportsThinking && (
+            <span className="text-[10px] font-medium bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded flex items-center gap-1">
+              <Gauge className="w-2.5 h-2.5" />
+              {THINKING_EFFORT_OPTIONS.find(o => o.value === thinkingEffort)?.label ?? "High"}
+            </span>
+          )}
           <ChevronDown className="w-3 h-3 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
@@ -87,54 +101,140 @@ export function ModelSelector({
           AI Models
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="bg-white/[0.04]" />
-        
-        {enabledModels.map((model) => (
-          <DropdownMenuItem
-            key={model.id}
-            onClick={() => {
-              onModelChange(model.id)
-              setOpen(false)
-            }}
-            className={cn(
-              "flex items-start gap-3 py-2.5 cursor-pointer",
-              "focus:bg-white/[0.04] focus:text-zinc-100",
-              selectedModel === model.id && "bg-white/[0.03]"
-            )}
-          >
-            <div className="mt-0.5">
-              <ModelIcon model={model} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-zinc-200">
-                  {model.name}
-                </span>
-                {model.isNewModel && (
-                  <span className="text-[10px] font-medium bg-green-500/20 text-green-300 px-1.5 py-0.5 rounded">
-                    NEW
-                  </span>
-                )}
-                {model.supportsReasoning && (
-                  <span className="text-[10px] font-medium bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded">
-                    REASONING
-                  </span>
-                )}
-                {model.isFast && (
-                  <span className="text-[10px] font-medium bg-yellow-500/20 text-yellow-300 px-1.5 py-0.5 rounded">
-                    FAST
-                  </span>
-                )}
+
+        {enabledModels.map((model) => {
+          const isSelected = selectedModel === model.id
+          const supportsThinking = model.supportsThinkingEffort === true
+
+          if (supportsThinking && onThinkingEffortChange) {
+            return (
+              <DropdownMenuSub key={model.id}>
+                <DropdownMenuSubTrigger
+                  className={cn(
+                    "flex items-start gap-3 py-2.5 cursor-pointer data-[state=open]:bg-white/[0.04]",
+                    isSelected && "bg-white/[0.03]"
+                  )}
+                >
+                  <div className="mt-0.5">
+                    <ModelIcon model={model} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-zinc-200">
+                        {model.name}
+                      </span>
+                      {model.isNewModel && (
+                        <span className="text-[10px] font-medium bg-green-500/20 text-green-300 px-1.5 py-0.5 rounded">
+                          NEW
+                        </span>
+                      )}
+                      {model.supportsReasoning && (
+                        <span className="text-[10px] font-medium bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded">
+                          REASONING
+                        </span>
+                      )}
+                      {model.isFast && (
+                        <span className="text-[10px] font-medium bg-yellow-500/20 text-yellow-300 px-1.5 py-0.5 rounded">
+                          FAST
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-zinc-500 mt-0.5">{model.description}</p>
+                    <p className="text-[10px] text-zinc-600 mt-1">
+                      {model.provider} • {(model.contextLength / 1000).toFixed(0)}K context
+                    </p>
+                  </div>
+                  {isSelected && (
+                    <Check className="w-4 h-4 text-purple-400 mt-0.5" />
+                  )}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-[200px] bg-zinc-950 border-white/[0.06]">
+                  <DropdownMenuLabel className="text-zinc-400 text-xs flex items-center gap-1.5">
+                    <Gauge className="w-3 h-3" />
+                    Thinking Effort
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-white/[0.04]" />
+                  {THINKING_EFFORT_OPTIONS.map((option) => (
+                    <DropdownMenuItem
+                      key={option.value}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onModelChange(model.id)
+                        onThinkingEffortChange(option.value)
+                        setOpen(false)
+                      }}
+                      className={cn(
+                        "flex items-start gap-2 py-2 cursor-pointer",
+                        "focus:bg-white/[0.04] focus:text-zinc-100",
+                        thinkingEffort === option.value && "bg-white/[0.03]"
+                      )}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium text-zinc-200">
+                          {option.label}
+                        </span>
+                        <p className="text-[10px] text-zinc-500 mt-0.5">
+                          {option.description}
+                        </p>
+                      </div>
+                      {thinkingEffort === option.value && (
+                        <Check className="w-3.5 h-3.5 text-purple-400 mt-0.5" />
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )
+          }
+
+          return (
+            <DropdownMenuItem
+              key={model.id}
+              onClick={() => {
+                onModelChange(model.id)
+                setOpen(false)
+              }}
+              className={cn(
+                "flex items-start gap-3 py-2.5 cursor-pointer",
+                "focus:bg-white/[0.04] focus:text-zinc-100",
+                isSelected && "bg-white/[0.03]"
+              )}
+            >
+              <div className="mt-0.5">
+                <ModelIcon model={model} />
               </div>
-              <p className="text-xs text-zinc-500 mt-0.5">{model.description}</p>
-              <p className="text-[10px] text-zinc-600 mt-1">
-                {model.provider} • {(model.contextLength / 1000).toFixed(0)}K context
-              </p>
-            </div>
-            {selectedModel === model.id && (
-              <Check className="w-4 h-4 text-purple-400 mt-0.5" />
-            )}
-          </DropdownMenuItem>
-        ))}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-zinc-200">
+                    {model.name}
+                  </span>
+                  {model.isNewModel && (
+                    <span className="text-[10px] font-medium bg-green-500/20 text-green-300 px-1.5 py-0.5 rounded">
+                      NEW
+                    </span>
+                  )}
+                  {model.supportsReasoning && (
+                    <span className="text-[10px] font-medium bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded">
+                      REASONING
+                    </span>
+                  )}
+                  {model.isFast && (
+                    <span className="text-[10px] font-medium bg-yellow-500/20 text-yellow-300 px-1.5 py-0.5 rounded">
+                      FAST
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-zinc-500 mt-0.5">{model.description}</p>
+                <p className="text-[10px] text-zinc-600 mt-1">
+                  {model.provider} • {(model.contextLength / 1000).toFixed(0)}K context
+                </p>
+              </div>
+              {isSelected && (
+                <Check className="w-4 h-4 text-purple-400 mt-0.5" />
+              )}
+            </DropdownMenuItem>
+          )
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   )

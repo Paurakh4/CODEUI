@@ -13,7 +13,7 @@ import React, {
 import { useSession } from "next-auth/react"
 import { useTheme } from "next-themes"
 import { toast } from "sonner"
-import { CODEUI_GOD_MODE_MODEL_ID } from "@/lib/ai-models"
+import { CODEUI_GOD_MODE_MODEL_ID, type ThinkingEffort } from "@/lib/ai-models"
 import { createDefaultUserPreferences } from "@/lib/user-preferences"
 
 const createEditorStoreId = (prefix: string): string => {
@@ -97,6 +97,7 @@ export interface EditorState {
 
   // Settings
   selectedModel: string
+  thinkingEffort: ThinkingEffort
   availableModels: { id: string; name: string }[]
   isLoadingModels: boolean
   primaryColor: string
@@ -126,6 +127,7 @@ export const initialState: EditorState = {
   codeVersionHash: "",
 
   selectedModel: CODEUI_GOD_MODE_MODEL_ID,
+  thinkingEffort: "high" as ThinkingEffort,
   availableModels: [],
   isLoadingModels: true,
   primaryColor: "blue",
@@ -150,6 +152,7 @@ export type EditorAction =
   | { type: "CREATE_VERSION"; payload: { description?: string } }
   | { type: "RESTORE_VERSION"; payload: string }
   | { type: "SET_MODEL"; payload: string }
+  | { type: "SET_THINKING_EFFORT"; payload: ThinkingEffort }
   | { type: "SET_AVAILABLE_MODELS"; payload: { id: string; name: string }[] }
   | { type: "SET_IS_LOADING_MODELS"; payload: boolean }
   | { type: "SET_PRIMARY_COLOR"; payload: string }
@@ -245,6 +248,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "SET_MODEL":
       return { ...state, selectedModel: action.payload }
 
+    case "SET_THINKING_EFFORT":
+      return { ...state, thinkingEffort: action.payload }
+
     case "SET_AVAILABLE_MODELS":
       return { ...state, availableModels: action.payload }
 
@@ -314,6 +320,7 @@ interface EditorContextValue {
   createVersion: (description?: string) => void
   restoreVersion: (versionId: string) => void
   setModel: (modelId: string) => void
+  setThinkingEffort: (effort: ThinkingEffort) => void
   setPrimaryColor: (color: string) => void
   setSecondaryColor: (color: string) => void
   setTheme: (theme: "light" | "dark") => void
@@ -643,6 +650,10 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "SET_MODEL", payload: modelId })
   }, [])
 
+  const setThinkingEffort = useCallback((effort: ThinkingEffort) => {
+    dispatch({ type: "SET_THINKING_EFFORT", payload: effort })
+  }, [])
+
   const setPrimaryColor = useCallback((color: string) => {
     dispatch({ type: "SET_PRIMARY_COLOR", payload: color })
   }, [])
@@ -678,6 +689,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     createVersion,
     restoreVersion,
     setModel,
+    setThinkingEffort,
     setPrimaryColor,
     setSecondaryColor,
     setTheme,

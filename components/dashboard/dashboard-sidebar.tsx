@@ -5,7 +5,6 @@ import Link from "next/link"
 import {
   Search,
   Heart,
-  Code,
   Loader2,
   FolderOpen,
   Info,
@@ -30,7 +29,6 @@ import {
   SidebarMenuButton,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { Button } from "@/components/ui/button"
 import {
   Tooltip,
   TooltipContent,
@@ -71,7 +69,6 @@ interface Project {
 interface DashboardSidebarProps {
   projects: Project[]
   isLoadingProjects: boolean
-  onStart: (prompt?: string, model?: string) => void
   onOpenPricing: () => void
   onViewChange: (view: "dashboard" | "projects") => void
   userTier: SubscriptionTier
@@ -255,7 +252,6 @@ function SidebarProjectItem({
 export function DashboardSidebar({
   projects,
   isLoadingProjects,
-  onStart,
   onOpenPricing,
   onViewChange,
   userTier,
@@ -338,19 +334,6 @@ export function DashboardSidebar({
       <SidebarContent>
         {!isCollapsed && (
           <>
-            {/* Create Project */}
-            <SidebarGroup>
-              <SidebarGroupContent>
-                <Button
-                  onClick={() => onStart()}
-                  className="w-full justify-start gap-1.5 bg-[#121212] text-white hover:bg-[#1B1B1F] h-7 rounded-lg text-[11px]"
-                >
-                  <Code className="w-3 h-3" />
-                  <span className="text-xs font-medium">Create Project</span>
-                </Button>
-              </SidebarGroupContent>
-            </SidebarGroup>
-
             {/* Projects */}
             <SidebarGroup>
               <SidebarGroupContent>

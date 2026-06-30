@@ -6,13 +6,13 @@ import { useRouter } from "next/navigation"
 import { TopNav } from "@/components/top-nav-new"
 import { DesignDiscoveryBlock } from "@/components/design-discovery-block"
 import { VersionHistory, type Version as HistoryVersion } from "@/components/version-history"
-import { AI_Prompt } from "@/components/ui/animated-ai-input"
+import { PromptInput } from "@/components/ui/prompt-input"
 import { PreviewFrame, extractSelectedElementInfo, type SelectedElementInfo } from "@/components/preview-frame"
 import { CodeEditor } from "@/components/code-editor"
 import { StylePanel, type SelectedElement, type StyleProperty, type StyleChange } from "@/components/style-panel"
 import { TextShimmer } from "@/components/ui/text-shimmer";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
-import { ChevronDown, ChevronLeft, PanelLeftClose, X, ChevronUp, RotateCcw } from "lucide-react"
+import { ChevronDown, ChevronLeft, PanelLeftClose, X, ChevronUp, RotateCcw, Bot, Sparkles, Zap, Key } from "lucide-react"
 import { SolarCodeSquareLinear } from "@/components/solar-code-square-linear"
 import { useSession } from "next-auth/react"
 import { useAuthDialog } from "@/components/auth-dialog-provider"
@@ -705,6 +705,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
   const {
     state,
     setModel,
+    setThinkingEffort,
     setApplyingPatch,
     setPrimaryColor,
     setSecondaryColor,
@@ -713,6 +714,16 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
   } = useEditor()
 
   const storageKey = projectId ? `editor_state_${projectId}` : "editor_state"
+
+  const getModelIcon = (modelId: string) => {
+    if (modelId.startsWith("byok:")) return <Key className="w-3.5 h-3.5" />
+    if (modelId.includes("gemini") || modelId.includes("google"))
+      return <Sparkles className="w-3.5 h-3.5" />
+    if (modelId.includes("r1")) return <Bot className="w-3.5 h-3.5" />
+    if (modelId.includes("deepseek-chat") || modelId.includes("v3"))
+      return <Zap className="w-3.5 h-3.5" />
+    return <Bot className="w-3.5 h-3.5" />
+  }
 
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -786,7 +797,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
   const [queuedPrompt, setQueuedPrompt] = useState<string | null>(null)
   const queuedPromptRef = useRef<{
     prompt: string
-    model?: string
     images?: Array<{ dataUrl: string }>
   } | null>(null)
   const activeProjectKeyRef = useRef<string | null>(null)
@@ -2523,6 +2533,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
           images,
           designTokens: currentDesignTokens,
           restoreCandidates,
+          thinkingEffort: state.thinkingEffort,
         })
       } catch {
         // Error handling is managed by useAIChat onError callback.
@@ -2541,6 +2552,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       selectedElement,
       extractSelectedElementHtmlFromContent,
       state.selectedModel,
+      state.thinkingEffort,
       state.primaryColor,
       state.secondaryColor,
       state.theme,
@@ -2552,7 +2564,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
   )
 
   const handleSend = useCallback(
-    async (message: string, model?: string, images?: Array<{ dataUrl: string }>) => {
+    async (message: string, images?: Array<{ dataUrl: string }>) => {
       const trimmedMessage = message.trim()
       if (!trimmedMessage) {
         return
@@ -2564,7 +2576,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       // ponytail: queue prompt if already generating (Bug #5).
       // Only one queued prompt at a time; auto-sends on terminal states.
       if (isGenerating) {
-        queuedPromptRef.current = { prompt: trimmedMessage, model, images }
+        queuedPromptRef.current = { prompt: trimmedMessage, images }
         setQueuedPrompt(trimmedMessage)
         toast.info("Queued", {
           description: "Will run after the current generation finishes.",
@@ -2579,7 +2591,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       const imageUrls = images?.map((img) => img.dataUrl) ?? []
 
       // Block non-vision models when images are attached
-      if (imageUrls.length > 0 && !isVisionCapableModel(model ?? state.selectedModel)) {
+      if (imageUrls.length > 0 && !isVisionCapableModel(state.selectedModel)) {
         toast.error("Pick a vision-capable model", {
           description: "The selected model does not support image input. Switch to Gemini, Claude, GPT, or another vision-capable model.",
         })
@@ -2588,7 +2600,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
       if (messagesRef.current.length > 0) {
         clearPendingDesignDiscovery()
-        await startGeneration({ message: trimmedMessage, model, images: imageUrls })
+        await startGeneration({ message: trimmedMessage, images: imageUrls })
         return
       }
 
@@ -2599,7 +2611,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
       // Skip design-discovery when images are attached — the LLM needs to see the images directly
       if (imageUrls.length > 0) {
-        await startGeneration({ message: trimmedMessage, model, images: imageUrls })
+        await startGeneration({ message: trimmedMessage, images: imageUrls })
         return
       }
 
@@ -2608,7 +2620,6 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
       setPendingDesignDiscovery({
         prompt: trimmedMessage,
-        model,
         reasoning: "Checking whether a short design discovery pass would materially improve the prompt before generation.",
         questions: [],
         answers: {},
@@ -2623,7 +2634,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             prompt: trimmedMessage,
-            model: model ?? state.selectedModel,
+            model: state.selectedModel,
           }),
         })
 
@@ -2645,13 +2656,12 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
         if (!data?.needsClarification || !Array.isArray(data.questions) || data.questions.length === 0) {
           clearPendingDesignDiscovery()
-          await startGeneration({ message: trimmedMessage, model })
+          await startGeneration({ message: trimmedMessage })
           return
         }
 
         setPendingDesignDiscovery({
           prompt: trimmedMessage,
-          model,
           reasoning:
             typeof data.reasoning === "string" && data.reasoning.trim()
               ? data.reasoning.trim()
@@ -2674,7 +2684,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
               : "Continuing directly to generation.",
         })
 
-        await startGeneration({ message: trimmedMessage, model })
+        await startGeneration({ message: trimmedMessage })
       }
     },
     [clearPendingDesignDiscovery, pendingDesignDiscovery?.isLoading, pendingDesignDiscovery?.isSubmitting, session, showSignIn, startGeneration, state.selectedModel, toast]
@@ -2711,7 +2721,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
     // Small delay to let the current state settle before starting the next.
     setTimeout(() => {
-      void handleSend(queued.prompt, queued.model, queued.images)
+      void handleSend(queued.prompt, queued.images)
     }, 100)
   }, [handleSend])
 
@@ -3763,19 +3773,23 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
           </div>
 
           {/* Chat Input */}
-          <div className="p-3 border-t border-zinc-800">
-            <AI_Prompt
+          <div className="p-2">
+            <PromptInput
               onSend={handleSend}
               onEnhance={handleEnhancePrompt}
               onDraftChange={handleComposerDraftChange}
               onCancel={cancelAI}
-              initialModelId={state.selectedModel}
-              onModelChange={setModel}
-              availableModels={state.availableModels}
-              isLoadingModels={state.isLoadingModels}
               isGenerating={isGenerating}
               queuedPrompt={queuedPrompt}
               onCancelQueued={cancelQueuedPrompt}
+              selectedModelId={state.selectedModel}
+              availableModels={state.availableModels}
+              isLoadingModels={state.isLoadingModels}
+              getModelIcon={getModelIcon}
+              onModelChange={setModel}
+              thinkingEffort={state.thinkingEffort}
+              onThinkingEffortChange={setThinkingEffort}
+              variant="editor"
             />
           </div>
         </div>

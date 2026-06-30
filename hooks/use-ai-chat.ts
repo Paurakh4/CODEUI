@@ -11,6 +11,7 @@ import { isPatchRepairRecoveryMode, isRecoveryModeActive, type RecoveryModeValue
 import { createRepromptLogger } from "@/lib/utils/reprompt-logger"
 import type { DesignTokens } from "@/lib/design-tokens"
 import { splitMultiPartPrompt, shouldSplitPrompt, type SplitPrompt } from "@/lib/reprompting/prompt-splitter"
+import type { ThinkingEffort } from "@/lib/ai-models"
 
 export interface ConversationHistoryItem {
   role: "user" | "assistant"
@@ -119,6 +120,7 @@ interface SendMessageOptions {
   images?: string[]
   designTokens?: DesignTokens
   restoreCandidates?: string[]
+  thinkingEffort?: ThinkingEffort
 }
 
 const logger = createRepromptLogger("use-ai-chat")
@@ -206,6 +208,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       images,
       designTokens,
       restoreCandidates,
+      thinkingEffort,
     }: SendMessageOptions) => {
       if (abortControllerRef.current) {
         abortActiveRequest(false)
@@ -388,6 +391,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
             images,
             designTokens,
             restoreCandidates,
+            thinkingEffort,
           }),
           signal: abortController.signal,
         })

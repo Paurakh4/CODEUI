@@ -14,6 +14,8 @@ import {
   Paperclip,
   X,
   Key,
+  Check,
+  Gauge,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -32,9 +34,15 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
-import { Check, Gauge } from "lucide-react"
-import { isVisionCapableModel, isByokModelId, ALL_MODELS, THINKING_EFFORT_OPTIONS, type ThinkingEffort } from "@/lib/ai-models"
+import {
+  isVisionCapableModel,
+  isByokModelId,
+  ALL_MODELS,
+  THINKING_EFFORT_OPTIONS,
+  type ThinkingEffort,
+} from "@/lib/ai-models"
 import { ByokProviderSheet } from "@/components/byok/byok-provider-sheet"
+import { cn } from "@/lib/utils"
 
 // ponytail: image payload caps — large data URLs bloat Mongo docs; upgrade path = upload to media library + store URL
 const MAX_IMAGES_PER_MESSAGE = 4
@@ -84,48 +92,95 @@ function downscaleImage(file: File, maxDim: number): Promise<string> {
   })
 }
 
-interface DashboardPromptAreaProps {
-  promptValue: string
-  onPromptValueChange: (value: string) => void
-  onSend: (images?: Array<{ dataUrl: string }>) => void
-  onEnhance: () => void
-  isEnhancing: boolean
+export interface PromptInputProps {
+  // Prompt value — if provided, component is controlled
+  promptValue?: string
+  onPromptValueChange?: (value: string) => void
+
+  // Send: always receives the message text
+  onSend: (message: string, images?: Array<{ dataUrl: string }>) => void
+
+  // Enhance: if returns string, component updates value; if void, parent updates controlled value
+  onEnhance?: (message: string) => Promise<string | void>
+
+  // Draft change — called on every text change (editor uses this for design discovery)
+  onDraftChange?: (message: string) => void
+
+  // Cancel generation (editor only)
+  onCancel?: () => void
+  isGenerating?: boolean
+
+  // Queue (editor only)
+  queuedPrompt?: string | null
+  onCancelQueued?: () => void
+
+  // Loading state (dashboard only — disables input while starting project)
   isStartingProject?: boolean
+
+  // Model selection
   selectedModelId: string
-  selectedModelName: string
   availableModels: { id: string; name: string }[]
   isLoadingModels: boolean
   getModelIcon: (modelId: string) => React.ReactNode
   onModelChange: (modelId: string) => void
-  onStartLandingPage: () => void
-  onStartBlankProject: () => void
+
+  // Thinking effort
   thinkingEffort?: ThinkingEffort
   onThinkingEffortChange?: (effort: ThinkingEffort) => void
+
+  // Quick actions (dashboard only)
+  onStartLandingPage?: () => void
+  onStartBlankProject?: () => void
+
+  // Visual variant: "dashboard" (default) or "editor" to match surrounding borders
+  variant?: "dashboard" | "editor"
 }
 
-export function DashboardPromptArea({
+export function PromptInput({
   promptValue,
   onPromptValueChange,
   onSend,
   onEnhance,
-  isEnhancing,
+  onDraftChange,
+  onCancel,
+  isGenerating = false,
+  queuedPrompt,
+  onCancelQueued,
   isStartingProject = false,
   selectedModelId,
-  selectedModelName,
   availableModels,
   isLoadingModels,
   getModelIcon,
   onModelChange,
-  onStartLandingPage,
-  onStartBlankProject,
   thinkingEffort = "high",
   onThinkingEffortChange,
-}: DashboardPromptAreaProps) {
+  onStartLandingPage,
+  onStartBlankProject,
+  variant = "dashboard",
+}: PromptInputProps) {
   const [byokSheetOpen, setByokSheetOpen] = useState(false)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [internalValue, setInternalValue] = useState("")
+  const [isEnhancing, setIsEnhancing] = useState(false)
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([])
   const [isDraggingOver, setIsDraggingOver] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Controlled vs uncontrolled value
+  const isControlled = promptValue !== undefined
+  const value = isControlled ? promptValue! : internalValue
+
+  const setValue = useCallback(
+    (newValue: string) => {
+      if (isControlled) {
+        onPromptValueChange?.(newValue)
+      } else {
+        setInternalValue(newValue)
+      }
+      onDraftChange?.(newValue)
+    },
+    [isControlled, onPromptValueChange, onDraftChange],
+  )
 
   const adjustHeight = useCallback((reset?: boolean) => {
     const textarea = textareaRef.current
@@ -139,45 +194,44 @@ export function DashboardPromptArea({
     textarea.style.height = `${newHeight}px`
   }, [])
 
-  // ponytail: external prompt changes (enhance, etc.) don't trigger onChange,
-  // so we watch the prop and re-adjust.
   useEffect(() => {
     adjustHeight()
-  }, [promptValue, adjustHeight])
+  }, [value, adjustHeight])
 
-  const addFiles = useCallback(async (files: FileList | File[]) => {
-    if (!isVisionCapableModel(selectedModelId)) {
-      return
-    }
+  const addFiles = useCallback(
+    async (files: FileList | File[]) => {
+      if (!isVisionCapableModel(selectedModelId)) return
 
-    const imageFiles: File[] = []
-    for (let i = 0; i < files.length; i += 1) {
-      const file = files[i]
-      if (!file.type.startsWith("image/")) continue
-      if (file.size > MAX_IMAGE_SIZE_BYTES) {
-        console.warn(`Image "${file.name}" exceeds ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024} MB limit, skipping`)
-        continue
+      const imageFiles: File[] = []
+      for (let i = 0; i < files.length; i += 1) {
+        const file = files[i]
+        if (!file.type.startsWith("image/")) continue
+        if (file.size > MAX_IMAGE_SIZE_BYTES) {
+          console.warn(`Image "${file.name}" exceeds ${MAX_IMAGE_SIZE_BYTES / 1024 / 1024} MB limit, skipping`)
+          continue
+        }
+        imageFiles.push(file)
       }
-      imageFiles.push(file)
-    }
 
-    const remaining = MAX_IMAGES_PER_MESSAGE - attachedImages.length
-    const toAdd = imageFiles.slice(0, remaining)
+      const remaining = MAX_IMAGES_PER_MESSAGE - attachedImages.length
+      const toAdd = imageFiles.slice(0, remaining)
 
-    const newImages: AttachedImage[] = await Promise.all(
-      toAdd.map(async (file) => ({
-        id: generateImageId(),
-        dataUrl: await downscaleImage(file, IMAGE_DOWNSCALE_MAX_DIM),
-        name: file.name,
-      }))
-    )
+      const newImages: AttachedImage[] = await Promise.all(
+        toAdd.map(async (file) => ({
+          id: generateImageId(),
+          dataUrl: await downscaleImage(file, IMAGE_DOWNSCALE_MAX_DIM),
+          name: file.name,
+        })),
+      )
 
-    setAttachedImages((prev) => [...prev, ...newImages].slice(0, MAX_IMAGES_PER_MESSAGE))
+      setAttachedImages((prev) => [...prev, ...newImages].slice(0, MAX_IMAGES_PER_MESSAGE))
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
-    }
-  }, [attachedImages.length, selectedModelId])
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
+    },
+    [attachedImages.length, selectedModelId],
+  )
 
   const removeImage = useCallback((id: string) => {
     setAttachedImages((prev) => prev.filter((img) => img.id !== id))
@@ -192,43 +246,63 @@ export function DashboardPromptArea({
     adjustHeight()
   }, [adjustHeight])
 
+  const handleSubmit = useCallback(() => {
+    if (isStartingProject) return
+    const trimmed = value.trim()
+    if (!trimmed && attachedImages.length === 0) return
+    const images = attachedImages.map((img) => ({ dataUrl: img.dataUrl }))
+    onSend(trimmed, images.length > 0 ? images : undefined)
+    if (!isControlled) {
+      setInternalValue("")
+    }
+    onPromptValueChange?.("")
+    setAttachedImages([])
+    adjustHeight(true)
+  }, [value, isStartingProject, attachedImages, onSend, isControlled, onPromptValueChange, adjustHeight])
+
+  const handleEnhance = useCallback(async () => {
+    if (!onEnhance || !value.trim() || isEnhancing) return
+    setIsEnhancing(true)
+    try {
+      const result = await onEnhance(value.trim())
+      if (typeof result === "string" && result.trim()) {
+        setValue(result.trim())
+        window.requestAnimationFrame(() => adjustHeight())
+      }
+    } finally {
+      setIsEnhancing(false)
+    }
+  }, [onEnhance, value, isEnhancing, setValue, adjustHeight])
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
-      if (!isStartingProject) {
-        const images = attachedImages.map((img) => ({ dataUrl: img.dataUrl }))
-        onSend(images.length > 0 ? images : undefined)
-        setAttachedImages([])
+      if (!isStartingProject && !isEnhancing) {
+        handleSubmit()
       }
     }
   }
 
-  const handleSubmit = () => {
-    if (isStartingProject) return
-    const images = attachedImages.map((img) => ({ dataUrl: img.dataUrl }))
-    onSend(images.length > 0 ? images : undefined)
-    setAttachedImages([])
-  }
-
-  // Paste handler
-  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = e.clipboardData?.items
-    if (!items) return
-    const files: File[] = []
-    for (let i = 0; i < items.length; i += 1) {
-      const item = items[i]
-      if (item.type.startsWith("image/")) {
-        const file = item.getAsFile()
-        if (file) files.push(file)
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+      const files: File[] = []
+      for (let i = 0; i < items.length; i += 1) {
+        const item = items[i]
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile()
+          if (file) files.push(file)
+        }
       }
-    }
-    if (files.length > 0) {
-      e.preventDefault()
-      void addFiles(files)
-    }
-  }, [addFiles])
+      if (files.length > 0) {
+        e.preventDefault()
+        void addFiles(files)
+      }
+    },
+    [addFiles],
+  )
 
-  // Drag-and-drop
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
@@ -241,36 +315,48 @@ export function DashboardPromptArea({
     setIsDraggingOver(false)
   }, [])
 
-  const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDraggingOver(false)
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      void addFiles(e.dataTransfer.files)
-    }
-  }, [addFiles])
+  const handleDrop = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsDraggingOver(false)
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        void addFiles(e.dataTransfer.files)
+      }
+    },
+    [addFiles],
+  )
 
-  const handleFileInputChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      void addFiles(e.target.files)
-    }
-  }, [addFiles])
+  const handleFileInputChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files.length > 0) {
+        void addFiles(e.target.files)
+      }
+    },
+    [addFiles],
+  )
 
-  const canSubmit = promptValue.trim().length > 0 || attachedImages.length > 0
+  const selectedModelName =
+    availableModels.find((m) => m.id === selectedModelId)?.name || "Model"
+
+  const canSubmit = value.trim().length > 0 || attachedImages.length > 0
+  const busy = isStartingProject || isGenerating
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center w-full max-w-3xl mx-auto px-3 sm:px-4 pt-1 pb-2">
-      <div className="w-full max-w-2xl space-y-3 relative">
-        {/* Headline */}
-        <div className="flex flex-col items-center">
-          <h1 className="text-[22px] sm:text-[26px] font-bold text-center tracking-tight text-white text-glow leading-tight">
-            What do you want to create?
-          </h1>
-        </div>
+    <div className={variant === "editor" ? "flex-1 flex flex-col w-full" : "flex-1 flex flex-col items-center justify-center w-full max-w-3xl mx-auto px-3 sm:px-4 pt-1 pb-2"}>
+      <div className={variant === "editor" ? "w-full relative" : "w-full max-w-2xl space-y-5 relative"}>
+        {/* Headline — dashboard only */}
+        {variant !== "editor" && (
+          <div className="flex flex-col items-center">
+            <h1 className="text-[26px] sm:text-[30px] font-medium text-center tracking-tight text-white text-glow leading-tight">
+              What do you want to create?
+            </h1>
+          </div>
+        )}
 
         {/* Tactile Input Card */}
         <div
-          className={`input-card ${isDraggingOver ? "ring-1 ring-blue-500/50 bg-blue-500/[0.02]" : ""}`}
+          className={`input-card ${variant === "editor" ? "!border-zinc-800/80" : ""} ${isDraggingOver ? "ring-1 ring-blue-500/50 bg-blue-500/[0.02]" : ""}`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
@@ -302,29 +388,48 @@ export function DashboardPromptArea({
             </div>
           ) : null}
 
+          {/* Queued prompt chip (editor only) */}
+          {isGenerating && queuedPrompt ? (
+            <div className="px-3 pb-1">
+              <div className="inline-flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 rounded-md px-2 py-1 text-[11px] text-blue-400">
+                <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
+                <span className="truncate max-w-[200px]">Queued: {queuedPrompt}</span>
+                <button
+                  type="button"
+                  onClick={onCancelQueued}
+                  className="ml-1 p-0.5 rounded hover:bg-blue-500/20 transition-colors"
+                  aria-label="Cancel queued prompt"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           <textarea
             ref={textareaRef}
-            value={promptValue}
+            value={value}
             onChange={(e) => {
-              onPromptValueChange(e.target.value)
+              setValue(e.target.value)
               adjustHeight()
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             className="w-full bg-transparent text-[#E7E7E9] text-[14px] font-[500] px-3 py-2 min-h-[44px] max-h-[200px] outline-none resize-none placeholder:text-[#6B6B70] leading-snug"
-            placeholder="Ask CodeUI to build..."
+            placeholder={onEnhance ? "Ask CodeUI to build..." : "What can I do for you?"}
             rows={1}
           />
 
-          <div className="flex items-center justify-between px-2 py-1.5 border-t border-white/[0.04]">
+          <div className="flex items-center justify-between px-2 py-1.5">
             <div className="flex items-center gap-0.5">
-              {promptValue.trim() && (
+              {/* Enhance button */}
+              {onEnhance && value.trim() ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
                       type="button"
-                      onClick={onEnhance}
-                      disabled={isEnhancing || isStartingProject}
+                      onClick={handleEnhance}
+                      disabled={isEnhancing || busy}
                       aria-label="Enhance prompt"
                       className="flex items-center justify-center h-6 w-6 text-[#9B9B9F] hover:text-white hover:bg-[#1B1B1F] rounded-lg transition-colors"
                     >
@@ -339,7 +444,9 @@ export function DashboardPromptArea({
                     Improve this prompt
                   </TooltipContent>
                 </Tooltip>
-              )}
+              ) : null}
+
+              {/* Plus menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="flex items-center justify-center h-6 w-6 text-[#9B9B9F] hover:text-[#E7E7E9] hover:bg-[#1B1B1F] rounded-lg transition-colors">
@@ -357,20 +464,24 @@ export function DashboardPromptArea({
                     <Plus className="w-3.5 h-3.5" />
                     <span>Continue writing prompt</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={onStartLandingPage}
-                    className="cursor-pointer gap-2 focus:bg-[#1B1B1F] focus:text-[#E7E7E9] text-xs"
-                  >
-                    <LayoutTemplate className="w-3.5 h-3.5" />
-                    <span>Use landing page starter</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={onStartBlankProject}
-                    className="cursor-pointer gap-2 focus:bg-[#1B1B1F] focus:text-[#E7E7E9] text-xs"
-                  >
-                    <Code className="w-3.5 h-3.5" />
-                    <span>Create blank project</span>
-                  </DropdownMenuItem>
+                  {onStartLandingPage ? (
+                    <DropdownMenuItem
+                      onSelect={onStartLandingPage}
+                      className="cursor-pointer gap-2 focus:bg-[#1B1B1F] focus:text-[#E7E7E9] text-xs"
+                    >
+                      <LayoutTemplate className="w-3.5 h-3.5" />
+                      <span>Use landing page starter</span>
+                    </DropdownMenuItem>
+                  ) : null}
+                  {onStartBlankProject ? (
+                    <DropdownMenuItem
+                      onSelect={onStartBlankProject}
+                      className="cursor-pointer gap-2 focus:bg-[#1B1B1F] focus:text-[#E7E7E9] text-xs"
+                    >
+                      <Code className="w-3.5 h-3.5" />
+                      <span>Create blank project</span>
+                    </DropdownMenuItem>
+                  ) : null}
                 </DropdownMenuContent>
               </DropdownMenu>
 
@@ -378,7 +489,7 @@ export function DashboardPromptArea({
 
               {/* File picker for images */}
               <label
-                className={`flex items-center justify-center h-6 w-6 text-[#9B9B9F] hover:text-[#E7E7E9] hover:bg-[#1B1B1F] rounded-lg transition-colors ${(!isVisionCapableModel(selectedModelId) || isStartingProject) ? "opacity-50 cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
+                className={`flex items-center justify-center h-6 w-6 text-[#9B9B9F] hover:text-[#E7E7E9] hover:bg-[#1B1B1F] rounded-lg transition-colors ${(!isVisionCapableModel(selectedModelId) || busy) ? "opacity-50 cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
                 aria-label="Attach images"
                 title={!isVisionCapableModel(selectedModelId) ? "This model doesn't support image input. Switch to a vision-capable model." : "Attach images"}
               >
@@ -389,18 +500,19 @@ export function DashboardPromptArea({
                   onChange={handleFileInputChange}
                   accept="image/*"
                   multiple
-                  disabled={isStartingProject || !isVisionCapableModel(selectedModelId)}
+                  disabled={busy || !isVisionCapableModel(selectedModelId)}
                 />
                 <Paperclip className="w-3 h-3" />
               </label>
 
               <div className="h-3 w-px bg-white/[0.04]" />
 
+              {/* Model selector with thinking effort submenu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
                     className="flex items-center gap-1 px-1.5 h-6 text-[#9B9B9F] hover:text-[#E7E7E9] hover:bg-[#1B1B1F] rounded-lg text-[10px] font-normal transition-colors"
-                    disabled={isLoadingModels || isStartingProject}
+                    disabled={isLoadingModels || busy}
                   >
                     {isLoadingModels ? (
                       <>
@@ -506,13 +618,27 @@ export function DashboardPromptArea({
               </DropdownMenu>
             </div>
 
+            {/* Send / Cancel button */}
             <button
-              onClick={handleSubmit}
-              disabled={isStartingProject || !canSubmit}
-              aria-label="Send prompt"
-              className="flex items-center justify-center h-7 w-7 bg-[#121212] text-white rounded-lg transition-all hover:bg-[#1B1B1F] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none"
+              onClick={() => {
+                if (isGenerating) {
+                  onCancel?.()
+                  return
+                }
+                handleSubmit()
+              }}
+              disabled={(!isGenerating && !canSubmit && !isStartingProject) || isEnhancing}
+              aria-label={isGenerating ? "Cancel generation" : "Send prompt"}
+              className={cn(
+                "flex items-center justify-center h-7 w-7 rounded-lg transition-all focus-visible:outline-none",
+                isGenerating
+                  ? "bg-rose-500/10 text-rose-500 hover:bg-rose-500/15 dark:text-rose-300"
+                  : "bg-[#121212] text-white hover:bg-[#1B1B1F] disabled:cursor-not-allowed disabled:opacity-60",
+              )}
             >
-              {isStartingProject ? (
+              {isGenerating ? (
+                <X className="w-3 h-3" />
+              ) : isStartingProject ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
               ) : (
                 <ArrowUp className="w-3 h-3" />
@@ -521,15 +647,20 @@ export function DashboardPromptArea({
           </div>
         </div>
 
-        {/* Quick Actions */}
-        <div className="flex flex-wrap items-center justify-center gap-1.5">
-          <ActionButton
-            icon={<LayoutTemplate className="w-3.5 h-3.5" />}
-            label="Landing Page"
-            onClick={isStartingProject ? undefined : onStartLandingPage}
-          />
-        </div>
+        {/* Quick Actions — only show if landing page starter is provided */}
+        {onStartLandingPage ? (
+          <div className="flex flex-wrap items-center justify-center gap-1.5 mt-2">
+            <button
+              onClick={isStartingProject ? undefined : onStartLandingPage}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#0E0E10] border border-white/[0.04] text-xs text-[#E7E7E9] hover:bg-[#1B1B1F] hover:border-white/[0.06] transition-colors focus-visible:outline-none"
+            >
+              <LayoutTemplate className="w-3.5 h-3.5" />
+              <span>Landing Page</span>
+            </button>
+          </div>
+        ) : null}
       </div>
+
       <ByokProviderSheet
         open={byokSheetOpen}
         onOpenChange={setByokSheetOpen}
@@ -538,25 +669,5 @@ export function DashboardPromptArea({
         }}
       />
     </div>
-  )
-}
-
-function ActionButton({
-  icon,
-  label,
-  onClick,
-}: {
-  icon: React.ReactNode
-  label: string
-  onClick?: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#0E0E10] border border-white/[0.04] text-xs text-[#E7E7E9] hover:bg-[#1B1B1F] hover:border-white/[0.06] transition-colors focus-visible:outline-none"
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
   )
 }

@@ -56,6 +56,7 @@ import { serializeDesignTokensForPrompt, type DesignTokens } from "@/lib/design-
 import { sanitizeConflictMarkers } from "@/lib/reprompting/conflict-marker-sanitizer"
 import { resolveProviderRequestConfig } from "@/lib/ai-provider-client"
 import { createRepromptLogger } from "@/lib/utils/reprompt-logger"
+import type { ThinkingEffort } from "@/lib/ai-models"
 
 type ContentPart =
   | { type: "text"; text: string }
@@ -86,6 +87,7 @@ interface RequestBody {
   images?: string[]
   designTokens?: DesignTokens
   restoreCandidates?: string[]
+  thinkingEffort?: ThinkingEffort
 }
 
 interface CreditContext {
@@ -225,7 +227,15 @@ function shouldContinueGeneration(options: {
         return false
       }
     } catch {
-      // not valid JSON yet — may need continuation
+      // JSON parse failed — could be truncated mid-object.
+      // Do NOT trigger continuation: with response_format json_object,
+      // the provider enforces a complete JSON object, so the continuation
+      // would produce a second {"edits":[...]} that concatenates invalidly
+      // with the truncated first part. Instead, let the finalizer's
+      // salvage mode extract complete edit objects from the truncated JSON.
+      if (aggregateContent.trim().startsWith("{")) {
+        return false
+      }
     }
   }
 
@@ -250,7 +260,19 @@ function shouldContinueGeneration(options: {
   return !endsWithStructuredBoundary(aggregateContent)
 }
 
-function buildContinuationPrompt(originalPrompt: string, partNumber: number): string {
+function buildContinuationPrompt(originalPrompt: string, partNumber: number, jsonDiffMode?: boolean): string {
+  if (jsonDiffMode) {
+    return [
+      "The previous response was truncated before it could complete.",
+      "Return a COMPLETE JSON object with ALL edits needed to satisfy the request.",
+      "Do NOT try to continue from where you stopped — start fresh with the full set of edits.",
+      'Format: {"edits":[{"search":"<exact substring from current HTML>","replace":"<replacement HTML>"}]}',
+      "Include every edit needed to fully satisfy the request, even if some were in the truncated part.",
+      "Do not add narration, explanations, or commentary outside the JSON.",
+      `Original request: ${originalPrompt}`,
+    ].join("\n")
+  }
+
   return [
     `Continue the previous response from exactly where it stopped. This is continuation part ${partNumber}.`,
     "Do not restart the answer, do not repeat previous content, and do not add narration.",
@@ -539,6 +561,7 @@ export async function POST(req: NextRequest) {
       images,
       designTokens,
       restoreCandidates,
+      thinkingEffort,
     } = body
 
     if (!prompt || typeof prompt !== "string") {
@@ -854,18 +877,54 @@ export async function POST(req: NextRequest) {
 
     const fallbackChain = await getRuntimeModelFallbackChainForUser(userId, model)
     const runtimeModelsById = await getRuntimeModelsByIdForUser(userId)
+
+    // Build thinking/reasoning params for models that support thinking effort.
+    // DeepSeek direct API uses `thinking` + `reasoning_effort`.
+    // OpenRouter uses `reasoning` object with `effort` field.
+    const primaryModelDef = runtimeModelsById.get(model)
+    const modelSupportsThinking = primaryModelDef?.supportsThinkingEffort === true
+    const modelSourceProvider = primaryModelDef?.sourceProvider
+
+    let thinkingParams: Record<string, unknown> = {}
+    if (modelSupportsThinking && thinkingEffort) {
+      if (modelSourceProvider === "deepseek") {
+        if (thinkingEffort === "none") {
+          thinkingParams = { thinking: { type: "disabled" } }
+        } else {
+          thinkingParams = {
+            thinking: { type: "enabled" },
+            reasoning_effort: thinkingEffort,
+          }
+        }
+      } else if (modelSourceProvider === "openrouter") {
+        if (thinkingEffort === "none") {
+          thinkingParams = { reasoning: { effort: "none" } }
+        } else {
+          thinkingParams = { reasoning: { effort: thinkingEffort } }
+        }
+      }
+    }
+
     const requestBase = {
       stream: true,
       max_tokens: UPSTREAM_MAX_TOKENS,
       temperature: surgicalMode ? 0.1 : isFollowUp ? 0.25 : 0.7,
       ...(jsonDiffMode ? { response_format: { type: "json_object" } } : {}),
+      ...thinkingParams,
     }
 
-    const requestOpenRouterStream = async (partMessages: Message[]): Promise<UpstreamRequestResult> => {
+    const requestOpenRouterStream = async (
+      partMessages: Message[],
+      options?: { disableJsonMode?: boolean },
+    ): Promise<UpstreamRequestResult> => {
       let response: Response | null = null
       let modelUsed = model
       let firstFailureStatus: number | null = null
       let readTimeoutMs = UPSTREAM_READ_TIMEOUT_MS
+
+      const effectiveRequestBase = options?.disableJsonMode
+        ? { ...requestBase, response_format: undefined }
+        : requestBase
 
       for (let index = 0; index < fallbackChain.length; index += 1) {
         const candidateModel = fallbackChain[index]
@@ -883,7 +942,7 @@ export async function POST(req: NextRequest) {
             headers: providerConfig.headers,
             signal: requestSignal,
             body: JSON.stringify({
-              ...requestBase,
+              ...effectiveRequestBase,
               messages: partMessages,
               model: providerConfig.upstreamModelId,
             }),
@@ -1111,7 +1170,7 @@ export async function POST(req: NextRequest) {
             },
             {
               role: "user" as const,
-              content: buildContinuationPrompt(sanitizedPrompt || prompt, partNumber),
+              content: buildContinuationPrompt(sanitizedPrompt || prompt, partNumber, jsonDiffMode),
             },
           ]
         }
@@ -1205,7 +1264,10 @@ export async function POST(req: NextRequest) {
             thresholdReached: continuationCount > 0,
           })
 
-          const retryUpstreamRequest = await requestOpenRouterStream(buildHiddenFollowUpRetryMessages(outputIssue))
+          const retryUpstreamRequest = await requestOpenRouterStream(
+            buildHiddenFollowUpRetryMessages(outputIssue),
+            { disableJsonMode: jsonDiffMode },
+          )
           if (!retryUpstreamRequest.response || !retryUpstreamRequest.response.body) {
             emitEvent("error", {
               message: "Could not complete the update automatically. The previous page was kept.",

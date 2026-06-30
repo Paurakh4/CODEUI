@@ -3,19 +3,19 @@
 import { Button } from "@/components/ui/button"
 import { UserMenu } from "@/components/user-menu"
 import { useAccountModals } from "@/components/account-modal-provider"
-import { 
-  PanelLeft, 
-  Save, 
-  Redo, 
-  Undo, 
+import {
+  PanelLeft,
+  Save,
+  Redo,
+  Undo,
   Clock,
-  Monitor, 
-  Tablet, 
-  Smartphone, 
-  Download, 
-  Eye, 
-  Palette, 
-  Code2, 
+  Monitor,
+  Tablet,
+  Smartphone,
+  Download,
+  Eye,
+  Palette,
+  Code2,
   ExternalLink,
   Copy,
   Check,
@@ -62,8 +62,8 @@ interface TopNavProps {
   onThemeChange?: (theme: "light" | "dark") => void
 }
 
-export function TopNav({ 
-  sidebarOpen, 
+export function TopNav({
+  sidebarOpen,
   onToggleSidebar,
   viewMode = "preview",
   onViewModeChange,
@@ -110,7 +110,7 @@ export function TopNav({
   const getTierBadge = () => {
     switch (userTier) {
       case "proplus":
-        return { icon: Crown, color: "text-purple-500", bg: "bg-purple-500/10" }
+        return { icon: Crown, color: "text-amber-400", bg: "bg-amber-400/10" }
       case "pro":
         return { icon: Zap, color: "text-amber-500", bg: "bg-amber-500/10" }
       default:
@@ -247,9 +247,8 @@ export function TopNav({
                 <button
                   onClick={onSave}
                   aria-label="Save checkpoint"
-                  className={`p-1.5 h-7 hover:bg-white/[0.04] rounded-md transition-colors ${
-                    hasUnsavedChanges ? "text-orange-400" : "text-zinc-500 hover:text-zinc-300"
-                  }`}
+                  className={`p-1.5 h-7 hover:bg-white/[0.04] rounded-md transition-colors ${hasUnsavedChanges ? "text-orange-400" : "text-zinc-500 hover:text-zinc-300"
+                    }`}
                 >
                   <Save className="w-3.5 h-3.5" />
                 </button>

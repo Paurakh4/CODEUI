@@ -3,6 +3,7 @@ import {
   PXROUTE_SOURCE_PROVIDER,
   CUSTOM_SOURCE_PROVIDER,
   BYOK_SOURCE_PROVIDER,
+  DEEPSEEK_SOURCE_PROVIDER,
   resolveModelSourceProvider,
   type AIModel,
   type ModelSourceProvider,
@@ -50,6 +51,7 @@ export interface AIProviderRequestConfig {
 const logger = createRepromptLogger("ai-provider-client")
 const OPENROUTER_CHAT_COMPLETIONS_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 const PXROUTE_CHAT_COMPLETIONS_ENDPOINT = "https://api.midrelay.com/v1/chat/completions"
+const DEEPSEEK_CHAT_COMPLETIONS_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
 const DEFAULT_OPENROUTER_READ_TIMEOUT_MS = 90_000
 const DEFAULT_PXROUTE_READ_TIMEOUT_MS = 15_000
 
@@ -126,6 +128,26 @@ export async function resolveProviderRequestConfig(options: {
       apiKey,
       sourceProvider,
       readTimeoutMs: getPxRouteReadTimeoutMs(),
+      upstreamModelId: options.model?.upstreamModelId ?? options.modelId,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "X-CodeUI-Request-ID": options.requestId,
+      },
+    }
+  }
+
+  if (sourceProvider === DEEPSEEK_SOURCE_PROVIDER) {
+    const apiKey = process.env.DEEPSEEK_API_KEY
+    if (!apiKey) {
+      throw new Error("DeepSeek API key not configured")
+    }
+
+    return {
+      endpoint: DEEPSEEK_CHAT_COMPLETIONS_ENDPOINT,
+      apiKey,
+      sourceProvider,
+      readTimeoutMs: getOpenRouterReadTimeoutMs(),
       upstreamModelId: options.model?.upstreamModelId ?? options.modelId,
       headers: {
         Authorization: `Bearer ${apiKey}`,

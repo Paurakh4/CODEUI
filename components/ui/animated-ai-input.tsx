@@ -5,7 +5,8 @@ import { useState, useRef, useCallback, useEffect, type ChangeEvent, type DragEv
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { CODEUI_GOD_MODE_MODEL_ID, isVisionCapableModel } from "@/lib/ai-models";
+import { CODEUI_GOD_MODE_MODEL_ID, isVisionCapableModel, type ThinkingEffort } from "@/lib/ai-models";
+import { ModelSelector } from "@/components/model-selector";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -134,6 +135,8 @@ interface AI_PromptProps {
     queuedPrompt?: string | null;
     /** Cancel the queued prompt. */
     onCancelQueued?: () => void;
+    thinkingEffort?: ThinkingEffort;
+    onThinkingEffortChange?: (effort: ThinkingEffort) => void;
 }
 
 export function AI_Prompt({
@@ -148,6 +151,8 @@ export function AI_Prompt({
     isGenerating = false,
     queuedPrompt,
     onCancelQueued,
+    thinkingEffort,
+    onThinkingEffortChange,
 }: AI_PromptProps) {
     const [value, setValue] = useState("");
     const [isEnhancing, setIsEnhancing] = useState(false);
@@ -485,75 +490,16 @@ export function AI_Prompt({
                         <div className="h-9 bg-white/[0.02] border-t border-white/[0.04] flex items-center">
                             <div className="absolute left-1.5 right-1.5 bottom-1.5 flex items-center justify-between">
                                 <div className="flex items-center gap-1">
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button
-                                                variant="ghost"
-                                                className="flex items-center gap-1 h-6 pl-1 pr-1.5 text-[11px] rounded-md dark:text-white hover:bg-black/10 dark:hover:bg-white/10 focus-visible:outline-none"
-                                                disabled={isLoadingModels || isEnhancing}
-                                            >
-                                                <AnimatePresence mode="wait">
-                                                    <motion.div
-                                                        key={selectedModelId}
-                                                        initial={{
-                                                            opacity: 0,
-                                                            y: -5,
-                                                        }}
-                                                        animate={{
-                                                            opacity: 1,
-                                                            y: 0,
-                                                        }}
-                                                        exit={{
-                                                            opacity: 0,
-                                                            y: 5,
-                                                        }}
-                                                        transition={{
-                                                            duration: 0.15,
-                                                        }}
-                                                        className="flex items-center gap-1"
-                                                    >
-                                                        {isLoadingModels ? (
-                                                            <>
-                                                                <Loader2 className="w-3 h-3 animate-spin" />
-                                                                <span>Loading...</span>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <Bot className="w-3.5 h-3.5 opacity-70" />
-                                                                {selectedModel?.name || "Select Model"}
-                                                                <ChevronDown className="w-2.5 h-2.5 opacity-50" />
-                                                            </>
-                                                        )}
-                                                    </motion.div>
-                                                </AnimatePresence>
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent
-                                            className={cn(
-                                                "min-w-[10rem]",
-                                                "border-black/10 dark:border-white/10",
-                                                "bg-gradient-to-b from-white via-white to-neutral-100 dark:from-neutral-950 dark:via-neutral-900 dark:to-neutral-800"
-                                            )}
-                                        >
-                                            {availableModels.map((model) => (
-                                                <DropdownMenuItem
-                                                    key={model.id}
-                                                    onSelect={() =>
-                                                        setSelectedModelId(model.id)
-                                                    }
-                                                    className="flex items-center justify-between gap-2"
-                                                >
-                                                    <div className="flex items-center gap-2">
-                                                        <Bot className="w-4 h-4 opacity-50" />
-                                                        <span>{model.name}</span>
-                                                    </div>
-                                                    {selectedModelId === model.id && (
-                                                        <Check className="w-4 h-4 text-blue-500" />
-                                                    )}
-                                                </DropdownMenuItem>
-                                            ))}
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
+                                    <ModelSelector
+                                        selectedModel={selectedModelId}
+                                        onModelChange={(id) => {
+                                            setSelectedModelId(id)
+                                            onModelChange?.(id)
+                                        }}
+                                        disabled={isLoadingModels || isEnhancing}
+                                        thinkingEffort={thinkingEffort}
+                                        onThinkingEffortChange={onThinkingEffortChange}
+                                    />
                                     <div className="h-3 w-px bg-white/[0.06]" />
                                     <label
                                         className={cn(

@@ -203,6 +203,11 @@ export async function getAdminModelCatalog() {
   const envOnlyEnabledIds = envEnabledIds.filter(
     (id) => !BASE_MODEL_ID_SET.has(id) && !persistedModelIds.has(id),
   )
+  // New base models (added to ALL_MODELS but not yet seen by the admin) are
+  // auto-enabled so they appear in the dropdown without an admin dashboard save.
+  const newBaseModelIds = knownModelIds.filter(
+    (id) => BASE_MODEL_ID_SET.has(id) && !persistedModelIds.has(id),
+  )
   // Always auto-enable the configured Prompt Enhance model so the rewrite
   // flow stays online even if an admin forgets to flip the toggle.
   const promptEnhanceAutoEnableIds = envPromptEnhanceModelId &&
@@ -210,7 +215,7 @@ export async function getAdminModelCatalog() {
     ? [envPromptEnhanceModelId]
     : []
   const enabledModelIds = Array.from(
-    new Set([...sanitizedAdminEnabledIds, ...envOnlyEnabledIds, ...promptEnhanceAutoEnableIds]),
+    new Set([...sanitizedAdminEnabledIds, ...newBaseModelIds, ...envOnlyEnabledIds, ...promptEnhanceAutoEnableIds]),
   ).filter((id) => knownModelIds.includes(id))
 
   const defaultModelId = resolveDefaultModelId(

@@ -5,11 +5,22 @@
  * Models can be enabled/disabled via environment variables.
  */
 
+export type ThinkingEffort = "none" | "low" | "medium" | "high" | "xhigh" | "max"
+
+export const THINKING_EFFORT_OPTIONS: { value: ThinkingEffort; label: string; description: string }[] = [
+  { value: "none", label: "No Thinking", description: "Disable reasoning — fastest response" },
+  { value: "low", label: "Low", description: "Light reasoning for quick tasks" },
+  { value: "medium", label: "Medium", description: "Balanced reasoning effort" },
+  { value: "high", label: "High", description: "Thorough reasoning (default)" },
+  { value: "xhigh", label: "XHigh", description: "Extra-deep reasoning" },
+  { value: "max", label: "Max", description: "Maximum reasoning effort" },
+]
+
 export interface AIModel {
   id: string
   name: string
   provider: string
-  sourceProvider?: "openrouter" | "pxroute" | "custom" | "byok"
+  sourceProvider?: "openrouter" | "pxroute" | "custom" | "byok" | "deepseek"
   customProviderId?: string
   // Raw model id sent to the upstream API. Only set for custom providers where
   // the catalog id is namespaced (e.g. `custom:opencode-zen:gpt-5.5`).
@@ -18,8 +29,10 @@ export interface AIModel {
   contextLength: number
   supportsReasoning?: boolean
   supportsVision?: boolean
+  supportsThinkingEffort?: boolean
   isFast?: boolean
   isNewModel?: boolean
+  tags?: string[]
 }
 
 export const CODEUI_GOD_MODE_MODEL_ID = "google/gemini-3-flash-preview"
@@ -30,6 +43,7 @@ export const PXROUTE_SOURCE_PROVIDER = "pxroute" as const
 export const OPENROUTER_SOURCE_PROVIDER = "openrouter" as const
 export const CUSTOM_SOURCE_PROVIDER = "custom" as const
 export const BYOK_SOURCE_PROVIDER = "byok" as const
+export const DEEPSEEK_SOURCE_PROVIDER = "deepseek" as const
 
 export const PXROUTE_MODEL_IDS = [
   "claude-opus-4-8",
@@ -47,6 +61,7 @@ export type ModelSourceProvider =
   | typeof PXROUTE_SOURCE_PROVIDER
   | typeof CUSTOM_SOURCE_PROVIDER
   | typeof BYOK_SOURCE_PROVIDER
+  | typeof DEEPSEEK_SOURCE_PROVIDER
 
 export function resolveModelSourceProvider(model?: Pick<AIModel, "provider" | "sourceProvider"> | null): ModelSourceProvider {
   if (model?.sourceProvider === BYOK_SOURCE_PROVIDER) {
@@ -59,6 +74,10 @@ export function resolveModelSourceProvider(model?: Pick<AIModel, "provider" | "s
 
   if (model?.sourceProvider === CUSTOM_SOURCE_PROVIDER) {
     return CUSTOM_SOURCE_PROVIDER
+  }
+
+  if (model?.sourceProvider === DEEPSEEK_SOURCE_PROVIDER) {
+    return DEEPSEEK_SOURCE_PROVIDER
   }
 
   if (model?.sourceProvider === OPENROUTER_SOURCE_PROVIDER) {
@@ -121,6 +140,7 @@ const ALL_MODELS: AIModel[] = [
     description: "Powerful general-purpose model",
     contextLength: 64000,
     isFast: true,
+    tags: ["Fast", "OpenRouter"],
   },
   {
     id: "anthropic/claude-haiku-4.5",
@@ -132,6 +152,7 @@ const ALL_MODELS: AIModel[] = [
     supportsVision: true,
     isFast: true,
     isNewModel: true,
+    tags: ["Fast", "Vision", "New", "OpenRouter"],
   },
   {
     id: "deepseek/deepseek-r1",
@@ -141,6 +162,8 @@ const ALL_MODELS: AIModel[] = [
     description: "Advanced reasoning model",
     contextLength: 64000,
     supportsReasoning: true,
+    supportsThinkingEffort: true,
+    tags: ["Reasoning", "OpenRouter"],
   },
   {
     id: "moonshotai/kimi-k2:free",
@@ -150,6 +173,7 @@ const ALL_MODELS: AIModel[] = [
     description: "Free Kimi K2 model",
     contextLength: 128000,
     supportsVision: true,
+    tags: ["Free", "Vision", "OpenRouter"],
   },
   {
     id: "moonshotai/kimi-k2-thinking",
@@ -160,6 +184,8 @@ const ALL_MODELS: AIModel[] = [
     contextLength: 128000,
     supportsVision: true,
     supportsReasoning: true,
+    supportsThinkingEffort: true,
+    tags: ["Reasoning", "Vision", "OpenRouter"],
   },
   {
     id: "z-ai/glm-4.7",
@@ -169,6 +195,7 @@ const ALL_MODELS: AIModel[] = [
     description: "GLM 4.7",
     contextLength: 128000,
     supportsVision: true,
+    tags: ["Vision", "OpenRouter"],
   },
   {
     id: "mistralai/devstral-2512:free",
@@ -178,6 +205,7 @@ const ALL_MODELS: AIModel[] = [
     description: "Devstral 2512 (free)",
     contextLength: 64000,
     isFast: true,
+    tags: ["Fast", "Free", "OpenRouter"],
   },
   {
     id: CODEUI_GOD_MODE_MODEL_ID,
@@ -189,6 +217,7 @@ const ALL_MODELS: AIModel[] = [
     supportsVision: true,
     isFast: true,
     isNewModel: true,
+    tags: ["Fast", "Vision", "New", "OpenRouter"],
   },
   {
     id: "google/gemini-3.1-flash-lite-preview",
@@ -200,6 +229,7 @@ const ALL_MODELS: AIModel[] = [
     supportsVision: true,
     isFast: true,
     isNewModel: true,
+    tags: ["Fast", "Vision", "New", "OpenRouter"],
   },
   {
     id: "claude-opus-4-8",
@@ -211,6 +241,7 @@ const ALL_MODELS: AIModel[] = [
     supportsVision: true,
     supportsReasoning: true,
     isNewModel: true,
+    tags: ["Vision", "Reasoning", "New", "PxRoute"],
   },
   {
     id: "claude-opus-4-7",
@@ -221,6 +252,7 @@ const ALL_MODELS: AIModel[] = [
     contextLength: 200000,
     supportsVision: true,
     supportsReasoning: true,
+    tags: ["Vision", "Reasoning", "PxRoute"],
   },
   {
     id: "claude-opus-4-6",
@@ -231,6 +263,7 @@ const ALL_MODELS: AIModel[] = [
     contextLength: 200000,
     supportsVision: true,
     supportsReasoning: true,
+    tags: ["Vision", "Reasoning", "PxRoute"],
   },
   {
     id: "claude-sonnet-4-6",
@@ -243,6 +276,7 @@ const ALL_MODELS: AIModel[] = [
     supportsReasoning: true,
     isFast: true,
     isNewModel: true,
+    tags: ["Fast", "Vision", "Reasoning", "New", "PxRoute"],
   },
   {
     id: "claude-haiku-4-5",
@@ -253,6 +287,7 @@ const ALL_MODELS: AIModel[] = [
     contextLength: 200000,
     supportsVision: true,
     isFast: true,
+    tags: ["Fast", "Vision", "PxRoute"],
   },
   {
     id: "gpt-5.5",
@@ -264,6 +299,7 @@ const ALL_MODELS: AIModel[] = [
     supportsVision: true,
     supportsReasoning: true,
     isNewModel: true,
+    tags: ["Vision", "Reasoning", "New", "PxRoute"],
   },
   {
     id: "gpt-5.4",
@@ -274,6 +310,7 @@ const ALL_MODELS: AIModel[] = [
     contextLength: 400000,
     supportsVision: true,
     supportsReasoning: true,
+    tags: ["Vision", "Reasoning", "PxRoute"],
   },
   {
     id: "gpt-5.3-codex",
@@ -284,6 +321,33 @@ const ALL_MODELS: AIModel[] = [
     contextLength: 400000,
     supportsVision: true,
     supportsReasoning: true,
+    tags: ["Vision", "Reasoning", "Code", "PxRoute"],
+  },
+  {
+    id: "deepseek-v4-flash",
+    name: "DeepSeek V4 Flash",
+    provider: "DeepSeek",
+    sourceProvider: DEEPSEEK_SOURCE_PROVIDER,
+    upstreamModelId: "deepseek-v4-flash",
+    description: "Fast and efficient DeepSeek V4 model via direct API",
+    contextLength: 64000,
+    isFast: true,
+    isNewModel: true,
+    supportsThinkingEffort: true,
+    tags: ["Fast", "New", "Direct"],
+  },
+  {
+    id: "deepseek-v4-pro",
+    name: "DeepSeek V4 Pro",
+    provider: "DeepSeek",
+    sourceProvider: DEEPSEEK_SOURCE_PROVIDER,
+    upstreamModelId: "deepseek-v4-pro",
+    description: "High-performance DeepSeek V4 model via direct API",
+    contextLength: 64000,
+    supportsReasoning: true,
+    supportsThinkingEffort: true,
+    isNewModel: true,
+    tags: ["Reasoning", "New", "Direct"],
   },
 ]
 
