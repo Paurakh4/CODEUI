@@ -17,6 +17,7 @@ import {
   Check,
   Gauge,
 } from "lucide-react"
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,6 +44,13 @@ import {
 } from "@/lib/ai-models"
 import { ByokProviderSheet } from "@/components/byok/byok-provider-sheet"
 import { cn } from "@/lib/utils"
+
+function getGreeting() {
+  const hour = new Date().getHours()
+  if (hour < 12) return "Good morning"
+  if (hour < 18) return "Good afternoon"
+  return "Good evening"
+}
 
 // ponytail: image payload caps — large data URLs bloat Mongo docs; upgrade path = upload to media library + store URL
 const MAX_IMAGES_PER_MESSAGE = 4
@@ -131,6 +139,7 @@ export interface PromptInputProps {
   // Quick actions (dashboard only)
   onStartLandingPage?: () => void
   onStartBlankProject?: () => void
+  hasProjects?: boolean
 
   // Visual variant: "dashboard" (default) or "editor" to match surrounding borders
   variant?: "dashboard" | "editor"
@@ -156,6 +165,7 @@ export function PromptInput({
   onThinkingEffortChange,
   onStartLandingPage,
   onStartBlankProject,
+  hasProjects = false,
   variant = "dashboard",
 }: PromptInputProps) {
   const [byokSheetOpen, setByokSheetOpen] = useState(false)
@@ -186,11 +196,11 @@ export function PromptInput({
     const textarea = textareaRef.current
     if (!textarea) return
     if (reset) {
-      textarea.style.height = "44px"
+      textarea.style.height = "56px"
       return
     }
-    textarea.style.height = "44px"
-    const newHeight = Math.max(44, Math.min(textarea.scrollHeight, 200))
+    textarea.style.height = "56px"
+    const newHeight = Math.max(56, Math.min(textarea.scrollHeight, 200))
     textarea.style.height = `${newHeight}px`
   }, [])
 
@@ -343,20 +353,23 @@ export function PromptInput({
   const busy = isStartingProject || isGenerating
 
   return (
-    <div className={variant === "editor" ? "flex-1 flex flex-col w-full" : "flex-1 flex flex-col items-center justify-center w-full max-w-3xl mx-auto px-3 sm:px-4 pt-1 pb-2"}>
-      <div className={variant === "editor" ? "w-full relative" : "w-full max-w-2xl space-y-5 relative"}>
+    <div className={variant === "editor" ? "flex-1 flex flex-col w-full" : "flex-1 flex flex-col items-center justify-center w-full max-w-[680px] mx-auto px-3 sm:px-4 py-[7vh]"}>
+      <div className={variant === "editor" ? "w-full relative" : "w-full max-w-[680px] space-y-1.5 relative"}>
         {/* Headline — dashboard only */}
         {variant !== "editor" && (
-          <div className="flex flex-col items-center">
-            <h1 className="text-[26px] sm:text-[30px] font-medium text-center tracking-tight text-white text-glow leading-tight">
-              What do you want to create?
+          <div className="flex flex-col gap-0">
+            <span className="text-[11px] font-medium text-[#9B9B9F]/55">
+              {getGreeting()}
+            </span>
+            <h1 className="text-[24px] sm:text-[34px] font-normal tracking-tight text-white text-glow leading-tight">
+              {hasProjects ? "Continue building, or start something new." : "What do you want to create?"}
             </h1>
           </div>
         )}
 
         {/* Tactile Input Card */}
         <div
-          className={`input-card ${variant === "editor" ? "!border-zinc-800/80" : ""} ${isDraggingOver ? "ring-1 ring-blue-500/50 bg-blue-500/[0.02]" : ""}`}
+          className={`input-card ${variant === "editor" ? "!border-zinc-800/50" : ""} ${isDraggingOver ? "ring-1 ring-blue-500/50 bg-blue-500/[0.02]" : ""}`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
@@ -415,12 +428,12 @@ export function PromptInput({
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            className="w-full bg-transparent text-[#E7E7E9] text-[14px] font-[500] px-3 py-2 min-h-[44px] max-h-[200px] outline-none resize-none placeholder:text-[#6B6B70] leading-snug"
-            placeholder={onEnhance ? "Ask CodeUI to build..." : "What can I do for you?"}
+            className="w-full bg-transparent text-[#E7E7E9] text-[14px] font-[500] px-3 py-2.5 min-h-[44px] max-h-[200px] outline-none resize-none placeholder:text-[#7B7B80] leading-snug"
+            placeholder={onEnhance ? "Describe what you'd like to change..." : "What can I do for you?"}
             rows={1}
           />
 
-          <div className="flex items-center justify-between px-2 py-1.5">
+          <div className="flex items-center justify-between px-2 py-2">
             <div className="flex items-center gap-0.5">
               {/* Enhance button */}
               {onEnhance && value.trim() ? (
@@ -511,7 +524,7 @@ export function PromptInput({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className="flex items-center gap-1 px-1.5 h-6 text-[#9B9B9F] hover:text-[#E7E7E9] hover:bg-[#1B1B1F] rounded-lg text-[10px] font-normal transition-colors"
+                    className="flex items-center gap-1 px-1.5 h-6 text-[#9B9B9F] hover:text-[#E7E7E9] hover:bg-[#1B1B1F] rounded-lg text-[10px] font-normal transition-colors opacity-90 hover:opacity-100"
                     disabled={isLoadingModels || busy}
                   >
                     {isLoadingModels ? (
@@ -647,16 +660,47 @@ export function PromptInput({
           </div>
         </div>
 
-        {/* Quick Actions — only show if landing page starter is provided */}
+        {/* Quick Starts — only show if landing page starter is provided */}
         {onStartLandingPage ? (
-          <div className="flex flex-wrap items-center justify-center gap-1.5 mt-2">
-            <button
-              onClick={isStartingProject ? undefined : onStartLandingPage}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#0E0E10] border border-white/[0.04] text-xs text-[#E7E7E9] hover:bg-[#1B1B1F] hover:border-white/[0.06] transition-colors focus-visible:outline-none"
-            >
-              <LayoutTemplate className="w-3.5 h-3.5" />
-              <span>Landing Page</span>
-            </button>
+          <div className="flex flex-col items-center gap-1.5 mt-0.5">
+            <span className="text-[11px] font-medium text-[#6B6B70]">Start with</span>
+            <div className="flex flex-wrap items-center justify-center gap-1.5">
+              <button
+                onClick={isStartingProject ? undefined : onStartLandingPage}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#0E0E10] border border-white/[0.05] text-xs text-[#E7E7E9] hover:bg-[#1B1B1F] hover:border-white/[0.08] transition-all duration-150 ease-out hover:scale-[1.02] focus-visible:outline-none"
+              >
+                <LayoutTemplate className="w-3.5 h-3.5" />
+                <span>Landing Page</span>
+              </button>
+              <button
+                onClick={isStartingProject ? undefined : () => onSend("Create a modern dashboard with analytics charts, a sidebar, and data tables.")}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#0E0E10] border border-white/[0.05] text-xs text-[#E7E7E9] hover:bg-[#1B1B1F] hover:border-white/[0.08] transition-all duration-150 ease-out hover:scale-[1.02] focus-visible:outline-none"
+              >
+                <Gauge className="w-3.5 h-3.5" />
+                <span>Dashboard</span>
+              </button>
+              <button
+                onClick={isStartingProject ? undefined : () => onSend("Create a portfolio website with a hero section, project showcase grid, and contact form.")}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#0E0E10] border border-white/[0.05] text-xs text-[#E7E7E9] hover:bg-[#1B1B1F] hover:border-white/[0.08] transition-all duration-150 ease-out hover:scale-[1.02] focus-visible:outline-none"
+              >
+                <Bot className="w-3.5 h-3.5" />
+                <span>Portfolio</span>
+              </button>
+              <button
+                onClick={isStartingProject ? undefined : () => onSend("Create a marketing site with a hero, feature highlights, pricing table, and FAQ section.")}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#0E0E10] border border-white/[0.05] text-xs text-[#E7E7E9] hover:bg-[#1B1B1F] hover:border-white/[0.08] transition-all duration-150 ease-out hover:scale-[1.02] focus-visible:outline-none"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Marketing</span>
+              </button>
+              <button
+                onClick={isStartingProject ? undefined : () => onSend("Create a documentation site with a sidebar navigation, search bar, and content sections.")}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#0E0E10] border border-white/[0.05] text-xs text-[#E7E7E9] hover:bg-[#1B1B1F] hover:border-white/[0.08] transition-all duration-150 ease-out hover:scale-[1.02] focus-visible:outline-none"
+              >
+                <Code className="w-3.5 h-3.5" />
+                <span>Docs</span>
+              </button>
+            </div>
           </div>
         ) : null}
       </div>

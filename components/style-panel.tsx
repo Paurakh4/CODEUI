@@ -33,8 +33,6 @@ import {
   Sparkles,
   Link2,
   Image as ImageIcon,
-  Undo2,
-  Redo2,
   AlertCircle,
   Check,
   Plus,
@@ -63,6 +61,7 @@ import {
   Link as LinkIcon,
   Unlink,
   RotateCcw,
+  Copy,
 } from "lucide-react"
 
 // ============================================================================
@@ -173,6 +172,59 @@ function useSectionState(storageKey: string = "style-panel-sections") {
   }, [storageKey])
 
   return { expandedSections, toggleSection, isExpanded, expandSections, collapseAllSections }
+}
+
+function useDragAdjust(
+  initialValue: number,
+  onChange: (v: number) => void,
+  onCommit?: (v: number) => void,
+  step: number = 1
+) {
+  const dragRef = useRef<{ startX: number; startValue: number } | null>(null)
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const target = e.currentTarget as HTMLElement
+      try {
+        target.setPointerCapture(e.pointerId)
+      } catch { }
+      dragRef.current = { startX: e.clientX, startValue: initialValue }
+      target.style.cursor = 'ew-resize'
+    },
+    [initialValue]
+  )
+
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!dragRef.current) return
+      const dx = e.clientX - dragRef.current.startX
+      const multiplier = e.shiftKey ? 10 : e.altKey ? 0.1 : 1
+      const next = dragRef.current.startValue + Math.round(dx) * step * multiplier
+      onChange(next)
+    },
+    [onChange, step]
+  )
+
+  const onPointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      if (!dragRef.current) return
+      const target = e.currentTarget as HTMLElement
+      try {
+        target.releasePointerCapture(e.pointerId)
+      } catch { }
+      target.style.cursor = ''
+      const dx = e.clientX - dragRef.current.startX
+      const multiplier = e.shiftKey ? 10 : e.altKey ? 0.1 : 1
+      const next = dragRef.current.startValue + Math.round(dx) * step * multiplier
+      onCommit?.(next)
+      dragRef.current = null
+    },
+    [onCommit, step]
+  )
+
+  return { onPointerDown, onPointerMove, onPointerUp }
 }
 
 function useDebounce<T extends (...args: any[]) => void>(
@@ -321,13 +373,24 @@ interface FieldLabelProps {
   hasValue?: boolean
   className?: string
   rightSlot?: React.ReactNode
+  dragHandlers?: {
+    onPointerDown: (e: React.PointerEvent) => void
+    onPointerMove: (e: React.PointerEvent) => void
+    onPointerUp: (e: React.PointerEvent) => void
+  }
 }
 
-function FieldLabel({ label, onReset, hasValue, className, rightSlot }: FieldLabelProps) {
+function FieldLabel({ label, onReset, hasValue, className, rightSlot, dragHandlers }: FieldLabelProps) {
   return (
     <div className={cn("flex items-center justify-between gap-2 min-h-[14px]", className)}>
       <div className="flex items-center gap-1 min-w-0">
-        <label className="text-[10.5px] font-medium uppercase tracking-wide text-zinc-400 truncate">
+        <label
+          className={cn(
+            "text-[11px] font-medium text-zinc-500/80 truncate select-none",
+            dragHandlers && "cursor-ew-resize hover:text-zinc-300 transition-colors"
+          )}
+          {...(dragHandlers || {})}
+        >
           {label}
         </label>
         {onReset && hasValue && (
@@ -381,7 +444,7 @@ function SegmentedControl<T extends string = string>({
       )}
       <div
         className={cn(
-          "flex items-center gap-0.5 rounded-md border border-white/[0.06] bg-white/[0.03] p-0.5",
+          "flex items-center gap-0.5 rounded-[5px] border border-white/[0.06] bg-white/[0.03] p-0.5",
           size === "sm" ? "h-7" : "h-8"
         )}
       >
@@ -412,7 +475,7 @@ function SegmentedControl<T extends string = string>({
             return (
               <Tooltip key={opt.value}>
                 <TooltipTrigger asChild>{button}</TooltipTrigger>
-                <TooltipContent side="top" className="bg-stone-100 text-stone-900 text-[10px] font-medium px-2 py-1">
+                <TooltipContent side="top" className="bg-zinc-800 text-zinc-200 text-[10px] font-medium px-2 py-1">
                   {opt.tooltip}
                 </TooltipContent>
               </Tooltip>
@@ -431,13 +494,14 @@ interface PresetChipsProps {
   activeValue?: string | number
   onSelect: (value: string | number) => void
   label?: string
+  collapsible?: boolean
 }
 
-function PresetChips({ values, activeValue, onSelect, label }: PresetChipsProps) {
+function PresetChips({ values, activeValue, onSelect, label, collapsible = false }: PresetChipsProps) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className={cn("flex flex-col gap-1.5", collapsible && "opacity-0 max-h-0 overflow-hidden transition-all duration-200 group-hover/field:opacity-100 group-hover/field:max-h-20 group-focus-within/field:opacity-100 group-focus-within/field:max-h-20")}>
       {label && (
-        <label className="text-[10.5px] font-medium uppercase tracking-wide text-zinc-400">
+        <label className="text-[11px] font-medium text-zinc-500/70">
           {label}
         </label>
       )}
@@ -451,11 +515,11 @@ function PresetChips({ values, activeValue, onSelect, label }: PresetChipsProps)
               onClick={() => onSelect(preset.value)}
               aria-pressed={isActive}
               className={cn(
-                "h-6 rounded-full px-2.5 text-[10.5px] font-medium tracking-wide transition-all duration-150",
+                "h-5 rounded px-2 text-[10px] font-medium transition-all duration-150",
                 "focus:outline-none",
                 isActive
-                  ? "bg-white/[0.08] text-zinc-100"
-                  : "bg-white/[0.03] text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200 border border-white/[0.04]"
+                  ? "bg-white/[0.06] text-zinc-200"
+                  : "text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.03]"
               )}
             >
               {preset.label}
@@ -495,7 +559,7 @@ function NumberInput({
   step = 1,
   unit,
   placeholder,
-  showStepper = true,
+  showStepper = false,
   className,
 }: NumberInputProps) {
   const [localValue, setLocalValue] = useState<string>(value === "" ? "" : value.toString())
@@ -535,9 +599,10 @@ function NumberInput({
   )
 
   const handleStep = useCallback(
-    (direction: 1 | -1) => {
+    (direction: 1 | -1, modifiers?: { shiftKey?: boolean; altKey?: boolean }) => {
       const current = parseFloat(localValue) || 0
-      const next = clamp(current + direction * step)
+      const multiplier = modifiers?.shiftKey ? 10 : modifiers?.altKey ? 0.1 : 1
+      const next = clamp(current + direction * step * multiplier)
       setLocalValue(next.toString())
       onChange(next)
       onCommit?.(next)
@@ -548,14 +613,21 @@ function NumberInput({
   const hasValue =
     value !== "" && value !== undefined && (defaultValue === undefined || value !== defaultValue)
 
+  const dragHandlers = useDragAdjust(
+    typeof value === "number" ? value : parseFloat(value?.toString() || "0") || 0,
+    (n) => { const v = clamp(n); onChange(v) },
+    (n) => { const v = clamp(n); onCommit?.(v) },
+    step
+  )
+
   return (
     <div className={cn("group/field flex flex-col gap-1.5", className)}>
       {label && (
-        <FieldLabel label={label} onReset={onReset} hasValue={!!onReset && hasValue} />
+        <FieldLabel label={label} onReset={onReset} hasValue={!!onReset && hasValue} dragHandlers={dragHandlers} />
       )}
       <div
         className={cn(
-          "group flex h-7 items-center rounded-md border border-white/[0.06] bg-white/[0.03]",
+          "group flex h-7 items-center rounded-[5px] border border-white/[0.06] bg-white/[0.03]",
           "transition-colors duration-150",
           isFocused
             ? "border-white/[0.10] bg-white/[0.04] ring-1 ring-white/[0.06]"
@@ -596,16 +668,21 @@ function NumberInput({
                 ; (e.target as HTMLInputElement).blur()
             } else if (e.key === "ArrowUp") {
               e.preventDefault()
-              handleStep(1)
+              handleStep(1, { shiftKey: e.shiftKey, altKey: e.altKey })
             } else if (e.key === "ArrowDown") {
               e.preventDefault()
-              handleStep(-1)
+              handleStep(-1, { shiftKey: e.shiftKey, altKey: e.altKey })
             }
+          }}
+          onWheel={(e) => {
+            if (!isFocused) return
+            e.preventDefault()
+            handleStep(e.deltaY < 0 ? 1 : -1, { shiftKey: e.shiftKey, altKey: e.altKey })
           }}
           placeholder={placeholder}
           className={cn(
-            "min-w-0 flex-1 bg-transparent px-1 text-center text-[11.5px] font-mono text-stone-100",
-            "placeholder:text-stone-600 focus:outline-none"
+            "min-w-0 flex-1 bg-transparent px-1 text-center text-[11.5px] font-mono text-zinc-100",
+            "placeholder:text-zinc-600 focus:outline-none"
           )}
         />
         {unit && (
@@ -618,7 +695,7 @@ function NumberInput({
             type="button"
             onClick={() => handleStep(1)}
             aria-label="Increase"
-            className="flex h-full w-5 flex-shrink-0 items-center justify-center rounded-r-md text-stone-500 hover:bg-stone-800/80 hover:text-stone-200 transition-colors"
+            className="flex h-full w-5 flex-shrink-0 items-center justify-center rounded-r-md text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-200 transition-colors"
           >
             <Plus className="h-3 w-3" strokeWidth={2.5} />
           </button>
@@ -655,7 +732,7 @@ function UnitToggle({ unit, units = SUPPORTED_UNITS, onChange, inline = false }:
             {unit === "%" ? "%" : unit}
           </button>
         </TooltipTrigger>
-        <TooltipContent side="top" className="bg-stone-100 text-stone-900 text-[10px] font-medium px-2 py-1">
+        <TooltipContent side="top" className="bg-zinc-800 text-zinc-200 text-[10px] font-medium px-2 py-1">
           Switch unit
         </TooltipContent>
       </Tooltip>
@@ -668,12 +745,12 @@ function UnitToggle({ unit, units = SUPPORTED_UNITS, onChange, inline = false }:
         <button
           type="button"
           onClick={handleClick}
-          className="h-7 min-w-[34px] flex-shrink-0 rounded-md border border-white/[0.06] bg-white/[0.03] px-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-300 transition-colors hover:border-white/[0.08] hover:bg-white/[0.04]"
+          className="h-7 min-w-[34px] flex-shrink-0 rounded-[5px] border border-white/[0.06] bg-white/[0.03] px-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-300 transition-colors hover:border-white/[0.08] hover:bg-white/[0.04]"
         >
           {unit === "%" ? "%" : unit}
         </button>
       </TooltipTrigger>
-      <TooltipContent side="top" className="bg-stone-100 text-stone-900 text-[10px] font-medium px-2 py-1">
+      <TooltipContent side="top" className="bg-zinc-800 text-zinc-200 text-[10px] font-medium px-2 py-1">
         Switch unit
       </TooltipContent>
     </Tooltip>
@@ -707,7 +784,7 @@ function DimensionControl({
   presets,
   showSlider = false,
   sliderMax = 1000,
-  showStepper = true,
+  showStepper = false,
 }: DimensionControlProps) {
   const isKeyword = isKeywordValue(value)
   const numeric = extractNumericValue(value, 0)
@@ -724,12 +801,15 @@ function DimensionControl({
     onCommit(property, toCssLength(numeric, u))
   }
 
+  const dragHandlers = useDragAdjust(numeric, handleNumberChange, handleNumberCommit)
+
   return (
     <div className="group/field flex flex-col gap-1.5 min-w-0">
       <FieldLabel
         label={label}
         onReset={onReset}
         hasValue={!!onReset && hasValue}
+        dragHandlers={!isKeyword ? dragHandlers : undefined}
         rightSlot={
           isKeyword && typeof value === "string" ? (
             <span className="text-[10px] font-mono text-zinc-500 truncate">{value}</span>
@@ -738,7 +818,7 @@ function DimensionControl({
       />
       <div
         className={cn(
-          "group flex h-7 w-full min-w-0 items-center rounded-md border border-white/[0.06] bg-white/[0.03]",
+          "group flex h-7 w-full min-w-0 items-center rounded-[5px] border border-white/[0.06] bg-white/[0.03]",
           "transition-colors duration-150 hover:border-white/[0.08]",
           "focus-within:border-white/[0.10] focus-within:bg-white/[0.04] focus-within:ring-1 focus-within:ring-white/[0.06]"
         )}
@@ -776,6 +856,7 @@ function DimensionControl({
           values={presets}
           activeValue={typeof value === "string" ? value : undefined}
           onSelect={(v) => onCommit(property, v as string)}
+          collapsible
         />
       )}
       {showSlider && !isKeyword && (
@@ -810,6 +891,16 @@ function DimensionNumberInput({ value, placeholder, onChange, onCommit }: Dimens
     }
   }, [value, focused])
 
+  const stepBy = (direction: 1 | -1, modifiers?: { shiftKey?: boolean; altKey?: boolean }) => {
+    const current = parseFloat(local) || 0
+    const multiplier = modifiers?.shiftKey ? 10 : modifiers?.altKey ? 0.1 : 1
+    const next = current + direction * multiplier
+    const rounded = Math.round(next * 100) / 100
+    setLocal(rounded.toString())
+    onChange(rounded)
+    onCommit(rounded)
+  }
+
   return (
     <input
       type="text"
@@ -837,7 +928,18 @@ function DimensionNumberInput({ value, placeholder, onChange, onCommit }: Dimens
           const parsed = parseFloat(local)
           if (Number.isFinite(parsed)) onCommit(parsed)
             ; (e.target as HTMLInputElement).blur()
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault()
+          stepBy(1, { shiftKey: e.shiftKey, altKey: e.altKey })
+        } else if (e.key === "ArrowDown") {
+          e.preventDefault()
+          stepBy(-1, { shiftKey: e.shiftKey, altKey: e.altKey })
         }
+      }}
+      onWheel={(e) => {
+        if (!focused) return
+        e.preventDefault()
+        stepBy(e.deltaY < 0 ? 1 : -1, { shiftKey: e.shiftKey, altKey: e.altKey })
       }}
       className="min-w-0 flex-1 bg-transparent px-1.5 text-center text-[11.5px] font-mono text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
     />
@@ -912,6 +1014,11 @@ function Slider({
           ) : (
             <div />
           )}
+          {hideValue && unit && (
+            <span className="text-[10px] font-mono text-zinc-400 tabular-nums">
+              {Math.round(localValue)}{unit}
+            </span>
+          )}
           {!hideValue && (
             <div className="flex items-center gap-1">
               <input
@@ -937,7 +1044,7 @@ function Slider({
                       ; (e.target as HTMLInputElement).blur()
                   }
                 }}
-                className="h-6 w-12 rounded-md border border-white/[0.06] bg-white/[0.03] px-1 text-right text-[11px] font-mono text-zinc-100 outline-none transition-colors focus:border-white/[0.10] focus:bg-white/[0.04]"
+                className="h-6 w-12 rounded-[5px] border border-white/[0.06] bg-white/[0.03] px-1 text-right text-[11px] font-mono text-zinc-100 outline-none transition-colors focus:border-white/[0.10] focus:bg-white/[0.04]"
               />
               {!!unit && (
                 <span className="text-[10px] font-medium uppercase text-zinc-500">{unit}</span>
@@ -1056,13 +1163,13 @@ function ColorInput({ label, value, onChange, onImmediateChange, onReset, proper
       <FieldLabel label={label} onReset={onReset} hasValue={!!onReset && !!value} />
       <div
         className={cn(
-          "group flex h-7 items-center gap-1.5 rounded-md border border-stone-800/80 bg-stone-900/60 px-1 transition-colors",
+          "group flex h-7 items-center gap-1.5 rounded-[5px] border border-white/[0.06] bg-white/[0.03] px-1.5 transition-colors",
           isFocused
-            ? "border-stone-500/70 bg-stone-900 ring-1 ring-stone-500/30"
-            : "hover:border-stone-700"
+            ? "border-white/[0.10] bg-white/[0.04] ring-1 ring-white/[0.06]"
+            : "hover:border-white/[0.08]"
         )}
       >
-        <div className="relative h-5 w-5 overflow-hidden rounded-[4px] ring-1 ring-inset ring-white/10">
+        <div className="relative h-6 w-6 overflow-hidden rounded-[4px] ring-1 ring-inset ring-white/10">
           <div
             className="absolute inset-0"
             style={{
@@ -1089,7 +1196,7 @@ function ColorInput({ label, value, onChange, onImmediateChange, onReset, proper
           onFocus={() => setIsFocused(true)}
           onBlur={handleBlur}
           placeholder="#000000"
-          className="flex-1 bg-transparent text-[11.5px] font-mono text-stone-100 placeholder:text-stone-600 focus:outline-none"
+          className="flex-1 bg-transparent text-[11.5px] font-mono text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
         />
         {validation && localValue && showFeedback && (
           <div className="pr-1">
@@ -1123,22 +1230,22 @@ function StyledDropdown({ label, value, onChange, onReset, options, placeholder 
           value={value || ""}
           onChange={(e) => onChange(e.target.value)}
           className={cn(
-            "h-7 w-full appearance-none rounded-md border border-stone-800/80 bg-stone-900/60 px-2.5 pr-7",
-            "text-[11.5px] font-medium text-stone-100 cursor-pointer",
-            "transition-colors hover:border-stone-700 hover:bg-stone-800/60",
-            "focus:outline-none focus:border-stone-500/70"
+            "h-7 w-full appearance-none rounded-[5px] border border-white/[0.06] bg-white/[0.03] px-3 pr-7",
+            "text-[11.5px] font-medium text-zinc-100 cursor-pointer",
+            "transition-colors hover:border-white/[0.08] hover:bg-white/[0.04]",
+            "focus:outline-none focus:border-white/[0.10]"
           )}
         >
-          <option value="" className="bg-stone-900">
+          <option value="" className="bg-zinc-900">
             {placeholder}
           </option>
           {options.map((opt) => (
-            <option key={opt.value} value={opt.value} className="bg-stone-900">
+            <option key={opt.value} value={opt.value} className="bg-zinc-900">
               {opt.label}
             </option>
           ))}
         </select>
-        <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-stone-500" />
+        <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-zinc-500" />
       </div>
     </div>
   )
@@ -1172,10 +1279,10 @@ function StyledTextArea({ label, value, onChange, onReset, placeholder, rows = 2
         placeholder={placeholder}
         rows={rows}
         className={cn(
-          "w-full resize-none rounded-md border border-stone-800/80 bg-stone-900/60 px-2.5 py-1.5",
-          "text-[11.5px] font-mono text-stone-100 placeholder:text-stone-600",
-          "transition-colors hover:border-stone-700",
-          "focus:outline-none focus:border-stone-500/70 focus:bg-stone-900"
+          "w-full resize-none rounded-[5px] border border-white/[0.06] bg-white/[0.03] px-3 py-1.5",
+          "text-[11.5px] font-mono text-zinc-100 placeholder:text-zinc-600",
+          "transition-colors hover:border-white/[0.08]",
+          "focus:outline-none focus:border-white/[0.10] focus:bg-white/[0.04]"
         )}
       />
     </div>
@@ -1190,8 +1297,8 @@ interface StyledToggleProps {
 
 function StyledToggle({ label, checked, onChange }: StyledToggleProps) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-stone-800/80 bg-stone-900/60 px-2.5 py-1.5">
-      <label className="text-[11px] font-medium text-stone-300 capitalize">{label}</label>
+    <div className="flex items-center justify-between gap-3 rounded-[5px] border border-white/[0.06] bg-white/[0.03] px-3 py-1.5">
+      <label className="text-[11px] font-medium text-zinc-300 capitalize">{label}</label>
       <button
         type="button"
         role="switch"
@@ -1200,13 +1307,13 @@ function StyledToggle({ label, checked, onChange }: StyledToggleProps) {
         className={cn(
           "relative h-5 w-9 rounded-full transition-colors duration-150",
           "focus:outline-none",
-          checked ? "bg-stone-100" : "bg-stone-800"
+          checked ? "bg-zinc-100" : "bg-white/[0.08]"
         )}
       >
         <span
           className={cn(
             "absolute top-0.5 h-4 w-4 rounded-full transition-all duration-150 shadow-sm",
-            checked ? "left-[18px] bg-stone-900" : "left-0.5 bg-stone-400"
+            checked ? "left-[18px] bg-zinc-900" : "left-0.5 bg-zinc-500"
           )}
         />
       </button>
@@ -1278,10 +1385,10 @@ function StyledTextInput({
       />
       <div
         className={cn(
-          "group relative flex h-7 items-center rounded-md border border-stone-800/80 bg-stone-900/60 transition-colors",
+          "group relative flex h-7 items-center rounded-[5px] border border-white/[0.06] bg-white/[0.03] transition-colors",
           isFocused
-            ? "border-stone-500/70 bg-stone-900 ring-1 ring-stone-500/30"
-            : "hover:border-stone-700"
+            ? "border-white/[0.10] bg-white/[0.04] ring-1 ring-white/[0.06]"
+            : "hover:border-white/[0.08]"
         )}
       >
         <input
@@ -1313,10 +1420,10 @@ function StyledTextInput({
             }
           }}
           placeholder={placeholder}
-          className="min-w-0 flex-1 bg-transparent px-2.5 text-[11.5px] font-mono text-stone-100 placeholder:text-stone-600 focus:outline-none"
+          className="min-w-0 flex-1 bg-transparent px-2.5 text-[11.5px] font-mono text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
         />
         {unit && (
-          <span className="px-2 text-[10px] font-medium uppercase tracking-wide text-stone-500">
+          <span className="px-2 text-[10px] font-medium text-zinc-500">
             {unit}
           </span>
         )}
@@ -1352,29 +1459,29 @@ function SectionHeader({ title, icon, isExpanded, onToggle }: SectionHeaderProps
       onClick={onToggle}
       className={cn(
         "group flex w-full items-center gap-2.5 px-3.5 py-2.5 transition-colors duration-150",
-        "hover:bg-stone-900/50"
+        "hover:bg-white/[0.025]"
       )}
     >
       <div
         className={cn(
           "flex h-5 w-5 items-center justify-center transition-colors duration-150",
-          isExpanded ? "text-stone-200" : "text-stone-500 group-hover:text-stone-300"
+          isExpanded ? "text-zinc-200" : "text-zinc-500 group-hover:text-zinc-300"
         )}
       >
         {icon}
       </div>
       <span
         className={cn(
-          "flex-1 text-left text-[11px] font-semibold uppercase tracking-wider transition-colors",
-          isExpanded ? "text-stone-100" : "text-stone-400 group-hover:text-stone-200"
+          "flex-1 text-left text-[12px] font-semibold transition-colors",
+          isExpanded ? "text-zinc-100" : "text-zinc-400 group-hover:text-zinc-200"
         )}
       >
         {title}
       </span>
       <ChevronDown
         className={cn(
-          "h-3.5 w-3.5 transition-all duration-200",
-          isExpanded ? "rotate-180 text-stone-200" : "text-stone-500 group-hover:text-stone-300"
+          "h-3.5 w-3.5 transition-transform duration-130 ease-out",
+          isExpanded ? "rotate-180 text-zinc-300" : "text-zinc-600 group-hover:text-zinc-400"
         )}
       />
     </button>
@@ -1391,15 +1498,15 @@ interface SectionProps {
 
 function Section({ title, icon, isExpanded, onToggle, children }: SectionProps) {
   return (
-    <div className="border-b border-stone-800/60 last:border-b-0">
+    <div className="border-b border-white/[0.04] last:border-b-0">
       <SectionHeader title={title} icon={icon} isExpanded={isExpanded} onToggle={onToggle} />
       <div
         className={cn(
           "overflow-hidden transition-all duration-300 ease-out",
-          isExpanded ? "max-h-[1200px] opacity-100" : "max-h-0 opacity-0"
+          isExpanded ? "max-h-[1400px] opacity-100" : "max-h-0 opacity-0"
         )}
       >
-        <div className="px-3.5 pb-3.5 pt-0.5 space-y-3">{children}</div>
+        <div className="px-3.5 pb-5 pt-1 space-y-4">{children}</div>
       </div>
     </div>
   )
@@ -1417,7 +1524,7 @@ function SubGroup({ label, children, rightSlot }: SubGroupProps) {
       {(label || rightSlot) && (
         <div className="flex items-center justify-between">
           {label && (
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-stone-500">
+            <span className="text-[11px] font-medium text-zinc-500/70">
               {label}
             </span>
           )}
@@ -1425,6 +1532,27 @@ function SubGroup({ label, children, rightSlot }: SubGroupProps) {
         </div>
       )}
       {children}
+    </div>
+  )
+}
+
+function CollapsibleSubSection({ label, children }: { label: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 text-[11px] font-medium text-zinc-500 hover:text-zinc-300 transition-colors"
+      >
+        <ChevronDown className={cn("h-3 w-3 transition-transform duration-200", open && "rotate-180")} />
+        {label}
+      </button>
+      {open && (
+        <div className="space-y-3">
+          {children}
+        </div>
+      )}
     </div>
   )
 }
@@ -1438,6 +1566,32 @@ interface BoxModelControlProps {
   styles: Record<string, StyleProperty>
   onLiveChange: (property: string, value: StyleProperty) => void
   onCommit: (property: string, value: StyleProperty) => void
+}
+
+function BoxModelInput({
+  side,
+  onChange,
+}: {
+  side: { key: string; value: string }
+  onChange: (key: string, raw: string, commit: boolean) => void
+}) {
+  const numeric = extractNumericValue(side.value, 0)
+  const unit = extractUnit(side.value, "px")
+  return (
+    <div
+      className={cn(
+        "group flex h-6 w-16 items-center rounded-[5px] border border-white/[0.06] bg-white/[0.03]",
+        "transition-colors duration-150 hover:border-white/[0.08]",
+        "focus-within:border-white/[0.10] focus-within:bg-white/[0.04]"
+      )}
+    >
+      <DimensionNumberInput
+        value={numeric}
+        onChange={(n) => onChange(side.key, toCssLength(n, unit), false)}
+        onCommit={(n) => onChange(side.key, toCssLength(n, unit), true)}
+      />
+    </div>
+  )
 }
 
 function BoxModelControl({ property, styles, onLiveChange, onCommit }: BoxModelControlProps) {
@@ -1479,43 +1633,40 @@ function BoxModelControl({ property, styles, onLiveChange, onCommit }: BoxModelC
               aria-pressed={linked}
               className={cn(
                 "inline-flex h-5 w-5 items-center justify-center rounded transition-colors",
-                linked ? "bg-stone-100 text-stone-900" : "text-stone-500 hover:bg-stone-800/70 hover:text-stone-200"
+                linked ? "bg-white/[0.08] text-zinc-100" : "text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-200"
               )}
             >
               {linked ? <LinkIcon className="h-3 w-3" /> : <Unlink className="h-3 w-3" />}
             </button>
           </TooltipTrigger>
-          <TooltipContent side="top" className="bg-stone-100 text-stone-900 text-[10px] font-medium px-2 py-1">
+          <TooltipContent side="top" className="bg-zinc-800 text-zinc-200 text-[10px] font-medium px-2 py-1">
             {linked ? "Unlink sides" : "Link sides"}
           </TooltipContent>
         </Tooltip>
       }
     >
-      <div className="grid grid-cols-4 gap-1.5">
-        {sides.map((side) => {
-          const numeric = extractNumericValue(side.value, 0)
-          const unit = extractUnit(side.value, "px")
-          return (
-            <div key={side.key} className="flex flex-col items-center gap-1">
-              <div
-                className={cn(
-                  "group flex h-7 w-full items-center rounded-md border border-stone-800/80 bg-stone-900/60",
-                  "transition-colors duration-150 hover:border-stone-700",
-                  "focus-within:border-stone-500/70 focus-within:bg-stone-900 focus-within:ring-1 focus-within:ring-stone-500/30"
-                )}
-              >
-                <DimensionNumberInput
-                  value={numeric}
-                  onChange={(n) => handleSideChange(side.key, toCssLength(n, unit), false)}
-                  onCommit={(n) => handleSideChange(side.key, toCssLength(n, unit), true)}
-                />
-              </div>
-              <span className="text-[9.5px] font-semibold uppercase tracking-wider text-stone-500">
-                {side.label}
-              </span>
-            </div>
-          )
-        })}
+      <div className="grid grid-cols-3 gap-1.5 rounded-lg border border-white/[0.06] bg-white/[0.025] p-3">
+        <div />
+        <div className="flex justify-center">
+          <BoxModelInput side={sides[0]} onChange={handleSideChange} />
+        </div>
+        <div />
+        <div className="flex justify-end">
+          <BoxModelInput side={sides[3]} onChange={handleSideChange} />
+        </div>
+        <div className="flex items-center justify-center">
+          <div className="flex h-8 w-8 items-center justify-center rounded-md border border-white/[0.08] bg-white/[0.05]">
+            <div className="h-4 w-4 rounded-[3px] border border-white/[0.12]" />
+          </div>
+        </div>
+        <div className="flex justify-start">
+          <BoxModelInput side={sides[1]} onChange={handleSideChange} />
+        </div>
+        <div />
+        <div className="flex justify-center">
+          <BoxModelInput side={sides[2]} onChange={handleSideChange} />
+        </div>
+        <div />
       </div>
     </SubGroup>
   )
@@ -1547,11 +1698,11 @@ function PositionOffsetControl({ styles, onLiveChange, onCommit }: PositionOffse
   const left = make("left")
 
   const inputCls =
-    "h-6 w-14 rounded-md border border-stone-800/80 bg-stone-900/60 px-1 text-center text-[11px] font-mono text-stone-100 outline-none transition-colors hover:border-stone-700 focus:border-stone-500/70 focus:bg-stone-900"
+    "h-6 w-14 rounded-[5px] border border-white/[0.06] bg-white/[0.03] px-1 text-center text-[11px] font-mono text-zinc-100 outline-none transition-colors hover:border-white/[0.08] focus:border-white/[0.10] focus:bg-white/[0.04]"
 
   return (
     <SubGroup label="Offsets">
-      <div className="grid grid-cols-3 gap-1.5 rounded-md border border-stone-800/80 bg-stone-900/40 p-3">
+      <div className="grid grid-cols-3 gap-1.5 rounded-md border border-white/[0.04] bg-white/[0.02] p-3">
         <div />
         <div className="flex justify-center">
           <PositionInput {...top} className={inputCls} placeholder="T" />
@@ -1561,7 +1712,7 @@ function PositionOffsetControl({ styles, onLiveChange, onCommit }: PositionOffse
           <PositionInput {...left} className={inputCls} placeholder="L" />
         </div>
         <div className="flex items-center justify-center">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md border border-stone-700 bg-stone-800/60 text-stone-500">
+          <div className="flex h-8 w-8 items-center justify-center rounded-md border border-white/[0.06] bg-white/[0.03] text-zinc-500">
             <Crosshair className="h-3.5 w-3.5" />
           </div>
         </div>
@@ -1595,6 +1746,15 @@ function PositionInput({ numeric, onChange, onCommit, className, placeholder }: 
     if (!focused) setLocal(numeric.toString())
   }, [numeric, focused])
 
+  const stepBy = (direction: 1 | -1, modifiers?: { shiftKey?: boolean; altKey?: boolean }) => {
+    const current = parseFloat(local) || 0
+    const multiplier = modifiers?.shiftKey ? 10 : modifiers?.altKey ? 0.1 : 1
+    const next = Math.round((current + direction * multiplier) * 100) / 100
+    setLocal(next.toString())
+    onChange(next)
+    onCommit(next)
+  }
+
   return (
     <input
       type="text"
@@ -1622,7 +1782,18 @@ function PositionInput({ numeric, onChange, onCommit, className, placeholder }: 
           const parsed = parseFloat(local)
           if (Number.isFinite(parsed)) onCommit(parsed)
             ; (e.target as HTMLInputElement).blur()
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault()
+          stepBy(1, { shiftKey: e.shiftKey, altKey: e.altKey })
+        } else if (e.key === "ArrowDown") {
+          e.preventDefault()
+          stepBy(-1, { shiftKey: e.shiftKey, altKey: e.altKey })
         }
+      }}
+      onWheel={(e) => {
+        if (!focused) return
+        e.preventDefault()
+        stepBy(e.deltaY < 0 ? 1 : -1, { shiftKey: e.shiftKey, altKey: e.altKey })
       }}
       className={className}
     />
@@ -1642,11 +1813,11 @@ const FONT_FAMILY_OPTIONS: DropdownOption[] = [
   { value: "system-ui", label: "System UI" },
 ]
 
-const FONT_WEIGHT_OPTIONS: SegmentOption[] = [
+const FONT_WEIGHT_OPTIONS: DropdownOption[] = [
   { value: "300", label: "Light" },
   { value: "400", label: "Regular" },
   { value: "500", label: "Medium" },
-  { value: "600", label: "Semi" },
+  { value: "600", label: "Semibold" },
   { value: "700", label: "Bold" },
 ]
 
@@ -1775,11 +1946,11 @@ const BORDER_STYLE_OPTIONS: DropdownOption[] = [
   { value: "double", label: "Double" },
 ]
 
-const SIZE_PRESETS = [
-  { label: "Auto", value: "auto" },
-  { label: "Fit", value: "fit-content" },
-  { label: "Full", value: "100%" },
-  { label: "None", value: "none" },
+const SIZE_MODE_SEGMENTS: SegmentOption[] = [
+  { value: "auto", label: "Auto", tooltip: "Size: auto" },
+  { value: "fit-content", label: "Fit", tooltip: "Size: fit-content" },
+  { value: "100%", label: "Fill", tooltip: "Size: 100%" },
+  { value: "none", label: "None", tooltip: "Size: none" },
 ]
 
 const RADIUS_PRESETS = [
@@ -1802,13 +1973,13 @@ const SPACING_PRESETS = [
 
 const SHADOW_PRESETS = [
   { label: "None", value: "none" },
-  { label: "Sm", value: "0 1px 2px rgba(0,0,0,0.1)" },
-  { label: "Md", value: "0 4px 8px rgba(0,0,0,0.15)" },
-  { label: "Lg", value: "0 10px 24px rgba(0,0,0,0.25)" },
-  { label: "XL", value: "0 20px 40px rgba(0,0,0,0.35)" },
+  { label: "Small", value: "0 1px 2px rgba(0,0,0,0.1)" },
+  { label: "Medium", value: "0 4px 8px rgba(0,0,0,0.15)" },
+  { label: "Large", value: "0 10px 24px rgba(0,0,0,0.25)" },
+  { label: "X-Large", value: "0 20px 40px rgba(0,0,0,0.35)" },
 ]
 
-const STYLE_SECTION_ORDER = ["size", "spacing", "layout", "position", "typography", "colors", "border", "effects", "advanced"]
+const STYLE_SECTION_ORDER = ["size", "layout", "typography", "colors", "spacing", "border", "effects", "position", "advanced"]
 
 const PROPERTY_SECTION_ORDER: ElementPropertySection[] = [
   "attributes",
@@ -1836,24 +2007,24 @@ const STYLE_SECTION_TITLES: Record<string, string> = {
   layout: "Layout",
   position: "Position",
   typography: "Typography",
-  colors: "Fill & Color",
+  colors: "Colors",
   border: "Border",
   effects: "Effects",
   advanced: "Advanced",
 }
 
 const SECTION_ICONS: Record<string, React.ReactNode> = {
-  size: <Maximize2 className="h-3.5 w-3.5" />,
-  spacing: <Move className="h-3.5 w-3.5" />,
-  layout: <Layers className="h-3.5 w-3.5" />,
-  position: <Pin className="h-3.5 w-3.5" />,
-  typography: <Type className="h-3.5 w-3.5" />,
-  colors: <Droplet className="h-3.5 w-3.5" />,
-  border: <Square className="h-3.5 w-3.5" />,
-  effects: <Sparkles className="h-3.5 w-3.5" />,
-  advanced: <Wand2 className="h-3.5 w-3.5" />,
-  attributes: <Box className="h-3.5 w-3.5" />,
-  link: <Link2 className="h-3.5 w-3.5" />,
+  size: <Maximize2 className="h-3.5 w-3.5" strokeWidth={1.75} />,
+  spacing: <Move className="h-3.5 w-3.5" strokeWidth={1.75} />,
+  layout: <Layers className="h-3.5 w-3.5" strokeWidth={1.75} />,
+  position: <Pin className="h-3.5 w-3.5" strokeWidth={1.75} />,
+  typography: <Type className="h-3.5 w-3.5" strokeWidth={1.75} />,
+  colors: <Droplet className="h-3.5 w-3.5" strokeWidth={1.75} />,
+  border: <Square className="h-3.5 w-3.5" strokeWidth={1.75} />,
+  effects: <Sparkles className="h-3.5 w-3.5" strokeWidth={1.75} />,
+  advanced: <Wand2 className="h-3.5 w-3.5" strokeWidth={1.75} />,
+  attributes: <Box className="h-3.5 w-3.5" strokeWidth={1.75} />,
+  link: <Link2 className="h-3.5 w-3.5" strokeWidth={1.75} />,
   image: <ImageIcon className="h-3.5 w-3.5" />,
   button: <MousePointer2 className="h-3.5 w-3.5" />,
   field: <span className="font-mono text-[10px] font-bold">f(x)</span>,
@@ -1876,10 +2047,10 @@ export function StylePanel({
   onPositionChange,
   onUndo,
   onRedo,
-  canUndo = false,
-  canRedo = false,
+  canUndo: _canUndo = false,
+  canRedo: _canRedo = false,
 }: StylePanelProps) {
-  const { toggleSection, isExpanded, expandSections, collapseAllSections } = useSectionState()
+  const { toggleSection, isExpanded } = useSectionState()
   const [position, setPosition] = useState(initialPosition || { x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const dragStartRef = useRef<{ x: number; y: number; posX: number; posY: number } | null>(null)
@@ -1955,9 +2126,19 @@ export function StylePanel({
       if (activePointerIdRef.current !== null && e.pointerId !== activePointerIdRef.current) return
       const dx = e.clientX - dragStartRef.current.x
       const dy = e.clientY - dragStartRef.current.y
+      const panelEl = panelRef.current
+      const panelW = panelEl?.offsetWidth || 332
+      const panelH = panelEl?.offsetHeight || 640
+      const rect = panelEl?.getBoundingClientRect()
+      const baseLeft = rect ? rect.left - dragStartRef.current.posX : 0
+      const baseTop = rect ? rect.top - dragStartRef.current.posY : 0
+      const maxX = window.innerWidth - baseLeft - panelW - 8
+      const maxY = window.innerHeight - baseTop - panelH - 8
+      const minX = -baseLeft + 8
+      const minY = -baseTop + 8
       const newPos = {
-        x: dragStartRef.current.posX + dx,
-        y: dragStartRef.current.posY + dy,
+        x: Math.min(Math.max(dragStartRef.current.posX + dx, minX), maxX),
+        y: Math.min(Math.max(dragStartRef.current.posY + dy, minY), maxY),
       }
       setPosition(newPos)
       onPositionChange?.(newPos)
@@ -2014,6 +2195,24 @@ export function StylePanel({
       },
     [onLiveStyleChange, immediateStyleChange]
   )
+
+  const handleCopyStyles = useCallback(() => {
+    const css = Object.entries(selectedElement.styles)
+      .filter(([, v]) => v !== "" && v !== undefined && v !== null)
+      .map(([k, v]) => {
+        const kebab = k.replace(/([A-Z])/g, "-$1").toLowerCase()
+        return `${kebab}: ${v};`
+      })
+      .join("\n")
+    navigator.clipboard?.writeText(css)
+  }, [selectedElement.styles])
+
+  const handleResetAllStyles = useCallback(() => {
+    Object.keys(selectedElement.styles).forEach((p) => {
+      onLiveStyleChange?.(p, "")
+      immediateStyleChange(p, "", true)
+    })
+  }, [selectedElement.styles, onLiveStyleChange, immediateStyleChange])
 
   const handleElementPropertyChange = useCallback(
     (key: string, value: ElementPropertyValue, immediate: boolean = false) => {
@@ -2142,9 +2341,9 @@ export function StylePanel({
         style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
         className={cn(
           "relative z-[61]",
-          "w-[316px] max-h-[640px] flex flex-col overflow-hidden",
+          "w-[332px] max-h-[640px] flex flex-col overflow-hidden",
           "rounded-xl border border-white/[0.06]",
-          "bg-zinc-950/90 backdrop-blur-xl",
+          "bg-[#1a1a1c]",
           "shadow-2xl shadow-black/60",
           "ring-1 ring-white/[0.04]",
           "animate-in fade-in slide-in-from-right-4 duration-200",
@@ -2152,7 +2351,7 @@ export function StylePanel({
           className
         )}
       >
-        {/* Compact Draggable Header */}
+        {/* Draggable Header */}
         <div
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -2160,41 +2359,39 @@ export function StylePanel({
           onPointerCancel={handlePointerCancel}
           style={{ touchAction: "none" }}
           className={cn(
-            "relative flex items-center gap-2 px-3 py-2.5 border-b border-white/[0.04]",
-            "bg-white/[0.02]",
+            "relative flex items-center gap-2 px-3 py-1.5 border-b border-white/[0.04]",
+            "bg-[#161618]",
             isDragging ? "cursor-grabbing" : "cursor-grab"
           )}
         >
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-white/[0.08] text-zinc-200">
-              <span className="text-[9px] font-bold uppercase">
-                {selectedElement.type.slice(0, 2)}
+            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-white/[0.06] text-zinc-300 ring-1 ring-inset ring-white/[0.04]">
+              <span className="text-[9px] font-bold">
+                {selectedElement.type.slice(0, 2).toUpperCase()}
               </span>
             </div>
             <div className="flex flex-col min-w-0">
               <span className="text-[12px] font-semibold text-zinc-100 leading-tight truncate">
                 {selectedElement.type.toLowerCase()}
               </span>
-              <span className="text-[9.5px] text-zinc-500 leading-tight">Element styles</span>
+              <span className="text-[9.5px] text-zinc-500 leading-tight font-mono">{"<" + selectedElement.type.toLowerCase() + ">"}</span>
             </div>
           </div>
 
           <div className="flex items-center gap-0.5" data-no-drag>
             <IconButton
-              icon={<Undo2 className="h-3.5 w-3.5" />}
-              tooltip="Undo (⌘Z)"
+              icon={<Copy className="h-3.5 w-3.5" />}
+              tooltip="Copy styles"
               size="sm"
               variant="ghost"
-              disabled={!canUndo}
-              onClick={onUndo}
+              onClick={handleCopyStyles}
             />
             <IconButton
-              icon={<Redo2 className="h-3.5 w-3.5" />}
-              tooltip="Redo (⌘⇧Z)"
+              icon={<RotateCcw className="h-3.5 w-3.5" />}
+              tooltip="Reset all styles"
               size="sm"
               variant="ghost"
-              disabled={!canRedo}
-              onClick={onRedo}
+              onClick={handleResetAllStyles}
             />
             <div className="mx-1 h-4 w-px bg-white/[0.04]" />
             <IconButton
@@ -2207,27 +2404,8 @@ export function StylePanel({
           </div>
         </div>
 
-        {/* Toolbar */}
-        <div className="flex items-center gap-1.5 px-3 py-2 border-b border-stone-800/80 bg-stone-950/50">
-          <button
-            type="button"
-            onClick={() => expandSections(visibleSections)}
-            className="h-5 rounded px-1.5 text-[10px] font-medium text-stone-400 transition-colors hover:bg-stone-800/70 hover:text-stone-100"
-          >
-            Expand all
-          </button>
-          <span className="h-3 w-px bg-stone-800" />
-          <button
-            type="button"
-            onClick={collapseAllSections}
-            className="h-5 rounded px-1.5 text-[10px] font-medium text-stone-400 transition-colors hover:bg-stone-800/70 hover:text-stone-100"
-          >
-            Collapse all
-          </button>
-        </div>
-
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-stone-700 scrollbar-track-transparent">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-white/[0.04] scrollbar-track-transparent hover:scrollbar-thumb-white/[0.08]">
           {/* Size */}
           {visibleSections.includes("size") &&
             renderSection(
@@ -2240,7 +2418,12 @@ export function StylePanel({
                   onLiveChange={handleStyleChange}
                   onCommit={handleImmediateStyleChange}
                   onReset={resetStyle("width")}
-                  presets={SIZE_PRESETS}
+                />
+                <SegmentedControl
+                  value={isKeywordValue(selectedElement.styles.width) ? selectedElement.styles.width?.toString() || "" : ""}
+                  options={SIZE_MODE_SEGMENTS}
+                  onChange={(v) => handleImmediateStyleChange("width", v)}
+                  size="sm"
                 />
                 <DimensionControl
                   label="Height"
@@ -2249,26 +2432,33 @@ export function StylePanel({
                   onLiveChange={handleStyleChange}
                   onCommit={handleImmediateStyleChange}
                   onReset={resetStyle("height")}
-                  presets={SIZE_PRESETS}
                 />
-                <div className="grid grid-cols-2 gap-2.5">
-                  <DimensionControl
-                    label="Min W"
-                    value={selectedElement.styles.minWidth}
-                    property="minWidth"
-                    onLiveChange={handleStyleChange}
-                    onCommit={handleImmediateStyleChange}
-                    onReset={resetStyle("minWidth")}
-                  />
-                  <DimensionControl
-                    label="Max W"
-                    value={selectedElement.styles.maxWidth}
-                    property="maxWidth"
-                    onLiveChange={handleStyleChange}
-                    onCommit={handleImmediateStyleChange}
-                    onReset={resetStyle("maxWidth")}
-                  />
-                </div>
+                <SegmentedControl
+                  value={isKeywordValue(selectedElement.styles.height) ? selectedElement.styles.height?.toString() || "" : ""}
+                  options={SIZE_MODE_SEGMENTS}
+                  onChange={(v) => handleImmediateStyleChange("height", v)}
+                  size="sm"
+                />
+                <CollapsibleSubSection label="Advanced">
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <DimensionControl
+                      label="Min W"
+                      value={selectedElement.styles.minWidth}
+                      property="minWidth"
+                      onLiveChange={handleStyleChange}
+                      onCommit={handleImmediateStyleChange}
+                      onReset={resetStyle("minWidth")}
+                    />
+                    <DimensionControl
+                      label="Max W"
+                      value={selectedElement.styles.maxWidth}
+                      property="maxWidth"
+                      onLiveChange={handleStyleChange}
+                      onCommit={handleImmediateStyleChange}
+                      onReset={resetStyle("maxWidth")}
+                    />
+                  </div>
+                </CollapsibleSubSection>
               </>
             )}
 
@@ -2286,6 +2476,7 @@ export function StylePanel({
                 <PresetChips
                   label="Margin presets"
                   values={SPACING_PRESETS}
+                  collapsible
                   onSelect={(v) => {
                     const value = toCssLength(Number(v))
                       ;["marginTop", "marginRight", "marginBottom", "marginLeft"].forEach((p) =>
@@ -2293,7 +2484,7 @@ export function StylePanel({
                       )
                   }}
                 />
-                <div className="h-px bg-stone-800/60" />
+                <div className="h-px bg-white/[0.04]" />
                 <BoxModelControl
                   property="padding"
                   styles={selectedElement.styles}
@@ -2303,6 +2494,7 @@ export function StylePanel({
                 <PresetChips
                   label="Padding presets"
                   values={SPACING_PRESETS}
+                  collapsible
                   onSelect={(v) => {
                     const value = toCssLength(Number(v))
                       ;["paddingTop", "paddingRight", "paddingBottom", "paddingLeft"].forEach((p) =>
@@ -2416,13 +2608,12 @@ export function StylePanel({
                   showSlider
                   sliderMax={96}
                 />
-                <SegmentedControl
+                <StyledDropdown
                   label="Font Weight"
                   value={selectedElement.styles.fontWeight?.toString() || ""}
-                  options={FONT_WEIGHT_OPTIONS}
                   onChange={(v) => handleImmediateStyleChange("fontWeight", v)}
                   onReset={resetStyle("fontWeight")}
-                  size="sm"
+                  options={FONT_WEIGHT_OPTIONS}
                 />
                 <div className="grid grid-cols-2 gap-2.5">
                   <NumberInput
@@ -2443,7 +2634,6 @@ export function StylePanel({
                     onLiveChange={handleStyleChange}
                     onCommit={handleImmediateStyleChange}
                     onReset={resetStyle("letterSpacing")}
-                    showStepper
                   />
                 </div>
                 <SegmentedControl
@@ -2452,6 +2642,7 @@ export function StylePanel({
                   options={TEXT_ALIGN_SEGMENTS}
                   onChange={(v) => handleImmediateStyleChange("textAlign", v)}
                   onReset={resetStyle("textAlign")}
+                  size="sm"
                 />
               </>
             )}
@@ -2539,6 +2730,7 @@ export function StylePanel({
                   min={0}
                   max={100}
                   unit="%"
+                  hideValue
                 />
                 <SubGroup label="Box Shadow">
                   <PresetChips

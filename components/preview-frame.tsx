@@ -164,7 +164,7 @@ const MIN_FRAME_WIDTH = 280
 const MIN_FRAME_HEIGHT = 220
 const CANVAS_GRID_SIZE = 32
 const CANVAS_MAJOR_GRID_SIZE = 160
-const CANVAS_FRAME_PADDING = 24
+const CANVAS_FRAME_PADDING = 48
 const MOVE_HANDLE_CLEARANCE = 56
 const MIN_CANVAS_SCALE = 0.4
 const MAX_CANVAS_SCALE = 3
@@ -232,6 +232,7 @@ export function PreviewFrame({
   const [canvasScale, setCanvasScale] = useState(1)
   const [activeInteraction, setActiveInteraction] = useState<CanvasInteraction["type"] | null>(null)
   const [showInfoPill, setShowInfoPill] = useState(true)
+  const [isFrameHovered, setIsFrameHovered] = useState(false)
   const canvasOffsetRef = useRef(canvasOffset)
   const framePositionRef = useRef(framePosition)
   const canvasScaleRef = useRef(canvasScale)
@@ -244,7 +245,7 @@ export function PreviewFrame({
     hasPreviewShell ? "rounded-[24px] border border-white/[0.04] bg-zinc-950/30 p-3" : "rounded-none border-0 bg-transparent p-0 shadow-none ring-0",
   )
   const frameClassName = cn(
-    "bg-white shadow-2xl overflow-hidden",
+    "bg-white shadow-[0_2px_8px_rgba(0,0,0,0.08),0_20px_60px_rgba(0,0,0,0.16),0_0_0_1px_rgba(0,0,0,0.06)] overflow-hidden",
     activeInteraction ? "transition-none" : "transition-all duration-300",
     isTabletMode ? "rounded-[28px]" : deviceMode === "mobile" ? "rounded-[24px]" : "rounded-lg",
   )
@@ -273,7 +274,7 @@ export function PreviewFrame({
 
     setCanvasOffset({
       x: Math.round((bounds.width - outerDimensions.width * nextScale) / 2),
-      y: Math.round((bounds.height - footprintDimensions.height * nextScale) / 2 + MOVE_HANDLE_CLEARANCE * nextScale),
+      y: Math.round((bounds.height - footprintDimensions.height * nextScale) / 2 + MOVE_HANDLE_CLEARANCE * nextScale + 18),
     })
     setFramePosition({ x: 0, y: 0 })
   }, [deviceMode])
@@ -1253,7 +1254,7 @@ export function PreviewFrame({
 
       <div
         ref={canvasViewportRef}
-        className="relative flex-1 overflow-hidden bg-black"
+        className="relative flex-1 overflow-hidden bg-[#0a0a0b]"
       >
         <div
           className={cn(
@@ -1269,12 +1270,12 @@ export function PreviewFrame({
           <div
             className={cn(
               "pointer-events-none absolute inset-0",
-              isDesignMode ? "opacity-70" : "opacity-35",
+              isDesignMode ? "opacity-50" : "opacity-20",
             )}
             style={{
               backgroundImage: [
-                "radial-gradient(circle, rgba(255,255,255,0.15) 1px, transparent 1px)",
-                "radial-gradient(circle, rgba(255,255,255,0.25) 1.5px, transparent 1.5px)",
+                "radial-gradient(circle, rgba(255,255,255,0.10) 1px, transparent 1px)",
+                "radial-gradient(circle, rgba(255,255,255,0.15) 1.5px, transparent 1.5px)",
               ].join(", "),
               backgroundSize: [
                 `${minorGridUnit}px ${minorGridUnit}px`,
@@ -1296,8 +1297,12 @@ export function PreviewFrame({
             transformOrigin: "top left",
           }}
         >
-          <div className="relative">
-            {isCanvasNavigationEnabled ? (
+          <div
+            className="relative"
+            onMouseEnter={() => setIsFrameHovered(true)}
+            onMouseLeave={() => setIsFrameHovered(false)}
+          >
+            {isCanvasNavigationEnabled && (isFrameHovered || activeInteraction === "move") ? (
               <button
                 onPointerDown={startMoveInteraction}
                 className={cn(

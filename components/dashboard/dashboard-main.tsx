@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Sparkles, Bot, Zap, Key } from "lucide-react"
+import { Sparkles, Bot, Zap, Key, ChevronRight } from "lucide-react"
 import { useState, useEffect, useCallback } from "react"
 import { FeedbackModal } from "@/components/feedback-modal"
 import { PricingModal } from "@/components/pricing-modal"
@@ -19,6 +19,7 @@ import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar"
 import { DashboardTopNav } from "@/components/dashboard/dashboard-top-nav"
 import { PromptInput } from "@/components/ui/prompt-input"
 import { DashboardProjectsGrid } from "@/components/dashboard/dashboard-projects-grid"
+import { DashboardProjectCard } from "@/components/dashboard/dashboard-project-card"
 
 const TIER_CREDITS: Record<SubscriptionTier, number> = {
   free: 20,
@@ -449,26 +450,103 @@ export function DashboardMain({
         {/* Main Content Area */}
         <div className="relative z-10 flex-1 flex flex-col">
           {view === "dashboard" ? (
-            <PromptInput
-              promptValue={promptValue}
-              onPromptValueChange={setPromptValue}
-              onSend={handleSendFromInput}
-              onEnhance={handleEnhancePrompt}
-              isStartingProject={isStartingProject}
-              selectedModelId={selectedModelId}
-              availableModels={availableModels}
-              isLoadingModels={isLoadingModels}
-              getModelIcon={getModelIcon}
-              onModelChange={setModel}
-              thinkingEffort={state.thinkingEffort}
-              onThinkingEffortChange={setThinkingEffort}
-              onStartLandingPage={startLandingPage}
-              onStartBlankProject={() => {
-                if (!isStartingProject) {
-                  onStart(undefined, selectedModelId)
-                }
-              }}
-            />
+            <>
+              <PromptInput
+                promptValue={promptValue}
+                onPromptValueChange={setPromptValue}
+                onSend={handleSendFromInput}
+                onEnhance={handleEnhancePrompt}
+                isStartingProject={isStartingProject}
+                selectedModelId={selectedModelId}
+                availableModels={availableModels}
+                isLoadingModels={isLoadingModels}
+                getModelIcon={getModelIcon}
+                onModelChange={setModel}
+                thinkingEffort={state.thinkingEffort}
+                onThinkingEffortChange={setThinkingEffort}
+                onStartLandingPage={startLandingPage}
+                onStartBlankProject={() => {
+                  if (!isStartingProject) {
+                    onStart(undefined, selectedModelId)
+                  }
+                }}
+                hasProjects={projects.length > 0}
+              />
+              {/* Continue where you left off — recent projects beneath the prompt */}
+              {!isLoadingProjects && projects.length > 0 && (
+                <div className="w-full max-w-[860px] mx-auto px-3 sm:px-4 pb-6">
+                  <div className="flex items-baseline justify-between mb-3">
+                    <div className="flex items-baseline gap-2">
+                      <h2 className="text-[11px] font-medium text-[#9B9B9F]">
+                        Continue where you left off
+                      </h2>
+                      {projects.some((p) => {
+                        const diff = Date.now() - new Date(p.updatedAt).getTime()
+                        return diff < 86400000
+                      }) && (
+                          <span className="text-[10px] text-[#6B6B70]">
+                            Edited today
+                          </span>
+                        )}
+                    </div>
+                    <button
+                      onClick={() => setView("projects")}
+                      className="flex items-center gap-0.5 text-[11px] text-[#9B9B9F] hover:text-[#E7E7E9] transition-colors group"
+                    >
+                      Browse all
+                      <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+                    {projects
+                      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+                      .slice(0, 4)
+                      .map((project) => (
+                        <DashboardProjectCard
+                          key={project.id}
+                          project={project}
+                          onDelete={handleDeleteProject}
+                          isDeleting={deletingProjectId === project.id}
+                          onToggleFavorite={handleToggleFavorite}
+                          onToggleVisibility={handleToggleVisibility}
+                          onOpenPublic={handleOpenPublicProject}
+                          isFavoriteUpdating={updatingFavoriteIds.includes(project.id)}
+                          isVisibilityUpdating={updatingVisibilityIds.includes(project.id)}
+                        />
+                      ))}
+                  </div>
+                </div>
+              )}
+              {/* Empty state — onboarding for new users with 0 projects */}
+              {!isLoadingProjects && projects.length === 0 && (
+                <div className="w-full max-w-[680px] mx-auto px-3 sm:px-4 pb-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-[11px] font-medium text-[#9B9B9F]">
+                      What's new
+                    </h2>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {[
+                      { title: "Multi-model support", desc: "Switch between GPT-4o, Claude, and more" },
+                      { title: "Image to code", desc: "Upload a screenshot and get a working page" },
+                      { title: "One-click deploy", desc: "Publish your project to the web instantly" },
+                    ].map((item) => (
+                      <div
+                        key={item.title}
+                        className="glass-card rounded-lg p-3 hover:border-white/[0.08] transition-colors"
+                      >
+                        <h3 className="text-xs font-semibold text-[#E7E7E9] mb-1">
+                          {item.title}
+                        </h3>
+                        <p className="text-[10px] text-[#9B9B9F]/70 leading-relaxed">
+                          {item.desc}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           ) : (
             <DashboardProjectsGrid
               projects={projects}

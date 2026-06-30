@@ -12,7 +12,7 @@ import { CodeEditor } from "@/components/code-editor"
 import { StylePanel, type SelectedElement, type StyleProperty, type StyleChange } from "@/components/style-panel"
 import { TextShimmer } from "@/components/ui/text-shimmer";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
-import { ChevronDown, ChevronLeft, PanelLeftClose, X, ChevronUp, RotateCcw, Bot, Sparkles, Zap, Key } from "lucide-react"
+import { ChevronDown, ChevronLeft, PanelLeftClose, X, ChevronUp, RotateCcw, Bot, Sparkles, Zap, Key, Pencil, Check } from "lucide-react"
 import { SolarCodeSquareLinear } from "@/components/solar-code-square-linear"
 import { useSession } from "next-auth/react"
 import { useAuthDialog } from "@/components/auth-dialog-provider"
@@ -82,6 +82,17 @@ type ExportFormat = "html" | "react" | "prompt"
 type CheckpointKind = "auto" | "manual" | "restore"
 type CheckpointTrigger = "before-ai" | "after-ai" | "manual-save" | "restore"
 
+interface BuildSummaryItem {
+  label: string
+  status: "done" | "suggestion"
+}
+
+interface BuildSummary {
+  title: string
+  built: BuildSummaryItem[]
+  suggestions?: BuildSummaryItem[]
+}
+
 interface Message {
   id: string
   content: string
@@ -91,6 +102,7 @@ interface Message {
   thinkingContent?: string
   progressLabel?: string
   images?: string[]
+  buildSummary?: BuildSummary
 }
 
 function normalizeMessageRole(value: unknown): Message["role"] {
@@ -100,6 +112,18 @@ function normalizeMessageRole(value: unknown): Message["role"] {
 function normalizeMessageTimestamp(value: unknown): Date {
   const candidate = value instanceof Date ? value : new Date(typeof value === "string" || typeof value === "number" ? value : Date.now())
   return Number.isNaN(candidate.getTime()) ? new Date() : candidate
+}
+
+function getRelativeTime(date: Date | null): string {
+  if (!date) return "Saved"
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
+  if (seconds < 5) return "Saved just now"
+  if (seconds < 60) return `Saved ${seconds}s ago`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `Saved ${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `Saved ${hours}h ago`
+  return `Saved ${Math.floor(hours / 24)}d ago`
 }
 
 function getAtomicFollowUpProgressLabel(progress: AIStreamProgress): string {
@@ -502,6 +526,87 @@ function buildFollowUpSummary(prompt: string, html: string): string {
   return [requestLine, generatedLine, designLine].join("\n")
 }
 
+function extractBuildSummary(options: {
+  prompt: string
+  html: string
+  isFollowUp: boolean
+}): BuildSummary {
+  const { prompt, html, isFollowUp } = options
+  const built: BuildSummaryItem[] = []
+  const suggestions: BuildSummaryItem[] = []
+
+  if (isFollowUp) {
+    const contentNotes = extractFollowUpContentNotes(prompt)
+    const designNotes = extractFollowUpDesignNotes(prompt)
+    for (const note of contentNotes) {
+      built.push({ label: note, status: "done" })
+    }
+    for (const note of designNotes) {
+      built.push({ label: note, status: "done" })
+    }
+    if (built.length === 0) {
+      built.push({ label: "UI updated", status: "done" })
+    }
+  } else if (typeof DOMParser !== "undefined" && html.trim()) {
+    const doc = new DOMParser().parseFromString(html, "text/html")
+    const fullText = doc.body?.textContent || ""
+    const lowerHtml = html.toLowerCase()
+
+    if (doc.querySelector("nav") || /nav|navbar|menu/.test(fullText)) {
+      built.push({ label: "Navigation", status: "done" })
+    }
+    if (doc.querySelector("h1")) {
+      built.push({ label: "Hero", status: "done" })
+    }
+    if (/cta|button|call to action|get started|sign up|subscribe/.test(fullText)) {
+      built.push({ label: "Call to action", status: "done" })
+    }
+    if (doc.querySelectorAll("img").length >= 3) {
+      built.push({ label: "Image gallery", status: "done" })
+    }
+    if (doc.querySelector("form") || /contact|newsletter|signup/.test(fullText)) {
+      built.push({ label: "Contact form", status: "done" })
+    }
+    if (/testimonial|review|client quote/.test(fullText)) {
+      built.push({ label: "Testimonials", status: "done" })
+    }
+    if (/pricing|plan|tier|subscription/.test(fullText)) {
+      built.push({ label: "Pricing table", status: "done" })
+    }
+    if (/faq|question|answer/.test(fullText)) {
+      built.push({ label: "FAQ section", status: "done" })
+    }
+    if (doc.querySelector("footer")) {
+      built.push({ label: "Footer", status: "done" })
+    }
+    if (/grid|columns-|md:grid|lg:grid/.test(lowerHtml)) {
+      built.push({ label: "Responsive grid layout", status: "done" })
+    }
+    if (/transition|hover|animate|keyframes/.test(lowerHtml)) {
+      built.push({ label: "Animations", status: "done" })
+    }
+
+    if (built.length === 0) {
+      built.push({ label: "Page generated", status: "done" })
+    }
+
+    if (!/testimonial|review/.test(fullText)) {
+      suggestions.push({ label: "Add testimonials", status: "suggestion" })
+    }
+    if (!/responsive|md:|lg:|sm:/.test(lowerHtml)) {
+      suggestions.push({ label: "Improve mobile responsiveness", status: "suggestion" })
+    }
+  } else {
+    built.push({ label: "Page generated", status: "done" })
+  }
+
+  return {
+    title: isFollowUp ? "Completed" : "Generated",
+    built,
+    suggestions: suggestions.length > 0 ? suggestions : undefined,
+  }
+}
+
 function buildPromptScopeRecoveryPrompt(prompt: string, missingRequirements: string[]): string {
   const missingList = missingRequirements.join(", ")
 
@@ -777,6 +882,8 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
   }, [])
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
+  const [, setNowTick] = useState(0)
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null)
   const [panelPosition, setPanelPosition] = useState<{ x: number; y: number } | null>(null)
 
@@ -880,6 +987,12 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
   // Style History for undo/redo
   const [styleHistoryState, styleHistoryActions] = useStyleHistory(30)
+
+  // Refresh relative time every 15s
+  useEffect(() => {
+    const interval = window.setInterval(() => setNowTick((n) => n + 1), 15_000)
+    return () => window.clearInterval(interval)
+  }, [])
 
   // Track pending style updates for smooth animations
   const pendingStyleUpdate = useRef<{ property: string; value: StyleProperty } | null>(null)
@@ -1219,6 +1332,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       createdProjectIdRef.current = id
       lastSavedContentRef.current = content || htmlContentRef.current || ""
       setHasUnsavedChanges(false)
+      setLastSavedAt(new Date())
       // Update URL silently so refreshes work, without triggering React re-render
       window.history.replaceState(window.history.state, "", `/project/${id}`)
       return id
@@ -1255,6 +1369,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         // content matches persisted state (Bug #6).
         lastSavedHtmlRef.current = content.trim()
         setHasUnsavedChanges(false)
+        setLastSavedAt(new Date())
       } else {
         console.error("Failed to save project to MongoDB")
       }
@@ -1473,6 +1588,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     if (savedVersion || !session?.user?.id) {
       lastSavedContentRef.current = content
       setHasUnsavedChanges(false)
+      setLastSavedAt(new Date())
     }
 
     if (!options?.silent) {
@@ -1659,7 +1775,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
   }, [previewHtmlContent, versionHistoryOpen])
 
   const finalizeAssistantMessage = useCallback(
-    (content: string, assistantMessageId?: string) => {
+    (content: string, assistantMessageId?: string, buildSummary?: BuildSummary) => {
       const lastMessage = messagesRef.current[messagesRef.current.length - 1]
       const targetMessageId = assistantMessageId
         ?? (lastMessage && lastMessage.role === "assistant" ? lastMessage.id : undefined)
@@ -1696,7 +1812,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
           }
 
           didUpdate = true
-          return { ...message, isThinking: false, content, progressLabel: undefined }
+          return { ...message, isThinking: false, content, progressLabel: undefined, buildSummary }
         })
 
         return didUpdate ? nextMessages : prev
@@ -2182,10 +2298,16 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         ? `${fallbackSummary}\nScope note: ${scopeFailureMessage} The latest complete UI was kept in the editor.`
         : fallbackSummary
 
+      const summary = extractBuildSummary({
+        prompt: lastUserPromptRef.current,
+        html: finalHtml,
+        isFollowUp,
+      })
+
       finalizeGenerationSuccess()
 
       if (!assistantMessageId) {
-        finalizeAssistantMessage(fallbackAssistantMessage)
+        finalizeAssistantMessage(fallbackAssistantMessage, undefined, summary)
         return
       }
 
@@ -2209,7 +2331,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
             : assistantMessage
           : fallbackAssistantMessage
 
-        finalizeAssistantMessage(resolvedSummary, assistantMessageId)
+        finalizeAssistantMessage(resolvedSummary, assistantMessageId, summary)
         // ponytail: dequeue queued prompt on terminal state (Bug #5).
         // Only fires after successful completion (not during recovery).
         dequeueAndSend()
@@ -3169,12 +3291,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
 
   // Calculate panel position to keep it within viewport
   const calculatePanelPosition = useCallback((clickPos: { x: number; y: number }) => {
-    const panelWidth = 288 + 16 // w-72 + padding
-    const panelHeight = 480 + 16 // max-h-[480px] + padding
+    const panelWidth = 332 + 16 // w-[332px] + padding
+    const panelHeight = 640 + 16 // max-h-[640px] + padding
     const offset = 12
-    const sidebarWidth = sidebarOpen ? 380 : 0
+    const sidebarWidth = sidebarOpen ? 356 : 0
 
-    // Get available viewport area (accounting for sidebar)
     const viewportWidth = window.innerWidth
     const viewportHeight = window.innerHeight
 
@@ -3189,13 +3310,18 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     // Ensure left doesn't go behind sidebar
     left = Math.max(sidebarWidth + 8, left)
 
-    // Check bottom edge - if panel would overflow, position above cursor
+    // Check bottom edge - if panel would overflow, open upwards from click
     if (top + panelHeight > viewportHeight) {
-      top = Math.max(60, viewportHeight - panelHeight - 8) // 60 for top nav
+      // Position panel above the click point
+      top = clickPos.y - panelHeight - offset
+      // If that goes above viewport, clamp to top
+      if (top < 8) {
+        top = 8
+      }
     }
 
-    // Ensure top doesn't go above viewport (accounting for top nav)
-    top = Math.max(60, top)
+    // Ensure top doesn't go above viewport
+    top = Math.max(8, top)
 
     return { left, top }
   }, [sidebarOpen])
@@ -3204,6 +3330,17 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
     setSelectedElement(null)
     setPanelPosition(null)
   }, [])
+
+  // Lock body scroll when style panel is open to prevent outer page scroll
+  useEffect(() => {
+    if (selectedElement && panelPosition) {
+      const prev = document.body.style.overflow
+      document.body.style.overflow = "hidden"
+      return () => {
+        document.body.style.overflow = prev
+      }
+    }
+  }, [selectedElement, panelPosition])
 
   const handleLiveStyleChange = useCallback((property: string, value: StyleProperty) => {
     if (!selectedElement) return
@@ -3523,14 +3660,14 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       {/* Sidebar */}
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-full sm:w-[380px] sm:py-3 sm:pl-3",
+          "fixed inset-y-0 left-0 z-50 w-full sm:w-[356px] sm:py-2.5 sm:pl-2.5",
           "transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="flex h-full w-full flex-col bg-[#0a0a0a] sm:border border-zinc-800/80 sm:rounded-[20px] overflow-hidden sm:shadow-2xl">
+        <div className="flex h-full w-full flex-col bg-[#060606] sm:border border-white/[0.02] sm:rounded-[16px] overflow-hidden sm:shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
           {/* Sidebar Header */}
-          <div className="h-8 px-3 flex items-center justify-between">
+          <div className="h-9 px-3.5 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <button
                 className="group p-0.5 rounded-md flex items-center justify-center relative"
@@ -3549,16 +3686,23 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
                 />
                 <ChevronLeft className="absolute w-4 h-4 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity" />
               </button>
-              <div className="flex items-center gap-1">
-                <input
-                  type="text"
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  className="bg-transparent text-xs font-medium text-zinc-200 focus:outline-none rounded px-1 -ml-1"
-                />
-                {hasUnsavedChanges && (
-                  <span className="w-1.5 h-1.5 bg-orange-500 rounded-full" title="Unsaved changes" />
-                )}
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <div className="flex items-center gap-1 group/name">
+                  <input
+                    type="text"
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
+                    className="bg-transparent text-xs font-medium text-zinc-200 focus:outline-none rounded px-1 -ml-1 max-w-[180px] truncate"
+                  />
+                  {hasUnsavedChanges ? (
+                    <span className="w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse" title="Unsaved changes" />
+                  ) : (
+                    <Pencil className="w-2.5 h-2.5 text-zinc-700 opacity-0 group-hover/name:opacity-100 transition-opacity" />
+                  )}
+                </div>
+                <span className="text-[10px] text-zinc-600 px-1 -ml-1 leading-none">
+                  {hasUnsavedChanges ? "Editing…" : getRelativeTime(lastSavedAt)}
+                </span>
               </div>
             </div>
 
@@ -3582,7 +3726,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
           </div>
 
           {/* Chat Messages */}
-          <div ref={chatScrollRef} className="flex-1 overflow-y-auto px-3 py-3 min-h-0 min-w-0">
+          <div ref={chatScrollRef} className="flex-1 overflow-y-auto px-3.5 py-3 min-h-0 min-w-0">
             {messages.length === 0 && !pendingDesignDiscovery ? (
               <div className="flex flex-col items-center justify-center h-full text-center px-3">
                 <div className="mb-1.5 flex items-center justify-center">
@@ -3629,7 +3773,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
                           )}
                         >
                           {message.role === "assistant" && message.isThinking && !message.content ? (
-                            <div className="space-y-3">
+                            <div className="space-y-2.5">
                               <div className="flex items-center gap-1.5">
                                 <TextShimmer className="font-mono text-xs" duration={1}>
                                   {message.progressLabel || "Generating code..."}
@@ -3641,6 +3785,11 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
                                 >
                                   <X className="w-3 h-3" />
                                 </button>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <div className="h-0.5 flex-1 overflow-hidden rounded-full bg-white/[0.04]">
+                                  <div className="h-full w-1/3 rounded-full bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[progress-indeterminate_1.5s_ease-in-out_infinite]" />
+                                </div>
                               </div>
                             </div>
                           ) : message.role === "user" && message.content.length > LONG_USER_MSG_THRESHOLD ? (
@@ -3678,7 +3827,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
                               </button>
                             </div>
                           ) : (
-                            <div className="space-y-1.5">
+                            <div className="space-y-2">
                               {/* Image thumbnails */}
                               {message.images && message.images.length > 0 ? (
                                 <div className="flex flex-wrap gap-1">
@@ -3692,7 +3841,32 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
                                   ))}
                                 </div>
                               ) : null}
-                              <MarkdownRenderer content={message.content} className="text-xs" />
+                              {message.buildSummary ? (
+                                <div className="space-y-1.5">
+                                  <span className="text-[11px] font-medium text-zinc-400 uppercase tracking-wide">{message.buildSummary.title}</span>
+                                  <div className="space-y-0.5">
+                                    {message.buildSummary.built.map((item, i) => (
+                                      <div key={i} className="flex items-center gap-1.5 text-xs text-zinc-300">
+                                        <Check className="w-3 h-3 text-emerald-500 flex-none" />
+                                        <span>{item.label}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  {message.buildSummary.suggestions && message.buildSummary.suggestions.length > 0 ? (
+                                    <div className="space-y-0.5 pt-1.5 mt-1 border-t border-white/[0.04]">
+                                      <span className="text-[10px] font-medium text-zinc-600 uppercase tracking-wide">Suggestions</span>
+                                      {message.buildSummary.suggestions.map((item, i) => (
+                                        <div key={i} className="flex items-center gap-1.5 text-xs text-zinc-500">
+                                          <span className="w-3 h-3 flex-none text-zinc-600">•</span>
+                                          <span>{item.label}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              ) : (
+                                <MarkdownRenderer content={message.content} className="text-xs" />
+                              )}
                             </div>
                           )}
                         </div>
@@ -3799,7 +3973,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
       <div
         className={cn(
           "flex-1 flex flex-col min-w-0 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
-          sidebarOpen ? "lg:ml-[380px]" : ""
+          sidebarOpen ? "lg:ml-[356px]" : ""
         )}
       >
         <TopNav
@@ -3827,69 +4001,102 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         />
 
         <Dialog open={isExportModalOpen} onOpenChange={setIsExportModalOpen}>
-          <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100">
-            <DialogHeader>
-              <DialogTitle>Export project</DialogTitle>
-              <DialogDescription className="text-zinc-400">
-                Choose a format for your download, or generate a prompt to recreate this UI.
-              </DialogDescription>
-            </DialogHeader>
+          <DialogContent className="sm:max-w-[480px] bg-[#0E0E10] border-white/[0.06] p-0 rounded-xl overflow-hidden">
+            <DialogTitle className="sr-only">Export project</DialogTitle>
+            <DialogDescription className="sr-only">
+              Choose a format for your download, or generate a prompt to recreate this UI.
+            </DialogDescription>
 
-            <div className="space-y-3">
-              <button
-                onClick={() => setExportFormat("html")}
-                className={cn(
-                  "w-full rounded-lg border p-3 text-left transition-colors",
-                  exportFormat === "html"
-                    ? "border-white/[0.10] bg-white/[0.04]"
-                    : "border-white/[0.04] bg-transparent hover:bg-white/[0.03]"
-                )}
-              >
-                <p className="text-sm font-medium text-zinc-100">HTML</p>
-                <p className="text-xs text-zinc-400 mt-1">Downloads the complete current HTML document.</p>
-              </button>
+            <div className="p-5 space-y-4">
+              <div>
+                <h1 className="text-lg font-bold tracking-tight text-[#E7E7E9]">
+                  Export
+                </h1>
+                <p className="text-[11px] text-[#9B9B9F] mt-0.5">
+                  Choose a format for your download, or generate a prompt to recreate this UI.
+                </p>
+              </div>
 
-              <button
-                onClick={() => setExportFormat("react")}
-                className={cn(
-                  "w-full rounded-lg border p-3 text-left transition-colors",
-                  exportFormat === "react"
-                    ? "border-white/[0.10] bg-white/[0.04]"
-                    : "border-white/[0.04] bg-transparent hover:bg-white/[0.03]"
-                )}
-              >
-                <p className="text-sm font-medium text-zinc-100">React (.tsx)</p>
-                <p className="text-xs text-zinc-400 mt-1">Best-effort JSX conversion from your current HTML and styles.</p>
-              </button>
+              <div className="space-y-2">
+                <button
+                  onClick={() => setExportFormat("html")}
+                  className={cn(
+                    "w-full rounded-lg border p-3 text-left transition-all relative",
+                    exportFormat === "html"
+                      ? "border-white/[0.12] bg-white/[0.04]"
+                      : "border-white/[0.04] bg-transparent hover:bg-white/[0.02] hover:border-white/[0.06]"
+                  )}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-medium text-[#E7E7E9]">HTML</p>
+                      <p className="text-[11px] text-[#9B9B9F] mt-0.5">Complete static export</p>
+                      <p className="text-[10px] text-[#6B6B70] mt-1.5">Recommended for deployment</p>
+                    </div>
+                    {exportFormat === "html" && (
+                      <Check className="h-3.5 w-3.5 text-[#9B9B9F] shrink-0 mt-0.5" />
+                    )}
+                  </div>
+                </button>
 
-              <button
-                onClick={() => setExportFormat("prompt")}
-                className={cn(
-                  "w-full rounded-lg border p-3 text-left transition-colors",
-                  exportFormat === "prompt"
-                    ? "border-white/[0.10] bg-white/[0.04]"
-                    : "border-white/[0.04] bg-transparent hover:bg-white/[0.03]"
-                )}
-              >
-                <p className="text-sm font-medium text-zinc-100">Generate Prompt</p>
-                <p className="text-xs text-zinc-400 mt-1">Creates a detailed prompt to recreate this UI in any AI agent.</p>
-              </button>
+                <button
+                  onClick={() => setExportFormat("react")}
+                  className={cn(
+                    "w-full rounded-lg border p-3 text-left transition-all relative",
+                    exportFormat === "react"
+                      ? "border-white/[0.12] bg-white/[0.04]"
+                      : "border-white/[0.04] bg-transparent hover:bg-white/[0.02] hover:border-white/[0.06]"
+                  )}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-medium text-[#E7E7E9]">React (.tsx)</p>
+                      <p className="text-[11px] text-[#9B9B9F] mt-0.5">Component conversion</p>
+                      <p className="text-[10px] text-[#6B6B70] mt-1.5">Experimental</p>
+                    </div>
+                    {exportFormat === "react" && (
+                      <Check className="h-3.5 w-3.5 text-[#9B9B9F] shrink-0 mt-0.5" />
+                    )}
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setExportFormat("prompt")}
+                  className={cn(
+                    "w-full rounded-lg border p-3 text-left transition-all relative",
+                    exportFormat === "prompt"
+                      ? "border-white/[0.12] bg-white/[0.04]"
+                      : "border-white/[0.04] bg-transparent hover:bg-white/[0.02] hover:border-white/[0.06]"
+                  )}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-medium text-[#E7E7E9]">Generate Prompt</p>
+                      <p className="text-[11px] text-[#9B9B9F] mt-0.5">Reusable AI prompt</p>
+                      <p className="text-[10px] text-[#6B6B70] mt-1.5">Best for iteration</p>
+                    </div>
+                    {exportFormat === "prompt" && (
+                      <Check className="h-3.5 w-3.5 text-[#9B9B9F] shrink-0 mt-0.5" />
+                    )}
+                  </div>
+                </button>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  onClick={() => setIsExportModalOpen(false)}
+                  className="h-8 px-3 rounded-lg border border-white/[0.06] text-[12px] text-[#9B9B9F] hover:bg-white/[0.04] hover:text-[#E7E7E9] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmExport}
+                  className="h-8 px-3 rounded-lg bg-white text-black hover:bg-[#E7E7E9] text-[12px] font-medium transition-colors"
+                >
+                  {exportFormat === "prompt" ? "Copy Prompt" : exportFormat === "react" ? "Export TSX" : "Export HTML"}
+                </button>
+              </div>
             </div>
-
-            <DialogFooter>
-              <button
-                onClick={() => setIsExportModalOpen(false)}
-                className="h-9 px-3 rounded-md border border-white/[0.06] text-zinc-400 hover:bg-white/[0.04] transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmExport}
-                className="h-9 px-3 rounded-md bg-zinc-100 text-zinc-900 hover:bg-zinc-200 transition-colors"
-              >
-                {exportFormat === "prompt" ? "Copy Prompt" : exportFormat === "react" ? "Export TSX" : "Export HTML"}
-              </button>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -3904,7 +4111,7 @@ export function EditorLayoutNew({ initialPrompt, initialModel, initialImages, on
         />
 
         {/* Canvas/Editor Area */}
-        <div className="flex-1 min-h-0 overflow-hidden bg-white/[0.02]">
+        <div key={viewMode} className="flex-1 min-h-0 overflow-hidden bg-white/[0.02] animate-[soft-fade-in_0.25s_ease-out]">
           {renderContent()}
         </div>
       </div>

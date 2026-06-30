@@ -21,7 +21,8 @@ import {
   Check,
   Zap,
   Crown,
-  Settings
+  Settings,
+  Share,
 } from "lucide-react"
 import { useState, useCallback, useEffect, useRef } from "react"
 import {
@@ -210,8 +211,8 @@ export function TopNav({
             </Tooltip>
           )}
 
-          {/* View Mode Tabs — ghost style */}
-          <div className="flex items-center gap-0.5">
+          {/* View Mode Tabs — segmented control */}
+          <div className="flex items-center gap-0.5 bg-white/[0.025] rounded-lg p-0.5">
             {tabs.map((tab) => {
               const Icon = tab.icon
               const isActive = viewMode === tab.id
@@ -220,13 +221,12 @@ export function TopNav({
                   <TooltipTrigger asChild>
                     <button
                       onClick={() => onViewModeChange?.(tab.id)}
-                      className={`
-                        flex items-center gap-1.5 px-2 py-1 h-7 rounded-md text-[12px] font-medium transition-all
-                        ${isActive
-                          ? "bg-white/[0.06] text-zinc-100"
-                          : "text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04]"
-                        }
-                      `}
+                      className={cn(
+                        "flex items-center gap-1.5 px-2.5 py-1 h-6 rounded-md text-[12px] font-medium transition-all duration-200",
+                        isActive
+                          ? "bg-white/[0.10] text-zinc-100 shadow-[0_1px_3px_rgba(0,0,0,0.4),0_0_0_0.5px_rgba(255,255,255,0.08)]"
+                          : "text-zinc-500 hover:text-zinc-300"
+                      )}
                     >
                       <Icon className="w-3.5 h-3.5" />
                       <span className="hidden sm:inline">{tab.label}</span>
@@ -240,8 +240,8 @@ export function TopNav({
             })}
           </div>
 
-          {/* Action Buttons — flat icon group */}
-          <div className="hidden sm:flex items-center gap-0.5 ml-1 pl-2 border-l border-white/[0.04]">
+          {/* Action Buttons — separated group */}
+          <div className="hidden sm:flex items-center gap-0.5 ml-2 pl-2.5 border-l border-white/[0.06]">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -320,8 +320,8 @@ export function TopNav({
             </TooltipContent>
           </Tooltip>
 
-          {/* Device Viewport Switcher */}
-          <div className="hidden md:flex items-center gap-0.5">
+          {/* Device Viewport Switcher — separated group */}
+          <div className="hidden md:flex items-center gap-0.5 ml-1.5 pl-2.5 border-l border-white/[0.06]">
             {viewModes.map((mode) => {
               const Icon = mode.icon
               const isActive = deviceMode === mode.id
@@ -331,13 +331,12 @@ export function TopNav({
                     <button
                       onClick={() => onDeviceModeChange?.(mode.id)}
                       aria-label={`Switch to ${mode.label.toLowerCase()} viewport`}
-                      className={`
-                        p-1.5 h-7 rounded-md transition-all
-                        ${isActive
-                          ? "bg-white/[0.06] text-zinc-100"
+                      className={cn(
+                        "p-1.5 h-7 rounded-md transition-all duration-200",
+                        isActive
+                          ? "bg-white/[0.08] text-zinc-100 shadow-[0_1px_2px_rgba(0,0,0,0.3),0_0_0_0.5px_rgba(255,255,255,0.06)]"
                           : "text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04]"
-                        }
-                      `}
+                      )}
                     >
                       <Icon className="w-3.5 h-3.5" />
                     </button>
@@ -348,70 +347,86 @@ export function TopNav({
             })}
           </div>
 
-          {/* Copy Button — icon-only ghost */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={handleCopy}
-                aria-label="Copy HTML"
-                className={cn(
-                  "p-1.5 h-7 rounded-md transition-colors",
-                  copied
-                    ? "bg-emerald-500/10 text-emerald-300"
-                    : "text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04]",
-                )}
-              >
-                {copied ? (
-                  <Check className="w-3.5 h-3.5 text-green-400" />
-                ) : (
-                  <Copy className="w-3.5 h-3.5" />
-                )}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              {copied ? "Copied!" : "Copy HTML"}
-            </TooltipContent>
-          </Tooltip>
+          {/* Export & Actions — separated group */}
+          <div className="flex items-center gap-0.5 ml-1.5 pl-2.5 border-l border-white/[0.06]">
+            {/* Copy Button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={handleCopy}
+                  aria-label="Copy HTML"
+                  className={cn(
+                    "p-1.5 h-7 rounded-md transition-colors",
+                    copied
+                      ? "bg-emerald-500/10 text-emerald-300"
+                      : "text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04]",
+                  )}
+                >
+                  {copied ? (
+                    <Check className="w-3.5 h-3.5 text-green-400" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                {copied ? "Copied!" : "Copy HTML"}
+              </TooltipContent>
+            </Tooltip>
 
-          {/* Export Button */}
-          <button
-            onClick={onExport}
-            aria-label="Export project"
-            className="inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-[12px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Export</span>
-          </button>
+            {/* Export Button */}
+            <button
+              onClick={onExport}
+              aria-label="Export project"
+              className="inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-[12px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors"
+            >
+              <Download className="w-3.5 h-3.5 flex-none" />
+              <span className="hidden sm:inline leading-none">Export</span>
+            </button>
 
-          {/* Open in New Tab */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={handleOpenInNewTab}
-                aria-label="Open preview in a new tab"
-                className="p-1.5 h-7 hover:bg-white/[0.04] rounded-md text-zinc-500 hover:text-zinc-300 transition-colors"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Open in new tab</TooltipContent>
-          </Tooltip>
+            {/* Share Button */}
+            <button
+              onClick={handleOpenInNewTab}
+              aria-label="Share project"
+              className="inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-[12px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors"
+            >
+              <Share className="w-3.5 h-3.5 flex-none" />
+              <span className="hidden sm:inline leading-none">Share</span>
+            </button>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={showSettings}
-                aria-label="Open settings"
-                className="p-1.5 h-7 hover:bg-white/[0.04] rounded-md text-zinc-500 hover:text-zinc-300 transition-colors"
-              >
-                <Settings className="w-3.5 h-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Settings</TooltipContent>
-          </Tooltip>
+            {/* Open in New Tab */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={handleOpenInNewTab}
+                  aria-label="Open preview in a new tab"
+                  className="p-1.5 h-7 hover:bg-white/[0.04] rounded-md text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Open in new tab</TooltipContent>
+            </Tooltip>
+          </div>
 
-          {/* User Menu */}
-          <UserMenu />
+          {/* Settings & User — separated group */}
+          <div className="flex items-center gap-0.5 ml-1.5 pl-2.5 border-l border-white/[0.06]">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={showSettings}
+                  aria-label="Open settings"
+                  className="p-1.5 h-7 hover:bg-white/[0.04] rounded-md text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Settings</TooltipContent>
+            </Tooltip>
+
+            {/* User Menu */}
+            <UserMenu />
+          </div>
         </div>
       </div>
     </TooltipProvider>

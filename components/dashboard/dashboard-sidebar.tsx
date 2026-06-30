@@ -7,14 +7,14 @@ import {
   Heart,
   Loader2,
   FolderOpen,
-  Info,
-  Star,
   Clock,
+  FileClock,
   MoreHorizontal,
   Globe,
   Lock,
   ExternalLink,
   Trash2,
+  ChevronRight,
 } from "lucide-react"
 import {
   Sidebar,
@@ -29,11 +29,6 @@ import {
   SidebarMenuButton,
   useSidebar,
 } from "@/components/ui/sidebar"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -89,6 +84,12 @@ const TIER_CREDITS: Record<SubscriptionTier, number> = {
   free: 20,
   pro: 120,
   proplus: 350,
+}
+
+function getDaysUntilReset() {
+  const now = new Date()
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  return Math.ceil((nextMonth.getTime() - now.getTime()) / 86400000)
 }
 
 function getTierBadge(tier: SubscriptionTier) {
@@ -159,11 +160,11 @@ function SidebarProjectItem({
                 )}
               </button>
             ) : (
-              <Clock className="w-3 h-3 text-[#9B9B9F] shrink-0" />
+              <FileClock className="w-3 h-3 text-[#9B9B9F]/70 shrink-0" />
             )}
             <span className="truncate">{project.name}</span>
           </div>
-          <span className="text-[9px] text-[#9B9B9F] whitespace-nowrap ml-2 shrink-0 group-hover/menu-item:opacity-0 transition-opacity">
+          <span className="text-[9px] text-[#9B9B9F]/60 whitespace-nowrap ml-2 shrink-0 group-hover/menu-item:opacity-0 transition-opacity">
             {formatRelativeDate(project.updatedAt)}
           </span>
         </Link>
@@ -294,9 +295,10 @@ export function DashboardSidebar({
   const recentProjects = useMemo(
     () => [...projects]
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-      .slice(0, 8),
+      .slice(0, 6),
     [projects],
   )
+  const recentProjectsCount = projects.length
 
   const maxCredits = TIER_CREDITS[userTier] || 20
   const usagePct = Math.max(0, Math.min(100, (userMonthlyCredits / maxCredits) * 100))
@@ -314,47 +316,48 @@ export function DashboardSidebar({
       collapsible="offcanvas"
       className="dashboard-sidebar"
     >
-      <SidebarHeader className="p-1.5">
-        <div className="flex items-center gap-1 px-1">
+      <SidebarHeader className="px-2 py-1.5">
+        <div className="flex items-center gap-1.5">
           <div className="w-4 h-4 bg-white text-black rounded flex items-center justify-center text-[8px] font-bold shrink-0">
             C
           </div>
           <span className="text-xs font-semibold text-[#E7E7E9] truncate">Personal</span>
           <span className={cn(
-            "text-[9px] font-semibold px-1 py-0.5 rounded border",
+            "text-[8px] font-semibold px-1 py-0.5 rounded-full border shrink-0",
             tierBadge.bg,
             tierBadge.color,
             tierBadge.border,
           )}>
             {tierBadge.label}
           </span>
+          <ChevronRight className="w-3 h-3 text-[#9B9B9F]/40 shrink-0 ml-auto" />
         </div>
       </SidebarHeader>
 
       <SidebarContent>
         {!isCollapsed && (
           <>
-            {/* Projects */}
-            <SidebarGroup>
+            {/* Workspace — Projects */}
+            <SidebarGroup className="pb-1">
               <SidebarGroupContent>
                 <button
                   onClick={() => onViewChange("projects")}
                   className="w-full flex items-center justify-start gap-1.5 px-2 h-7 text-[11px] text-[#9B9B9F] hover:text-[#E7E7E9] hover:bg-[#1B1B1F] rounded-lg transition-colors"
                 >
-                  <FolderOpen className="w-3 h-3" />
+                  <FolderOpen className="w-3 h-3 opacity-80" />
                   <span>Projects</span>
                 </button>
               </SidebarGroupContent>
             </SidebarGroup>
 
-            {/* Search */}
-            <SidebarGroup>
-              <SidebarGroupLabel className="text-[#9B9B9F] text-[10px] font-semibold">
-                Search
-              </SidebarGroupLabel>
+            {/* Divider */}
+            <div className="mx-2 border-t border-white/[0.05]" />
+
+            {/* Search — integrated, tighter above, more space below */}
+            <SidebarGroup className="pt-2 pb-3">
               <SidebarGroupContent>
                 <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[#9B9B9F] pointer-events-none" />
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[#9B9B9F] opacity-80 pointer-events-none" />
                   <input
                     type="search"
                     value={searchQuery}
@@ -362,11 +365,14 @@ export function DashboardSidebar({
                     onFocus={() => setIsSearchFocused(true)}
                     onBlur={() => setTimeout(() => setIsSearchFocused(false), 120)}
                     placeholder="Search projects..."
-                    className="w-full h-7 bg-[#0E0E10] border border-white/[0.04] rounded-lg pl-7 pr-2.5 text-[11px] text-[#E7E7E9] placeholder:text-[#9B9B9F] outline-none focus-visible:border-white/[0.10] transition-colors"
+                    className="w-full h-7 bg-[#0E0E10] border border-white/[0.05] rounded-lg pl-7 pr-12 text-[11px] text-[#E7E7E9] placeholder:text-[#9B9B9F] outline-none focus-visible:border-white/[0.10] transition-colors"
                     aria-label="Search projects"
                   />
+                  <kbd className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[9px] text-[#6B6B70] font-medium pointer-events-none select-none">
+                    ⌘K
+                  </kbd>
                   {isSearchFocused && normalizedQuery && (
-                    <div className="absolute z-40 mt-1 left-0 right-0 rounded-lg border border-white/[0.04] bg-[#050505]/95 backdrop-blur-xl shadow-xl overflow-hidden">
+                    <div className="absolute z-40 mt-1 left-0 right-0 rounded-lg border border-white/[0.05] bg-[#050505]/95 backdrop-blur-xl shadow-xl overflow-hidden">
                       <div className="max-h-56 overflow-y-auto py-0.5">
                         {filteredProjects.length > 0 ? (
                           filteredProjects.map((project) => (
@@ -380,7 +386,7 @@ export function DashboardSidebar({
                               className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs text-[#E7E7E9] hover:bg-[#1B1B1F] transition-colors"
                             >
                               <span className="truncate min-w-0 flex-1">{project.name}</span>
-                              <span className="text-[9px] text-[#9B9B9F] whitespace-nowrap shrink-0">
+                              <span className="text-[9px] text-[#9B9B9F]/60 whitespace-nowrap shrink-0">
                                 {formatRelativeDate(project.updatedAt)}
                               </span>
                             </Link>
@@ -396,50 +402,53 @@ export function DashboardSidebar({
                 </div>
               </SidebarGroupContent>
             </SidebarGroup>
+
+            {/* Divider */}
+            <div className="mx-2 border-t border-white/[0.05]" />
           </>
         )}
 
-        {/* Favorites */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[#9B9B9F] text-[10px] font-semibold">
-            Favorites
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            {isLoadingProjects ? (
-              <div className="flex items-center justify-center py-2">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#9B9B9F]" />
-              </div>
-            ) : favoriteProjects.length > 0 ? (
-              <SidebarMenu>
-                {favoriteProjects.map((project) => (
-                  <SidebarProjectItem
-                    key={`fav-${project.id}`}
-                    project={project}
-                    icon="favorite"
-                    formatRelativeDate={formatRelativeDate}
-                    onToggleFavorite={onToggleFavorite}
-                    onToggleVisibility={onToggleVisibility}
-                    onDeleteRequest={setProjectPendingDelete}
-                    onOpenPublic={onOpenPublic}
-                    isFavoriteUpdating={updatingFavoriteIds.includes(project.id)}
-                    isVisibilityUpdating={updatingVisibilityIds.includes(project.id)}
-                  />
-                ))}
-              </SidebarMenu>
-            ) : (
-              <div className="px-2 py-2 text-[11px] text-[#9B9B9F]">
-                <span className="flex items-center gap-1.5">
-                  <Star className="w-2.5 h-2.5" />
-                  Favorite projects to pin them here.
-                </span>
-              </div>
-            )}
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {/* Favorites — only show if 2+ items, otherwise merge into Recent */}
+        {favoriteProjects.length >= 2 && (
+          <>
+            <SidebarGroup className="pt-2">
+              <SidebarGroupLabel className="text-[#9B9B9F] text-[10px] font-medium">
+                Pinned
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                {isLoadingProjects ? (
+                  <div className="flex items-center justify-center py-2">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-[#9B9B9F]" />
+                  </div>
+                ) : (
+                  <SidebarMenu>
+                    {favoriteProjects.map((project) => (
+                      <SidebarProjectItem
+                        key={`fav-${project.id}`}
+                        project={project}
+                        icon="favorite"
+                        formatRelativeDate={formatRelativeDate}
+                        onToggleFavorite={onToggleFavorite}
+                        onToggleVisibility={onToggleVisibility}
+                        onDeleteRequest={setProjectPendingDelete}
+                        onOpenPublic={onOpenPublic}
+                        isFavoriteUpdating={updatingFavoriteIds.includes(project.id)}
+                        isVisibilityUpdating={updatingVisibilityIds.includes(project.id)}
+                      />
+                    ))}
+                  </SidebarMenu>
+                )}
+              </SidebarGroupContent>
+            </SidebarGroup>
 
-        {/* Recent Chats */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[#9B9B9F] text-[10px] font-semibold">
+            {/* Divider */}
+            <div className="mx-2 border-t border-white/[0.05]" />
+          </>
+        )}
+
+        {/* Recent */}
+        <SidebarGroup className="pt-1">
+          <SidebarGroupLabel className="text-[#9B9B9F] text-[10px] font-medium">
             Recent
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -448,22 +457,33 @@ export function DashboardSidebar({
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-[#9B9B9F]" />
               </div>
             ) : recentProjects.length > 0 ? (
-              <SidebarMenu>
-                {recentProjects.map((project) => (
-                  <SidebarProjectItem
-                    key={`recent-${project.id}`}
-                    project={project}
-                    icon="recent"
-                    formatRelativeDate={formatRelativeDate}
-                    onToggleFavorite={onToggleFavorite}
-                    onToggleVisibility={onToggleVisibility}
-                    onDeleteRequest={setProjectPendingDelete}
-                    onOpenPublic={onOpenPublic}
-                    isFavoriteUpdating={updatingFavoriteIds.includes(project.id)}
-                    isVisibilityUpdating={updatingVisibilityIds.includes(project.id)}
-                  />
-                ))}
-              </SidebarMenu>
+              <>
+                <SidebarMenu>
+                  {recentProjects.map((project) => (
+                    <SidebarProjectItem
+                      key={`recent-${project.id}`}
+                      project={project}
+                      icon="recent"
+                      formatRelativeDate={formatRelativeDate}
+                      onToggleFavorite={onToggleFavorite}
+                      onToggleVisibility={onToggleVisibility}
+                      onDeleteRequest={setProjectPendingDelete}
+                      onOpenPublic={onOpenPublic}
+                      isFavoriteUpdating={updatingFavoriteIds.includes(project.id)}
+                      isVisibilityUpdating={updatingVisibilityIds.includes(project.id)}
+                    />
+                  ))}
+                </SidebarMenu>
+                {recentProjectsCount > 6 && (
+                  <button
+                    onClick={() => onViewChange("projects")}
+                    className="flex items-center gap-0.5 px-2 pt-1.5 text-[10px] text-[#9B9B9F] hover:text-[#E7E7E9] transition-colors"
+                  >
+                    View history ({recentProjectsCount})
+                    <ChevronRight className="w-2.5 h-2.5" />
+                  </button>
+                )}
+              </>
             ) : (
               <div className="px-2 py-2 text-[11px] text-[#9B9B9F]">
                 <span className="flex items-center gap-1.5">
@@ -476,46 +496,30 @@ export function DashboardSidebar({
         </SidebarGroup>
       </SidebarContent>
 
-      {/* Footer: Credits Widget */}
+      {/* Footer: Credits — quiet, integrated status */}
       {!isCollapsed && (
-        <SidebarFooter className="p-2 pb-4 mt-auto">
-          <div className="rounded-xl bg-[#0E0E10] border border-white/[0.04] p-3 space-y-3 shadow-md">
+        <SidebarFooter className="p-2 pb-3 mt-auto">
+          <div className="px-1 space-y-1">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-medium text-[#9B9B9F] uppercase tracking-wider">Credits</span>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      aria-label="How credits work"
-                      className="text-[#9B9B9F] hover:text-[#E7E7E9] transition-colors"
-                    >
-                      <Info className="w-2.5 h-2.5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-[200px] bg-[#0E0E10] text-[#E7E7E9] border-white/[0.04] text-[11px]">
-                    Credits are consumed when you run AI generation. Monthly credits reset every billing cycle.
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-              <span className="text-[11px] font-bold text-[#E7E7E9] tabular-nums">{userTotalCredits}</span>
+              <span className="text-[11px] font-medium text-[#E7E7E9] tabular-nums">
+                {userTotalCredits} <span className="text-[#9B9B9F] font-normal">credits</span>
+              </span>
+              <button
+                onClick={onOpenPricing}
+                className="text-[10px] text-[#9B9B9F] hover:text-[#E7E7E9] transition-colors"
+              >
+                {userTier === "free" ? "View plans" : "Manage plan"}
+              </button>
             </div>
-
-            <div className="relative h-1 w-full bg-[#050505] rounded-full overflow-hidden">
+            <div className="relative h-0.5 w-full bg-white/[0.05] rounded-full overflow-hidden">
               <div
-                className="absolute inset-y-0 left-0 rounded-full transition-all duration-500 bg-[#E7E7E9]"
+                className="absolute inset-y-0 left-0 rounded-full transition-all duration-500 bg-[#9B9B9F]/40"
                 style={{ width: `${usagePct}%` }}
               />
             </div>
-
-            <div className="flex items-center justify-between pt-0.5">
-              <p className="text-[9px] text-[#9B9B9F] leading-none">{userMonthlyCredits} monthly credits</p>
-              <button
-                onClick={onOpenPricing}
-                className="text-[9px] font-medium text-[#E7E7E9] hover:underline underline-offset-2 transition-colors"
-              >
-                View plans &rarr;
-              </button>
-            </div>
+            <p className="text-[9px] text-[#6B6B70] leading-none">
+              {userTier === "free" ? "Monthly allowance" : `Resets in ${getDaysUntilReset()} days`}
+            </p>
           </div>
         </SidebarFooter>
       )}
