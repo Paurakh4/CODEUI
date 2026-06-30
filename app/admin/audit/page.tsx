@@ -1,6 +1,10 @@
 import Link from "next/link"
-import { Database, Search } from "lucide-react"
+import { Database, ShieldCheck } from "lucide-react"
+import { Suspense } from "react"
 import { Badge } from "@/components/ui/badge"
+import { EmptyState } from "@/components/admin/empty-state"
+import { AutoSubmitSelect } from "@/components/admin/auto-submit-select"
+import { LiveSearchInput } from "@/components/admin/live-search-input"
 import { StatCard } from "@/components/admin/stat-card"
 import {
   Table,
@@ -27,6 +31,16 @@ function formatNumber(value: number) {
 
 function formatRoleLabel(role: string) {
   return role.charAt(0).toUpperCase() + role.slice(1)
+}
+
+function actionColorClass(action: string) {
+  const lower = action.toLowerCase()
+  if (lower.includes("created")) return "text-emerald-400"
+  if (lower.includes("updated") || lower.includes("resync")) return "text-blue-400"
+  if (lower.includes("deleted")) return "text-red-400"
+  if (lower.includes("suspended")) return "text-amber-400"
+  if (lower.includes("activated")) return "text-emerald-400"
+  return "text-[#E7E7E9]"
 }
 
 function buildAuditHref(
@@ -75,23 +89,19 @@ export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
 
       <section className="rounded-lg border border-white/[0.04]">
         <div className="border-b border-white/[0.04] px-5 py-4">
-          <form method="GET" className="grid gap-4 xl:grid-cols-[1.5fr_repeat(2,auto)] xl:items-end">
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-[#9B9B9F]">Search</label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9B9B9F]" />
-                <input
-                  type="search"
-                  name="q"
-                  defaultValue={data.filters.search}
-                  placeholder="Search action, actor email, target, or reason"
-                  className="h-9 w-full rounded-lg border border-white/[0.04] bg-[#0E0E10] pl-9 pr-3 text-sm text-[#E7E7E9] placeholder:text-[#9B9B9F]/50 focus:outline-none focus:ring-2 focus:ring-white/10"
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-[#9B9B9F]">Target Type</label>
-              <select
+          <form method="GET" className="flex flex-wrap items-center gap-3">
+            <Suspense fallback={<div className="h-9 w-full max-w-sm rounded-lg border border-white/[0.04] bg-[#0E0E10]" />}>
+              <LiveSearchInput
+                paramName="q"
+                placeholder="Search action, actor email, target, or reason"
+                defaultValue={data.filters.search}
+                basePath="/admin/audit"
+                preserveParams={["targetType", "pageSize"]}
+                className="max-w-sm flex-1"
+              />
+            </Suspense>
+            <div className="flex items-center gap-2">
+              <AutoSubmitSelect
                 name="targetType"
                 defaultValue={data.filters.targetType}
                 className="h-9 rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] focus:outline-none focus:ring-2 focus:ring-white/10"
@@ -100,11 +110,8 @@ export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
                 <option value="user">User</option>
                 <option value="project">Project</option>
                 <option value="model-policy">Model policy</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-[#9B9B9F]">Page Size</label>
-              <select
+              </AutoSubmitSelect>
+              <AutoSubmitSelect
                 name="pageSize"
                 defaultValue={String(data.filters.pageSize)}
                 className="h-9 rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] focus:outline-none focus:ring-2 focus:ring-white/10"
@@ -114,21 +121,7 @@ export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
                     {size}
                   </option>
                 ))}
-              </select>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="submit"
-                className="inline-flex h-9 items-center justify-center rounded-lg bg-[#E7E7E9] px-4 text-xs font-medium text-[#0E0E10] transition-colors hover:bg-white"
-              >
-                Apply
-              </button>
-              <Link
-                href="/admin/audit"
-                className="inline-flex h-9 items-center justify-center rounded-lg border border-white/[0.04] px-4 text-xs font-medium text-[#9B9B9F] transition-colors hover:bg-[#1B1B1F] hover:text-[#E7E7E9]"
-              >
-                Reset
-              </Link>
+              </AutoSubmitSelect>
             </div>
           </form>
         </div>
@@ -147,8 +140,8 @@ export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
             <TableBody>
               {data.entries.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-12 text-center text-muted-foreground">
-                    No audit events matched the current filters.
+                  <TableCell colSpan={5} className="py-12">
+                    <EmptyState icon={ShieldCheck} message="No audit events matched the current filters." />
                   </TableCell>
                 </TableRow>
               ) : (
@@ -156,7 +149,7 @@ export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
                   <TableRow key={entry.id}>
                     <TableCell className="py-3">
                       <div>
-                        <p className="text-sm font-medium">{entry.action}</p>
+                        <p className={`text-sm font-medium ${actionColorClass(entry.action)}`}>{entry.action}</p>
                         <p className="text-xs text-[#9B9B9F]">
                           {entry.permission || "No permission tag"}
                         </p>
@@ -204,22 +197,20 @@ export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
             <Link
               href={buildAuditHref(data.filters, Math.max(1, data.pagination.page - 1))}
               aria-disabled={!data.pagination.hasPreviousPage}
-              className={`inline-flex h-8 items-center justify-center rounded-md border border-white/[0.04] px-3 text-xs font-medium transition-colors ${
-                data.pagination.hasPreviousPage
-                  ? "text-[#E7E7E9] hover:bg-[#1B1B1F]"
-                  : "pointer-events-none text-[#9B9B9F]/50"
-              }`}
+              className={`inline-flex h-8 items-center justify-center rounded-md border border-white/[0.04] px-3 text-xs font-medium transition-colors ${data.pagination.hasPreviousPage
+                ? "text-[#E7E7E9] hover:bg-[#1B1B1F]"
+                : "pointer-events-none text-[#9B9B9F]/50"
+                }`}
             >
               Previous
             </Link>
             <Link
               href={buildAuditHref(data.filters, data.pagination.page + 1)}
               aria-disabled={!data.pagination.hasNextPage}
-              className={`inline-flex h-8 items-center justify-center rounded-md border border-white/[0.04] px-3 text-xs font-medium transition-colors ${
-                data.pagination.hasNextPage
-                  ? "text-[#E7E7E9] hover:bg-[#1B1B1F]"
-                  : "pointer-events-none text-[#9B9B9F]/50"
-              }`}
+              className={`inline-flex h-8 items-center justify-center rounded-md border border-white/[0.04] px-3 text-xs font-medium transition-colors ${data.pagination.hasNextPage
+                ? "text-[#E7E7E9] hover:bg-[#1B1B1F]"
+                : "pointer-events-none text-[#9B9B9F]/50"
+                }`}
             >
               Next
             </Link>

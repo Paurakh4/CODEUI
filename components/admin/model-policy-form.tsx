@@ -42,6 +42,27 @@ function formatContextLength(contextLength: number) {
   return String(contextLength)
 }
 
+const PROVIDER_DOT_COLORS: Record<string, string> = {
+  anthropic: "bg-orange-500",
+  google: "bg-blue-500",
+  openai: "bg-emerald-500",
+  deepseek: "bg-violet-500",
+  mistral: "bg-amber-500",
+  meta: "bg-blue-600",
+  xai: "bg-zinc-300",
+  cohere: "bg-pink-500",
+  perplexity: "bg-teal-500",
+  nvidia: "bg-green-500",
+}
+
+function providerDotClass(providerName: string) {
+  const key = providerName.toLowerCase().trim()
+  for (const [name, color] of Object.entries(PROVIDER_DOT_COLORS)) {
+    if (key.includes(name)) return color
+  }
+  return "bg-zinc-500"
+}
+
 function serializeModels(models: EditableModel[]) {
   return models.map((model) => ({
     id: model.id.trim(),
@@ -313,7 +334,7 @@ export function ModelPolicyForm({
 
               return (
                 <Fragment key={model.id}>
-                    <TableRow className={isExpanded ? "bg-[#1B1B1F]" : undefined}>
+                  <TableRow className={isExpanded ? "bg-[#1B1B1F]" : undefined}>
                     <TableCell>
                       <input
                         type="radio"
@@ -339,7 +360,10 @@ export function ModelPolicyForm({
                       </div>
                     </TableCell>
                     <TableCell className="hidden text-[#9B9B9F] md:table-cell">
-                      {model.provider}
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2 w-2 shrink-0 rounded-full ${providerDotClass(model.provider)}`} />
+                        {model.provider}
+                      </div>
                     </TableCell>
                     <TableCell className="hidden text-[#9B9B9F] md:table-cell">
                       {formatContextLength(model.contextLength)}
@@ -486,7 +510,7 @@ export function ModelPolicyForm({
                             </div>
                           ) : model.description ? (
                             <div className="space-y-2 md:col-span-2">
-                            <Label className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">
+                              <Label className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">
                                 Description
                               </Label>
                               <p className="text-sm text-[#9B9B9F]">{model.description}</p>

@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2 } from "lucide-react"
+import { CheckCircle2, Loader2, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
 import type { EnvSettingView } from "@/lib/admin/env-settings"
 
 interface EnvSettingsFormProps {
@@ -24,6 +25,8 @@ export function EnvSettingsForm({
 }: EnvSettingsFormProps) {
   const router = useRouter()
   const grouped = useMemo(() => groupBy(settings, (s) => s.group), [settings])
+  const groupNames = useMemo(() => Object.keys(grouped), [grouped])
+  const [activeTab, setActiveTab] = useState(0)
 
   const [fields, setFields] = useState<Record<string, FieldValue>>(() =>
     Object.fromEntries(
@@ -102,18 +105,42 @@ export function EnvSettingsForm({
         </div>
       ) : null}
 
-      {Object.entries(grouped).map(([group, items]) => (
-        <div key={group} className="space-y-4">
-          <h3 className="text-[11px] font-medium tracking-[0.05em] text-[#9B9B9F]/60 uppercase">
-            {group}
-          </h3>
+      {groupNames.length > 1 ? (
+        <div className="flex flex-wrap gap-2 border-b border-white/[0.04] pb-px">
+          {groupNames.map((name, idx) => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => setActiveTab(idx)}
+              className={cn(
+                "border-b-2 px-3 py-2 text-sm transition-colors",
+                activeTab === idx
+                  ? "border-white/20 text-[#E7E7E9]"
+                  : "border-transparent text-[#9B9B9F] hover:text-[#E7E7E9]",
+              )}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {Object.entries(grouped).map(([group, items], idx) => (
+        <div key={group} className={cn("space-y-4", activeTab !== idx && "hidden")}>
           <div className="grid gap-4">
             {items.map((setting) => (
               <div key={setting.key} className="grid gap-1.5">
                 <div className="flex items-center justify-between gap-3">
-                  <Label htmlFor={setting.key} className="text-sm">
-                    {setting.label}
-                  </Label>
+                  <div className="flex items-center gap-2">
+                    {setting.hasValue ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                    ) : (
+                      <XCircle className="h-3.5 w-3.5 text-red-500/70" />
+                    )}
+                    <Label htmlFor={setting.key} className="text-sm">
+                      {setting.label}
+                    </Label>
+                  </div>
                   <span className="text-[11px] text-[#9B9B9F]">
                     {setting.hasValue ? (
                       <span className="font-mono">{setting.masked}</span>
@@ -191,7 +218,7 @@ function groupBy<T>(items: T[], key: (item: T) => string): Record<string, T[]> {
   const out: Record<string, T[]> = {}
   for (const item of items) {
     const k = key(item)
-    ;(out[k] ??= []).push(item)
+      ; (out[k] ??= []).push(item)
   }
   return out
 }

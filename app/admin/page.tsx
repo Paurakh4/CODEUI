@@ -1,7 +1,8 @@
 import Link from "next/link"
-import { ArrowRight, Bot, FileCode2, FolderKanban, HardDrive, Users } from "lucide-react"
+import { ArrowRight, Bot, FileCode2, FolderKanban, HardDrive, Users, Users as UsersIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { StatCard } from "@/components/admin/stat-card"
+import { EmptyState } from "@/components/admin/empty-state"
 import { getAdminOverviewSnapshot } from "@/lib/admin/overview"
 
 export const dynamic = "force-dynamic"
@@ -33,6 +34,7 @@ export default async function AdminOverviewPage() {
       value: formatNumber(overview.metrics.activeUsers7d),
       description: `${formatNumber(overview.metrics.paidUsers)} premium accounts`,
       icon: Users,
+      highlight: true,
     },
     {
       title: "Total Projects",
@@ -45,6 +47,7 @@ export default async function AdminOverviewPage() {
       value: formatNumber(overview.metrics.prompts24h),
       description: `${formatNumber(overview.metrics.totalUsageLogs)} total events`,
       icon: FileCode2,
+      highlight: true,
     },
     {
       title: "Storage",
@@ -101,8 +104,8 @@ export default async function AdminOverviewPage() {
               <tbody>
                 {overview.recentUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-12 text-center text-[#9B9B9F]">
-                      No users found.
+                    <td colSpan={5} className="px-5 py-12">
+                      <EmptyState icon={UsersIcon} message="No users found." />
                     </td>
                   </tr>
                 ) : (
@@ -124,18 +127,16 @@ export default async function AdminOverviewPage() {
                       </td>
                       <td className="px-5 py-3">
                         <span
-                          className={`inline-flex items-center gap-1.5 text-xs ${
-                            user.accountStatus === "active"
-                              ? "text-emerald-600 dark:text-emerald-400"
-                              : "text-red-600 dark:text-red-400"
-                          }`}
+                          className={`inline-flex items-center gap-1.5 text-xs ${user.accountStatus === "active"
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-red-600 dark:text-red-400"
+                            }`}
                         >
                           <span
-                            className={`h-1.5 w-1.5 rounded-full ${
-                              user.accountStatus === "active"
-                                ? "bg-emerald-500"
-                                : "bg-red-500"
-                            }`}
+                            className={`h-1.5 w-1.5 rounded-full ${user.accountStatus === "active"
+                              ? "bg-emerald-500"
+                              : "bg-red-500"
+                              }`}
                           />
                           {user.accountStatus}
                         </span>
@@ -170,7 +171,7 @@ export default async function AdminOverviewPage() {
                         {formatNumber(count)} ({pct}%)
                       </span>
                     </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#1B1B1F]">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-[#1B1B1F]">
                       <div
                         className="h-full rounded-full bg-foreground/20"
                         style={{ width: `${pct}%` }}
@@ -194,10 +195,10 @@ export default async function AdminOverviewPage() {
                       <div className="flex items-center justify-between text-sm">
                         <span className="truncate text-[#9B9B9F]">{model.modelId}</span>
                         <span className="tabular-nums text-xs text-[#9B9B9F]">
-                          {formatNumber(model.count)}
+                          {formatNumber(model.count)} requests
                         </span>
                       </div>
-                      <div className="h-1 w-full overflow-hidden rounded-full bg-[#1B1B1F]">
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#1B1B1F]">
                         <div
                           className="h-full rounded-full bg-foreground/20"
                           style={{ width: `${pct}%` }}

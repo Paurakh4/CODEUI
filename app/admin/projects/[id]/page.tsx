@@ -2,14 +2,18 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import {
   ArrowLeft,
+  Download,
   FileCode2,
   FolderKanban,
   Image,
   MessageSquareText,
+  RotateCcw,
   ShieldCheck,
+  Eye,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { StatCard } from "@/components/admin/stat-card"
+import { EmptyState } from "@/components/admin/empty-state"
 import { ProjectManagementForm } from "@/components/admin/project-management-form"
 import { requireAdminPage } from "@/lib/admin/guards"
 import { hasAdminPermission } from "@/lib/admin/rbac"
@@ -174,17 +178,26 @@ export default async function AdminProjectDetailPage({ params }: ProjectDetailPa
           </div>
           <div className="mt-5 space-y-2">
             {detail.recentMessages.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-white/[0.04] px-4 py-8 text-center text-sm text-[#9B9B9F]">
-                No embedded project messages yet.
+              <div className="rounded-lg border border-dashed border-white/[0.04] px-4 py-8">
+                <EmptyState icon={MessageSquareText} message="No embedded project messages yet." />
               </div>
             ) : (
               detail.recentMessages.map((message, index) => (
                 <div
                   key={`${message.createdAt.toISOString()}-${index}`}
-                  className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] px-4 py-3"
+                  className={`rounded-lg border px-4 py-3 ${message.role === "assistant"
+                    ? "border-white/[0.06] bg-[#1B1B1F]"
+                    : "border-white/[0.04] bg-[#0E0E10]"
+                    }`}
                 >
                   <div className="flex items-center justify-between gap-4">
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] ${message.role === "assistant"
+                        ? "border-white/[0.08] text-[#E7E7E9]"
+                        : "text-[#9B9B9F]"
+                        }`}
+                    >
                       {message.role}
                     </Badge>
                     <p className="text-xs text-[#9B9B9F]">
@@ -210,14 +223,14 @@ export default async function AdminProjectDetailPage({ params }: ProjectDetailPa
           </div>
           <div className="mt-5 space-y-2">
             {detail.recentCheckpoints.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-white/[0.04] px-4 py-8 text-center text-sm text-[#9B9B9F]">
-                No checkpoints stored yet.
+              <div className="rounded-lg border border-dashed border-white/[0.04] px-4 py-8">
+                <EmptyState icon={RotateCcw} message="No checkpoints stored yet." />
               </div>
             ) : (
               detail.recentCheckpoints.map((checkpoint) => (
                 <div
                   key={checkpoint.id}
-                  className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] px-4 py-3"
+                  className="group rounded-lg border border-white/[0.04] bg-[#1B1B1F] px-4 py-3"
                 >
                   <div className="flex items-center justify-between gap-4">
                     <div>
@@ -226,9 +239,34 @@ export default async function AdminProjectDetailPage({ params }: ProjectDetailPa
                         {checkpoint.kind} · {checkpoint.trigger}
                       </p>
                     </div>
-                    <p className="text-xs text-[#9B9B9F]">
-                      {new Date(checkpoint.createdAt).toLocaleString()}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <button
+                          type="button"
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-[#9B9B9F] transition-colors hover:bg-[#0E0E10] hover:text-[#E7E7E9]"
+                          aria-label="View checkpoint"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-[#9B9B9F] transition-colors hover:bg-[#0E0E10] hover:text-[#E7E7E9]"
+                          aria-label="Restore checkpoint"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-[#9B9B9F] transition-colors hover:bg-[#0E0E10] hover:text-[#E7E7E9]"
+                          aria-label="Download checkpoint"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <p className="text-xs text-[#9B9B9F]">
+                        {new Date(checkpoint.createdAt).toLocaleString()}
+                      </p>
+                    </div>
                   </div>
                   {checkpoint.description ? (
                     <p className="mt-2 text-sm text-[#9B9B9F]">{checkpoint.description}</p>
@@ -292,8 +330,8 @@ export default async function AdminProjectDetailPage({ params }: ProjectDetailPa
           </div>
           <div className="mt-5 space-y-2">
             {detail.recentAuditEvents.length === 0 ? (
-              <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                No admin actions have been logged for this project yet.
+              <div className="rounded-lg border border-dashed px-4 py-8">
+                <EmptyState icon={ShieldCheck} message="No admin actions have been logged for this project yet." />
               </div>
             ) : (
               detail.recentAuditEvents.map((event) => (

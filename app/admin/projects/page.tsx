@@ -1,7 +1,11 @@
 import Link from "next/link"
-import { ArrowRight, FolderKanban, Search } from "lucide-react"
+import { ArrowRight, FolderKanban, FolderKanban as FolderIcon } from "lucide-react"
+import { Suspense } from "react"
 import { Badge } from "@/components/ui/badge"
+import { EmptyState } from "@/components/admin/empty-state"
 import { StatCard } from "@/components/admin/stat-card"
+import { AutoSubmitSelect } from "@/components/admin/auto-submit-select"
+import { LiveSearchInput } from "@/components/admin/live-search-input"
 import {
   Table,
   TableBody,
@@ -70,23 +74,19 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
 
       <section className="rounded-lg border border-white/[0.04]">
         <div className="border-b border-white/[0.04] px-5 py-4">
-          <form method="GET" className="grid gap-4 xl:grid-cols-[1.5fr_repeat(4,auto)] xl:items-end">
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-[#9B9B9F]">Search</label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9B9B9F]" />
-                <input
-                  type="search"
-                  name="q"
-                  defaultValue={result.filters.search}
-                  placeholder="Search project name or owner"
-                  className="h-9 w-full rounded-lg border border-white/[0.04] bg-[#0E0E10] pl-9 pr-3 text-sm text-[#E7E7E9] placeholder:text-[#9B9B9F]/50 focus:outline-none focus:ring-2 focus:ring-white/10"
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-[#9B9B9F]">Visibility</label>
-              <select
+          <form method="GET" className="flex flex-wrap items-center gap-3">
+            <Suspense fallback={<div className="h-9 w-full max-w-sm rounded-lg border border-white/[0.04] bg-[#0E0E10]" />}>
+              <LiveSearchInput
+                paramName="q"
+                placeholder="Search project name or owner"
+                defaultValue={result.filters.search}
+                basePath="/admin/projects"
+                preserveParams={["visibility", "ownerRole", "ownerStatus", "pageSize"]}
+                className="max-w-sm flex-1"
+              />
+            </Suspense>
+            <div className="flex items-center gap-2">
+              <AutoSubmitSelect
                 name="visibility"
                 defaultValue={result.filters.visibility}
                 className="h-9 rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] focus:outline-none focus:ring-2 focus:ring-white/10"
@@ -94,11 +94,8 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
                 <option value="all">All</option>
                 <option value="private">Private</option>
                 <option value="public">Public</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-[#9B9B9F]">Owner Role</label>
-              <select
+              </AutoSubmitSelect>
+              <AutoSubmitSelect
                 name="ownerRole"
                 defaultValue={result.filters.ownerRole}
                 className="h-9 rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] focus:outline-none focus:ring-2 focus:ring-white/10"
@@ -110,11 +107,8 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
                 <option value="moderator">Moderator</option>
                 <option value="admin">Admin</option>
                 <option value="owner">Owner</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-[#9B9B9F]">Owner Status</label>
-              <select
+              </AutoSubmitSelect>
+              <AutoSubmitSelect
                 name="ownerStatus"
                 defaultValue={result.filters.ownerStatus}
                 className="h-9 rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] focus:outline-none focus:ring-2 focus:ring-white/10"
@@ -122,11 +116,8 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
                 <option value="all">All statuses</option>
                 <option value="active">Active</option>
                 <option value="suspended">Suspended</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-[#9B9B9F]">Page Size</label>
-              <select
+              </AutoSubmitSelect>
+              <AutoSubmitSelect
                 name="pageSize"
                 defaultValue={String(result.filters.pageSize)}
                 className="h-9 rounded-lg border border-white/[0.04] bg-[#0E0E10] px-3 text-sm text-[#E7E7E9] focus:outline-none focus:ring-2 focus:ring-white/10"
@@ -136,21 +127,7 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
                     {size}
                   </option>
                 ))}
-              </select>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="submit"
-                className="inline-flex h-9 items-center justify-center rounded-lg bg-[#E7E7E9] px-4 text-xs font-medium text-[#0E0E10] transition-colors hover:bg-white"
-              >
-                Apply
-              </button>
-              <Link
-                href="/admin/projects"
-                className="inline-flex h-9 items-center justify-center rounded-lg border border-white/[0.04] px-4 text-xs font-medium text-[#9B9B9F] transition-colors hover:bg-[#1B1B1F] hover:text-[#E7E7E9]"
-              >
-                Reset
-              </Link>
+              </AutoSubmitSelect>
             </div>
           </form>
         </div>
@@ -170,8 +147,8 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
             <TableBody>
               {result.projects.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
-                    No projects matched the current filters.
+                  <TableCell colSpan={6} className="py-12">
+                    <EmptyState icon={FolderIcon} message="No projects matched the current filters." />
                   </TableCell>
                 </TableRow>
               ) : (
@@ -251,22 +228,20 @@ export default async function AdminProjectsPage({ searchParams }: ProjectsPagePr
             <Link
               href={buildProjectsHref(result.filters, Math.max(1, result.pagination.page - 1))}
               aria-disabled={!result.pagination.hasPreviousPage}
-              className={`inline-flex h-8 items-center justify-center rounded-md border border-white/[0.04] px-3 text-xs font-medium transition-colors ${
-                result.pagination.hasPreviousPage
-                  ? "text-[#E7E7E9] hover:bg-[#1B1B1F]"
-                  : "pointer-events-none text-[#9B9B9F]/50"
-              }`}
+              className={`inline-flex h-8 items-center justify-center rounded-md border border-white/[0.04] px-3 text-xs font-medium transition-colors ${result.pagination.hasPreviousPage
+                ? "text-[#E7E7E9] hover:bg-[#1B1B1F]"
+                : "pointer-events-none text-[#9B9B9F]/50"
+                }`}
             >
               Previous
             </Link>
             <Link
               href={buildProjectsHref(result.filters, result.pagination.page + 1)}
               aria-disabled={!result.pagination.hasNextPage}
-              className={`inline-flex h-8 items-center justify-center rounded-md border border-white/[0.04] px-3 text-xs font-medium transition-colors ${
-                result.pagination.hasNextPage
-                  ? "text-[#E7E7E9] hover:bg-[#1B1B1F]"
-                  : "pointer-events-none text-[#9B9B9F]/50"
-              }`}
+              className={`inline-flex h-8 items-center justify-center rounded-md border border-white/[0.04] px-3 text-xs font-medium transition-colors ${result.pagination.hasNextPage
+                ? "text-[#E7E7E9] hover:bg-[#1B1B1F]"
+                : "pointer-events-none text-[#9B9B9F]/50"
+                }`}
             >
               Next
             </Link>

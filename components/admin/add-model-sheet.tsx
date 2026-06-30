@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { ChevronsUpDown, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react"
+import { ChevronDown, ChevronRight, ChevronsUpDown, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -333,6 +333,7 @@ export function AddModelSheet({
   const [selectedCustomModelIds, setSelectedCustomModelIds] = useState<string[]>([])
   const [detectingProviderId, setDetectingProviderId] = useState<string | null>(null)
   const [deletingProviderId, setDeletingProviderId] = useState<string | null>(null)
+  const [savedProvidersExpanded, setSavedProvidersExpanded] = useState(true)
 
   const selectedOpenRouterModelIdSet = useMemo(
     () => new Set(selectedOpenRouterModelIds),
@@ -639,7 +640,7 @@ export function AddModelSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-lg">
+      <SheetContent side="right" className="w-full sm:max-w-[600px]">
         <SheetHeader>
           <SheetTitle>Add Models</SheetTitle>
           <SheetDescription>
@@ -744,129 +745,141 @@ export function AddModelSheet({
             {/* Existing providers + detect */}
             {customProviders.length > 0 ? (
               <div className="space-y-3">
-                <p className="text-xs font-medium text-[#9B9B9F]">Saved Providers</p>
-                {customProviders.map((provider) => {
-                  const detected = detectedModelsByProvider[provider.id] ?? []
-                  return (
-                    <div
-                      key={provider.id}
-                      className="space-y-3 rounded-lg border border-white/[0.04] bg-[#0E0E10] p-3"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 space-y-0.5">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-medium">{provider.name}</span>
-                            <Badge
-                              variant="outline"
-                              className="border-violet-500/20 bg-violet-500/10 text-violet-200 text-[10px]"
-                            >
-                              Custom
-                            </Badge>
+                <button
+                  type="button"
+                  onClick={() => setSavedProvidersExpanded((v) => !v)}
+                  className="flex w-full items-center gap-1.5 text-xs font-medium text-[#9B9B9F] transition-colors hover:text-[#E7E7E9]"
+                >
+                  {savedProvidersExpanded ? (
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  )}
+                  Saved Providers ({customProviders.length})
+                </button>
+                {savedProvidersExpanded ? (
+                  customProviders.map((provider) => {
+                    const detected = detectedModelsByProvider[provider.id] ?? []
+                    return (
+                      <div
+                        key={provider.id}
+                        className="space-y-3 rounded-lg border border-white/[0.04] bg-[#0E0E10] p-3"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 space-y-0.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-medium">{provider.name}</span>
+                              <Badge
+                                variant="outline"
+                                className="border-violet-500/20 bg-violet-500/10 text-violet-200 text-[10px]"
+                              >
+                                Custom
+                              </Badge>
+                            </div>
+                            <p className="truncate text-xs text-[#9B9B9F]">{provider.baseUrl}</p>
+                            <p className="text-xs text-[#9B9B9F]">Key: {provider.apiKeyMasked}</p>
                           </div>
-                          <p className="truncate text-xs text-[#9B9B9F]">{provider.baseUrl}</p>
-                          <p className="text-xs text-[#9B9B9F]">Key: {provider.apiKeyMasked}</p>
+                          <div className="flex shrink-0 items-center gap-1">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={readOnly || detectingProviderId === provider.id}
+                              onClick={() => void handleDetectModels(provider.id)}
+                              className="rounded-lg"
+                            >
+                              {detectingProviderId === provider.id ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                              )}
+                              Detect Models
+                            </Button>
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteProvider(provider.id)}
+                              disabled={readOnly || deletingProviderId === provider.id}
+                              className="rounded-lg p-1.5 text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50"
+                              title="Delete provider"
+                            >
+                              {deletingProviderId === provider.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-1">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={readOnly || detectingProviderId === provider.id}
-                            onClick={() => void handleDetectModels(provider.id)}
-                            className="rounded-lg"
-                          >
-                            {detectingProviderId === provider.id ? (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                              <RefreshCw className="mr-2 h-4 w-4" />
-                            )}
-                            Detect Models
-                          </Button>
-                          <button
-                            type="button"
-                            onClick={() => void handleDeleteProvider(provider.id)}
-                            disabled={readOnly || deletingProviderId === provider.id}
-                            className="rounded-lg p-1.5 text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50"
-                            title="Delete provider"
-                          >
-                            {deletingProviderId === provider.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
 
-                      {detected.length > 0 ? (
-                        <div className="space-y-2">
-                          <div className="max-h-64 space-y-1 overflow-y-auto rounded-lg border border-white/[0.04]">
-                            {detected.map((model) => {
-                              const catalogId = buildCustomModelId(provider.id, model.id)
-                              const alreadyAdded = existingModelIds.has(catalogId)
-                              const isSelected = selectedCustomModelIds.includes(catalogId)
-                              const isFree = /free/i.test(model.id)
-                              return (
-                                <label
-                                  key={model.id}
-                                  className={`flex items-center gap-3 px-3 py-2 text-sm transition-colors ${
-                                    alreadyAdded
+                        {detected.length > 0 ? (
+                          <div className="space-y-2">
+                            <div className="max-h-64 space-y-1 overflow-y-auto rounded-lg border border-white/[0.04]">
+                              {detected.map((model) => {
+                                const catalogId = buildCustomModelId(provider.id, model.id)
+                                const alreadyAdded = existingModelIds.has(catalogId)
+                                const isSelected = selectedCustomModelIds.includes(catalogId)
+                                const isFree = /free/i.test(model.id)
+                                return (
+                                  <label
+                                    key={model.id}
+                                    className={`flex items-center gap-3 px-3 py-2 text-sm transition-colors ${alreadyAdded
                                       ? "opacity-50"
                                       : "cursor-pointer hover:bg-[#1B1B1F]"
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={alreadyAdded || isSelected}
-                                    disabled={alreadyAdded || readOnly}
-                                    onChange={() =>
-                                      toggleCustomModelSelection(provider, model)
-                                    }
-                                    className="h-4 w-4 rounded border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
-                                  />
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <span className="font-medium">{model.name}</span>
-                                      {isFree ? (
-                                        <Badge
-                                          variant="outline"
-                                          className="border-emerald-500/20 text-emerald-200 text-[10px]"
-                                        >
-                                          Free
-                                        </Badge>
-                                      ) : null}
-                                      {alreadyAdded ? (
-                                        <Badge variant="outline" className="text-[10px]">
-                                          Already added
-                                        </Badge>
-                                      ) : null}
+                                      }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={alreadyAdded || isSelected}
+                                      disabled={alreadyAdded || readOnly}
+                                      onChange={() =>
+                                        toggleCustomModelSelection(provider, model)
+                                      }
+                                      className="h-4 w-4 rounded border-white/[0.04] bg-[#0E0E10] text-[#E7E7E9]"
+                                    />
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span className="font-medium">{model.name}</span>
+                                        {isFree ? (
+                                          <Badge
+                                            variant="outline"
+                                            className="border-emerald-500/20 text-emerald-200 text-[10px]"
+                                          >
+                                            Free
+                                          </Badge>
+                                        ) : null}
+                                        {alreadyAdded ? (
+                                          <Badge variant="outline" className="text-[10px]">
+                                            Already added
+                                          </Badge>
+                                        ) : null}
+                                      </div>
+                                      <p className="truncate text-xs text-[#9B9B9F]">{model.id}</p>
                                     </div>
-                                    <p className="truncate text-xs text-[#9B9B9F]">{model.id}</p>
-                                  </div>
-                                  {model.contextLength ? (
-                                    <span className="shrink-0 text-xs text-[#9B9B9F]">
-                                      {formatContextLength(model.contextLength)}
-                                    </span>
-                                  ) : null}
-                                </label>
-                              )
-                            })}
+                                    {model.contextLength ? (
+                                      <span className="shrink-0 text-xs text-[#9B9B9F]">
+                                        {formatContextLength(model.contextLength)}
+                                      </span>
+                                    ) : null}
+                                  </label>
+                                )
+                              })}
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => handleAddSelectedCustomModels(provider)}
+                              disabled={readOnly}
+                              className="w-full rounded-xl"
+                            >
+                              <Plus className="mr-2 h-4 w-4" />
+                              Add Selected to Catalog
+                            </Button>
                           </div>
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={() => handleAddSelectedCustomModels(provider)}
-                            disabled={readOnly}
-                            className="w-full rounded-xl"
-                          >
-                            <Plus className="mr-2 h-4 w-4" />
-                            Add Selected to Catalog
-                          </Button>
-                        </div>
-                      ) : null}
-                    </div>
-                  )
-                })}
+                        ) : null}
+                      </div>
+                    )
+                  })
+                ) : null}
               </div>
             ) : null}
 

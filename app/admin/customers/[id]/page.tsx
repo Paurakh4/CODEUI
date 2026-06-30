@@ -1,8 +1,9 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { ArrowLeft, Bot, CreditCard, FolderKanban, ShieldCheck } from "lucide-react"
+import { ArrowLeft, Bot, CreditCard, FolderKanban, MessageSquareText, ShieldCheck } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { StatCard } from "@/components/admin/stat-card"
+import { EmptyState } from "@/components/admin/empty-state"
 import { CustomerManagementForm } from "@/components/admin/customer-management-form"
 import { requireAdminPage } from "@/lib/admin/guards"
 import { hasAdminPermission, USER_ROLES } from "@/lib/admin/rbac"
@@ -169,6 +170,84 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
             </div>
           </div>
         </section>
+
+        <section className="rounded-lg border border-white/[0.04] p-5">
+          <div className="flex items-center gap-3">
+            <Bot className="h-5 w-5 text-[#9B9B9F]" />
+            <div>
+              <p className="text-xs text-[#9B9B9F]">Activity</p>
+              <h2 className="text-sm font-medium text-[#E7E7E9]">Account timeline</h2>
+            </div>
+          </div>
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-3">
+              <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Created</p>
+              <p className="mt-1 text-sm font-medium text-[#E7E7E9]">
+                {new Date(detail.customer.createdAt).toLocaleDateString()}
+              </p>
+            </div>
+            <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-3">
+              <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Last Active</p>
+              <p className="mt-1 text-sm font-medium text-[#E7E7E9]">
+                {detail.stats.lastActiveAt
+                  ? new Date(detail.stats.lastActiveAt).toLocaleDateString()
+                  : "Never"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-3">
+              <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Updated</p>
+              <p className="mt-1 text-sm font-medium text-[#E7E7E9]">
+                {new Date(detail.customer.updatedAt).toLocaleDateString()}
+              </p>
+            </div>
+            <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-3">
+              <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Credit Reset</p>
+              <p className="mt-1 text-sm font-medium text-[#E7E7E9]">
+                {new Date(detail.customer.creditsResetDate).toLocaleDateString()}
+              </p>
+            </div>
+            <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-3">
+              <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Credits Used (Total)</p>
+              <p className="mt-1 text-sm font-medium text-[#E7E7E9]">
+                {formatNumber(detail.customer.credits.totalCreditsUsed)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-3">
+              <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Credits Used (Month)</p>
+              <p className="mt-1 text-sm font-medium text-[#E7E7E9]">
+                {formatNumber(detail.customer.credits.creditsUsedThisMonth)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-3">
+              <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Stripe Customer</p>
+              <p className="mt-1 truncate text-sm font-medium text-[#E7E7E9]">
+                {detail.customer.subscription.stripeCustomerId || "Not linked"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-3">
+              <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Renewal Date</p>
+              <p className="mt-1 text-sm font-medium text-[#E7E7E9]">
+                {detail.customer.subscription.currentPeriodEnd
+                  ? new Date(detail.customer.subscription.currentPeriodEnd).toLocaleDateString()
+                  : "Not linked"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-3">
+              <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Last Prompt</p>
+              <p className="mt-1 text-sm font-medium text-[#E7E7E9]">
+                {detail.recentUsage.length > 0
+                  ? new Date(detail.recentUsage[0].timestamp).toLocaleDateString()
+                  : "Never"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] p-3">
+              <p className="text-[11px] font-medium tracking-[0.02em] text-[#9B9B9F]">Prompts (7d)</p>
+              <p className="mt-1 text-sm font-medium text-[#E7E7E9]">
+                {formatNumber(detail.stats.prompts7d)}
+              </p>
+            </div>
+          </div>
+        </section>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
@@ -182,8 +261,8 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
           </div>
           <div className="mt-5 space-y-2">
             {detail.recentProjects.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-white/[0.04] px-4 py-8 text-center text-sm text-[#9B9B9F]">
-                No projects yet.
+              <div className="rounded-lg border border-dashed border-white/[0.04] px-4 py-8">
+                <EmptyState icon={FolderKanban} message="No projects yet." />
               </div>
             ) : (
               detail.recentProjects.map((project) => (
@@ -230,8 +309,8 @@ export default async function AdminCustomerDetailPage({ params }: CustomerDetail
             ) : null}
             <div className="space-y-2">
               {detail.recentUsage.length === 0 ? (
-                <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                  No prompt history yet.
+                <div className="rounded-lg border border-dashed px-4 py-8">
+                  <EmptyState icon={MessageSquareText} message="No prompt history yet." />
                 </div>
               ) : (
                 detail.recentUsage.map((entry) => (

@@ -51,8 +51,8 @@ const typeLabels = {
 } as const
 
 const statusBadgeClassNames: Record<FeedbackStatus, string> = {
-  new: "border-amber-500/30 bg-amber-500/10 text-amber-100",
-  read: "border-sky-500/30 bg-sky-500/10 text-sky-100",
+  new: "border-blue-500/30 bg-blue-500/10 text-blue-100",
+  read: "border-amber-500/30 bg-amber-500/10 text-amber-100",
   responded: "border-emerald-500/30 bg-emerald-500/10 text-emerald-100",
 }
 
@@ -476,7 +476,7 @@ export function AdminFeedbackCenter({
                     className={cn(
                       "w-full rounded-lg border px-5 py-4 text-left transition-all",
                       isSelected
-                        ? "border-white/10 bg-[#1B1B1F] ring-1 ring-white/10"
+                        ? "border-white/20 bg-[#242428] ring-1 ring-white/15"
                         : "border-white/[0.04] bg-[#0E0E10] hover:border-white/10 hover:bg-[#1B1B1F]",
                     )}
                   >

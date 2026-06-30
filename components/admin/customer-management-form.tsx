@@ -198,7 +198,7 @@ export function CustomerManagementForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-6">
       {readOnlyReason ? (
         <div className="rounded-lg border border-white/[0.04] bg-[#1B1B1F] px-4 py-3 text-sm text-[#9B9B9F]">
           {readOnlyReason}
