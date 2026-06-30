@@ -14,14 +14,20 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
-import { 
-  Bug, 
-  Lightbulb, 
-  MessageSquare, 
+import {
+  Bug,
+  Lightbulb,
+  MessageSquare,
   CheckCircle2,
   Loader2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { motion } from "framer-motion"
+import {
+  modalContainerVariants,
+  modalItemVariants,
+  modalHeaderVariants,
+} from "@/lib/modal-animations"
 
 type FeedbackType = "bug" | "feature" | "general"
 
@@ -132,26 +138,38 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[440px] bg-zinc-950 border-white/10 text-zinc-100 p-0 overflow-hidden">
         {isSuccess ? (
-          <div className="py-12 flex flex-col items-center justify-center text-center px-6">
-            <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-4">
+          <motion.div
+            variants={modalContainerVariants}
+            initial="hidden"
+            animate="visible"
+            className="py-12 flex flex-col items-center justify-center text-center px-6"
+          >
+            <motion.div variants={modalItemVariants} className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-4">
               <CheckCircle2 className="w-6 h-6 text-emerald-500" />
-            </div>
-            <h3 className="text-xl font-semibold mb-2">Thank you!</h3>
-            <p className="text-sm text-zinc-400">
+            </motion.div>
+            <motion.h3 variants={modalItemVariants} className="text-xl font-semibold mb-2">Thank you!</motion.h3>
+            <motion.p variants={modalItemVariants} className="text-sm text-zinc-400">
               Your feedback helps us make CodeUI better for everyone.
-            </p>
-          </div>
+            </motion.p>
+          </motion.div>
         ) : (
-          <form onSubmit={handleSubmit}>
+          <motion.form
+            onSubmit={handleSubmit}
+            variants={modalContainerVariants}
+            initial="hidden"
+            animate="visible"
+          >
             <DialogHeader className="p-6 pb-2 text-left">
-              <DialogTitle className="text-xl font-bold tracking-tight">Share Feedback</DialogTitle>
-              <DialogDescription className="text-zinc-400">
-                Let us know what's on your mind. We're always listening!
-              </DialogDescription>
+              <motion.div variants={modalHeaderVariants}>
+                <DialogTitle className="text-xl font-bold tracking-tight">Share Feedback</DialogTitle>
+                <DialogDescription className="text-zinc-400">
+                  Let us know what's on your mind. We're always listening!
+                </DialogDescription>
+              </motion.div>
             </DialogHeader>
 
             <div className="px-6 py-4 space-y-6">
-              <div className="space-y-3">
+              <motion.div variants={modalItemVariants} className="space-y-3">
                 <Label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
                   Feedback Type
                 </Label>
@@ -166,8 +184,8 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                         onClick={() => setType(item.id)}
                         className={cn(
                           "flex flex-col items-center gap-2 p-3 rounded-xl border transition-all duration-200",
-                          isSelected 
-                            ? cn("bg-zinc-900 border-white/20 ring-1 ring-white/10") 
+                          isSelected
+                            ? cn("bg-zinc-900 border-white/20 ring-1 ring-white/10")
                             : "bg-transparent border-white/5 hover:bg-zinc-900/50 hover:border-white/10"
                         )}
                       >
@@ -184,9 +202,9 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                     )
                   })}
                 </div>
-              </div>
+              </motion.div>
 
-              <div className="space-y-3">
+              <motion.div variants={modalItemVariants} className="space-y-3">
                 <Label htmlFor="message" className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
                   Your Message
                 </Label>
@@ -202,20 +220,20 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                 {errorMessage && (
                   <p className="text-xs text-red-400">{errorMessage}</p>
                 )}
-              </div>
+              </motion.div>
             </div>
 
             <DialogFooter className="p-6 pt-2">
-              <Button 
-                type="button" 
-                variant="ghost" 
+              <Button
+                type="button"
+                variant="ghost"
                 onClick={onClose}
                 className="text-zinc-400 hover:text-white hover:bg-zinc-900"
               >
                 Cancel
               </Button>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 disabled={isSubmitting || !message.trim()}
                 className="bg-white text-black hover:bg-zinc-200 min-w-[100px]"
               >
@@ -229,7 +247,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                 )}
               </Button>
             </DialogFooter>
-          </form>
+          </motion.form>
         )}
       </DialogContent>
     </Dialog>

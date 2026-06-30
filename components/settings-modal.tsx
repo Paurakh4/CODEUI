@@ -8,6 +8,7 @@ import {
   Sparkles,
   Settings,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,11 @@ import {
   createDefaultUserPreferences,
   type UserPreferences,
 } from "@/lib/user-preferences";
+import {
+  modalContainerVariants,
+  modalItemVariants,
+  modalHeaderVariants,
+} from "@/lib/modal-animations";
 
 interface SettingsModalProps {
   open: boolean;
@@ -158,243 +164,253 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             <Loader2 className="h-5 w-5 animate-spin text-[#6B6B70]" />
           </div>
         ) : (
-          <>
+          <motion.div
+            variants={modalContainerVariants}
+            initial="hidden"
+            animate="visible"
+            className="flex flex-col flex-1 min-h-0"
+          >
             <div className="overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-white/[0.04]">
               <div className="p-5 space-y-5">
                 {/* Header */}
-                <div>
+                <motion.div variants={modalHeaderVariants}>
                   <h1 className="text-lg font-bold tracking-tight text-[#E7E7E9]">
                     Settings
                   </h1>
                   <p className="text-[11px] text-[#9B9B9F] mt-0.5">
                     Sync your appearance, AI defaults, and preferences.
                   </p>
-                </div>
+                </motion.div>
 
                 {/* Tabs */}
-                <Tabs defaultValue="appearance">
-                  <TabsList className="w-full bg-[#0E0E10] border border-white/[0.04] rounded-lg p-0.5 h-auto">
-                    <TabsTrigger
-                      value="appearance"
-                      className="flex-1 gap-1.5 h-7 text-[11px] data-[state=active]:bg-[#1B1B1F] data-[state=active]:text-[#E7E7E9] text-[#9B9B9F] rounded-md border-0"
-                    >
-                      <Palette className="h-3 w-3" />
-                      Appearance
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="ai"
-                      className="flex-1 gap-1.5 h-7 text-[11px] data-[state=active]:bg-[#1B1B1F] data-[state=active]:text-[#E7E7E9] text-[#9B9B9F] rounded-md border-0"
-                    >
-                      <Sparkles className="h-3 w-3" />
-                      AI
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="general"
-                      className="flex-1 gap-1.5 h-7 text-[11px] data-[state=active]:bg-[#1B1B1F] data-[state=active]:text-[#E7E7E9] text-[#9B9B9F] rounded-md border-0"
-                    >
-                      <Settings className="h-3 w-3" />
-                      General
-                    </TabsTrigger>
-                  </TabsList>
+                <motion.div variants={modalItemVariants}>
+                  <Tabs defaultValue="appearance">
+                    <TabsList className="w-full bg-[#0E0E10] border border-white/[0.04] rounded-lg p-0.5 h-auto">
+                      <TabsTrigger
+                        value="appearance"
+                        className="flex-1 gap-1.5 h-7 text-[11px] data-[state=active]:bg-[#1B1B1F] data-[state=active]:text-[#E7E7E9] text-[#9B9B9F] rounded-md border-0"
+                      >
+                        <Palette className="h-3 w-3" />
+                        Appearance
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="ai"
+                        className="flex-1 gap-1.5 h-7 text-[11px] data-[state=active]:bg-[#1B1B1F] data-[state=active]:text-[#E7E7E9] text-[#9B9B9F] rounded-md border-0"
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        AI
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="general"
+                        className="flex-1 gap-1.5 h-7 text-[11px] data-[state=active]:bg-[#1B1B1F] data-[state=active]:text-[#E7E7E9] text-[#9B9B9F] rounded-md border-0"
+                      >
+                        <Settings className="h-3 w-3" />
+                        General
+                      </TabsTrigger>
+                    </TabsList>
 
-                  <div className="relative mt-4">
-                    <TabsContent forceMount value="appearance"
-                      className="transition-all duration-200 ease-out data-[state=active]:opacity-100 data-[state=active]:translate-y-0 data-[state=inactive]:opacity-0 data-[state=inactive]:translate-y-1 data-[state=inactive]:pointer-events-none data-[state=inactive]:absolute data-[state=inactive]:inset-x-0"
-                    >
-                      <div className="space-y-3">
-                        {/* Theme */}
-                        <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 space-y-2.5">
-                          <Label className="text-[11px] text-[#9B9B9F] font-medium uppercase tracking-[0.05em]">
-                            Theme
-                          </Label>
-                          <div className="inline-flex items-center gap-0.5 rounded-md bg-[#141419] p-0.5">
-                            {(["dark", "light"] as const).map((themeOption) => (
-                              <button
-                                key={themeOption}
-                                type="button"
-                                onClick={() =>
-                                  setDraft((current) => ({
-                                    ...current,
-                                    theme: themeOption,
-                                  }))
-                                }
-                                className={cn(
-                                  "rounded px-2.5 py-1 text-[11px] font-medium capitalize transition-all",
-                                  draft.theme === themeOption
-                                    ? "bg-[#1B1B1F] text-[#E7E7E9]"
-                                    : "text-[#6B6B70] hover:text-[#9B9B9F]"
-                                )}
-                              >
-                                {themeOption}
-                              </button>
-                            ))}
+                    <div className="relative mt-4">
+                      <TabsContent forceMount value="appearance"
+                        className="transition-all duration-200 ease-out data-[state=active]:opacity-100 data-[state=active]:translate-y-0 data-[state=inactive]:opacity-0 data-[state=inactive]:translate-y-1 data-[state=inactive]:pointer-events-none data-[state=inactive]:absolute data-[state=inactive]:inset-x-0"
+                      >
+                        <div className="space-y-3">
+                          {/* Theme */}
+                          <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 space-y-2.5">
+                            <Label className="text-[11px] text-[#9B9B9F] font-medium uppercase tracking-[0.05em]">
+                              Theme
+                            </Label>
+                            <div className="inline-flex items-center gap-0.5 rounded-md bg-[#141419] p-0.5">
+                              {(["dark", "light"] as const).map((themeOption) => (
+                                <button
+                                  key={themeOption}
+                                  type="button"
+                                  onClick={() =>
+                                    setDraft((current) => ({
+                                      ...current,
+                                      theme: themeOption,
+                                    }))
+                                  }
+                                  className={cn(
+                                    "rounded px-2.5 py-1 text-[11px] font-medium capitalize transition-all",
+                                    draft.theme === themeOption
+                                      ? "bg-[#1B1B1F] text-[#E7E7E9]"
+                                      : "text-[#6B6B70] hover:text-[#9B9B9F]"
+                                  )}
+                                >
+                                  {themeOption}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Primary Color */}
+                          <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 space-y-2.5">
+                            <div>
+                              <Label className="text-[11px] text-[#9B9B9F] font-medium uppercase tracking-[0.05em]">
+                                Primary
+                              </Label>
+                              <p className="text-[10px] text-[#6B6B70] mt-1">
+                                Used for buttons, highlights, and selections
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {USER_PREFERENCE_COLORS.map((color) => (
+                                <button
+                                  key={`primary-${color.name}`}
+                                  type="button"
+                                  title={color.name}
+                                  onClick={() =>
+                                    setDraft((current) => ({
+                                      ...current,
+                                      primaryColor: color.name,
+                                    }))
+                                  }
+                                  className={cn(
+                                    "h-6 w-6 rounded-full transition-all hover:scale-110 flex items-center justify-center",
+                                    draft.primaryColor === color.name &&
+                                    "ring-1 ring-white/80 ring-offset-1 ring-offset-[#0E0E10]"
+                                  )}
+                                  style={{ backgroundColor: color.value }}
+                                >
+                                  {draft.primaryColor === color.name && (
+                                    <CheckCircle2 className="h-3 w-3 text-white drop-shadow-sm" />
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Secondary Color */}
+                          <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 space-y-2.5">
+                            <div>
+                              <Label className="text-[11px] text-[#9B9B9F] font-medium uppercase tracking-[0.05em]">
+                                Secondary
+                              </Label>
+                              <p className="text-[10px] text-[#6B6B70] mt-1">
+                                Used for accents and secondary elements
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {USER_PREFERENCE_COLORS.map((color) => (
+                                <button
+                                  key={`secondary-${color.name}`}
+                                  type="button"
+                                  title={color.name}
+                                  onClick={() =>
+                                    setDraft((current) => ({
+                                      ...current,
+                                      secondaryColor: color.name,
+                                    }))
+                                  }
+                                  className={cn(
+                                    "h-6 w-6 rounded-full transition-all hover:scale-110 flex items-center justify-center",
+                                    draft.secondaryColor === color.name &&
+                                    "ring-1 ring-white/80 ring-offset-1 ring-offset-[#0E0E10]"
+                                  )}
+                                  style={{ backgroundColor: color.value }}
+                                >
+                                  {draft.secondaryColor === color.name && (
+                                    <CheckCircle2 className="h-3 w-3 text-white drop-shadow-sm" />
+                                  )}
+                                </button>
+                              ))}
+                            </div>
                           </div>
                         </div>
+                      </TabsContent>
 
-                        {/* Primary Color */}
-                        <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 space-y-2.5">
+                      <TabsContent forceMount value="ai"
+                        className="transition-all duration-200 ease-out data-[state=active]:opacity-100 data-[state=active]:translate-y-0 data-[state=inactive]:opacity-0 data-[state=inactive]:translate-y-1 data-[state=inactive]:pointer-events-none data-[state=inactive]:absolute data-[state=inactive]:inset-x-0"
+                      >
+                        <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 space-y-3">
                           <div>
                             <Label className="text-[11px] text-[#9B9B9F] font-medium uppercase tracking-[0.05em]">
-                              Primary
+                              Default Model
                             </Label>
                             <p className="text-[10px] text-[#6B6B70] mt-1">
-                              Used for buttons, highlights, and selections
+                              Used when starting a new generation
                             </p>
                           </div>
-                          <div className="flex flex-wrap gap-2">
-                            {USER_PREFERENCE_COLORS.map((color) => (
-                              <button
-                                key={`primary-${color.name}`}
-                                type="button"
-                                title={color.name}
-                                onClick={() =>
-                                  setDraft((current) => ({
-                                    ...current,
-                                    primaryColor: color.name,
-                                  }))
-                                }
-                                className={cn(
-                                  "h-6 w-6 rounded-full transition-all hover:scale-110 flex items-center justify-center",
-                                  draft.primaryColor === color.name &&
-                                  "ring-1 ring-white/80 ring-offset-1 ring-offset-[#0E0E10]"
-                                )}
-                                style={{ backgroundColor: color.value }}
-                              >
-                                {draft.primaryColor === color.name && (
-                                  <CheckCircle2 className="h-3 w-3 text-white drop-shadow-sm" />
-                                )}
-                              </button>
-                            ))}
-                          </div>
+                          <ModelSelector
+                            selectedModel={draft.defaultModel}
+                            onModelChange={(modelId) =>
+                              setDraft((current) => ({
+                                ...current,
+                                defaultModel: modelId,
+                              }))
+                            }
+                          />
                         </div>
+                      </TabsContent>
 
-                        {/* Secondary Color */}
-                        <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 space-y-2.5">
-                          <div>
-                            <Label className="text-[11px] text-[#9B9B9F] font-medium uppercase tracking-[0.05em]">
-                              Secondary
+                      <TabsContent forceMount value="general"
+                        className="transition-all duration-200 ease-out data-[state=active]:opacity-100 data-[state=active]:translate-y-0 data-[state=inactive]:opacity-0 data-[state=inactive]:translate-y-1 data-[state=inactive]:pointer-events-none data-[state=inactive]:absolute data-[state=inactive]:inset-x-0"
+                      >
+                        <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] divide-y divide-white/[0.04]">
+                          <div className="flex items-center justify-between px-4 py-3">
+                            <Label className="text-[13px] text-[#E7E7E9] cursor-pointer font-normal">
+                              Product Updates
                             </Label>
-                            <p className="text-[10px] text-[#6B6B70] mt-1">
-                              Used for accents and secondary elements
-                            </p>
+                            <Switch
+                              checked={draft.contactPreferences.productUpdates}
+                              onCheckedChange={(checked) =>
+                                setDraft((current) => ({
+                                  ...current,
+                                  contactPreferences: {
+                                    ...current.contactPreferences,
+                                    productUpdates: checked,
+                                  },
+                                }))
+                              }
+                            />
                           </div>
-                          <div className="flex flex-wrap gap-2">
-                            {USER_PREFERENCE_COLORS.map((color) => (
-                              <button
-                                key={`secondary-${color.name}`}
-                                type="button"
-                                title={color.name}
-                                onClick={() =>
-                                  setDraft((current) => ({
-                                    ...current,
-                                    secondaryColor: color.name,
-                                  }))
-                                }
-                                className={cn(
-                                  "h-6 w-6 rounded-full transition-all hover:scale-110 flex items-center justify-center",
-                                  draft.secondaryColor === color.name &&
-                                  "ring-1 ring-white/80 ring-offset-1 ring-offset-[#0E0E10]"
-                                )}
-                                style={{ backgroundColor: color.value }}
-                              >
-                                {draft.secondaryColor === color.name && (
-                                  <CheckCircle2 className="h-3 w-3 text-white drop-shadow-sm" />
-                                )}
-                              </button>
-                            ))}
+                          <div className="flex items-center justify-between px-4 py-3">
+                            <Label className="text-[13px] text-[#E7E7E9] cursor-pointer font-normal">
+                              Marketing Emails
+                            </Label>
+                            <Switch
+                              checked={draft.contactPreferences.marketingEmails}
+                              onCheckedChange={(checked) =>
+                                setDraft((current) => ({
+                                  ...current,
+                                  contactPreferences: {
+                                    ...current.contactPreferences,
+                                    marketingEmails: checked,
+                                  },
+                                }))
+                              }
+                            />
+                          </div>
+                          <div className="flex items-center justify-between px-4 py-3">
+                            <Label className="text-[13px] text-[#E7E7E9] cursor-pointer font-normal">
+                              Private Projects
+                            </Label>
+                            <Switch
+                              checked={draft.privacyPreferences.privateProjectsByDefault}
+                              onCheckedChange={(checked) =>
+                                setDraft((current) => ({
+                                  ...current,
+                                  privacyPreferences: {
+                                    ...current.privacyPreferences,
+                                    privateProjectsByDefault: checked,
+                                  },
+                                }))
+                              }
+                            />
                           </div>
                         </div>
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent forceMount value="ai"
-                      className="transition-all duration-200 ease-out data-[state=active]:opacity-100 data-[state=active]:translate-y-0 data-[state=inactive]:opacity-0 data-[state=inactive]:translate-y-1 data-[state=inactive]:pointer-events-none data-[state=inactive]:absolute data-[state=inactive]:inset-x-0"
-                    >
-                      <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4 space-y-3">
-                        <div>
-                          <Label className="text-[11px] text-[#9B9B9F] font-medium uppercase tracking-[0.05em]">
-                            Default Model
-                          </Label>
-                          <p className="text-[10px] text-[#6B6B70] mt-1">
-                            Used when starting a new generation
-                          </p>
-                        </div>
-                        <ModelSelector
-                          selectedModel={draft.defaultModel}
-                          onModelChange={(modelId) =>
-                            setDraft((current) => ({
-                              ...current,
-                              defaultModel: modelId,
-                            }))
-                          }
-                        />
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent forceMount value="general"
-                      className="transition-all duration-200 ease-out data-[state=active]:opacity-100 data-[state=active]:translate-y-0 data-[state=inactive]:opacity-0 data-[state=inactive]:translate-y-1 data-[state=inactive]:pointer-events-none data-[state=inactive]:absolute data-[state=inactive]:inset-x-0"
-                    >
-                      <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] divide-y divide-white/[0.04]">
-                        <div className="flex items-center justify-between px-4 py-3">
-                          <Label className="text-[13px] text-[#E7E7E9] cursor-pointer font-normal">
-                            Product Updates
-                          </Label>
-                          <Switch
-                            checked={draft.contactPreferences.productUpdates}
-                            onCheckedChange={(checked) =>
-                              setDraft((current) => ({
-                                ...current,
-                                contactPreferences: {
-                                  ...current.contactPreferences,
-                                  productUpdates: checked,
-                                },
-                              }))
-                            }
-                          />
-                        </div>
-                        <div className="flex items-center justify-between px-4 py-3">
-                          <Label className="text-[13px] text-[#E7E7E9] cursor-pointer font-normal">
-                            Marketing Emails
-                          </Label>
-                          <Switch
-                            checked={draft.contactPreferences.marketingEmails}
-                            onCheckedChange={(checked) =>
-                              setDraft((current) => ({
-                                ...current,
-                                contactPreferences: {
-                                  ...current.contactPreferences,
-                                  marketingEmails: checked,
-                                },
-                              }))
-                            }
-                          />
-                        </div>
-                        <div className="flex items-center justify-between px-4 py-3">
-                          <Label className="text-[13px] text-[#E7E7E9] cursor-pointer font-normal">
-                            Private Projects
-                          </Label>
-                          <Switch
-                            checked={draft.privacyPreferences.privateProjectsByDefault}
-                            onCheckedChange={(checked) =>
-                              setDraft((current) => ({
-                                ...current,
-                                privacyPreferences: {
-                                  ...current.privacyPreferences,
-                                  privateProjectsByDefault: checked,
-                                },
-                              }))
-                            }
-                          />
-                        </div>
-                      </div>
-                    </TabsContent>
-                  </div>
-                </Tabs>
+                      </TabsContent>
+                    </div>
+                  </Tabs>
+                </motion.div>
               </div>
             </div>
 
             {/* Sticky footer */}
-            <div className="border-t border-white/[0.04] px-5 py-3 flex justify-end">
+            <motion.div
+              variants={modalItemVariants}
+              className="border-t border-white/[0.04] px-5 py-3 flex justify-end"
+            >
               <Button
                 onClick={handleSave}
                 disabled={isSaving}
@@ -406,8 +422,8 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 )}
                 Save
               </Button>
-            </div>
-          </>
+            </motion.div>
+          </motion.div>
         )}
       </DialogContent>
     </Dialog>

@@ -16,6 +16,11 @@ import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { motion } from "framer-motion"
 import {
+  modalContainerVariants,
+  modalItemVariants,
+  modalHeaderVariants,
+} from "@/lib/modal-animations"
+import {
   PAID_SUBSCRIPTION_TIERS,
   TOPUP_PACKAGES,
   TIERS,
@@ -290,200 +295,208 @@ export function PricingModal({ isOpen, onClose, currentTier = "free" }: PricingM
     }}>
       <DialogContent className="w-[94vw] min-w-[720px] border-white/[0.05] bg-[#0d0d10] p-0 text-white sm:rounded-2xl [&_button[data-slot=dialog-close]]:top-3 [&_button[data-slot=dialog-close]]:right-3 [&_button[data-slot=dialog-close]]:opacity-40 [&_button[data-slot=dialog-close]]:hover:opacity-80 [&_button[data-slot=dialog-close]]:transition-opacity">
         <div className="px-6 py-5 overflow-y-auto max-h-[88vh] scrollbar-thin scrollbar-thumb-white/[0.06]">
-          <DialogHeader className="items-start text-left">
-            <DialogTitle className="text-[28px] font-semibold tracking-tight text-[#EDEDF0] leading-tight">
-              Choose a plan
-            </DialogTitle>
-            <p className="mt-2 text-[13px] leading-relaxed text-[#8A8A90]">
-              Upgrade when you need more credits, private projects, or priority access.
-            </p>
-          </DialogHeader>
+          <motion.div
+            variants={modalContainerVariants}
+            initial="hidden"
+            animate="visible"
+          >
+            <DialogHeader className="items-start text-left">
+              <motion.div variants={modalHeaderVariants}>
+                <DialogTitle className="text-[28px] font-semibold tracking-tight text-[#EDEDF0] leading-tight">
+                  Choose a plan
+                </DialogTitle>
+                <p className="mt-2 text-[13px] leading-relaxed text-[#8A8A90]">
+                  Upgrade when you need more credits, private projects, or priority access.
+                </p>
+              </motion.div>
+            </DialogHeader>
 
-          <div className="mt-4 flex items-center gap-3">
-            <div className="flex gap-0.5 p-0.5 bg-[#141419] border border-white/[0.06] rounded-lg" role="radiogroup" aria-label="Billing cycle">
-              <button
-                onClick={() => setBillingCycle("monthly")}
-                className={cn(
-                  "whitespace-nowrap px-3.5 py-1.5 rounded-md text-[13px] font-medium transition-all",
-                  billingCycle === "monthly"
-                    ? "bg-[#1E1E24] text-[#EDEDF0]"
-                    : "text-[#6B6B70] hover:text-[#9B9B9F]"
-                )}
-                role="radio"
-                aria-checked={billingCycle === "monthly"}
-              >
-                Monthly
-              </button>
-              <button
-                onClick={() => setBillingCycle("yearly")}
-                disabled={!hasYearlyPlans}
-                className={cn(
-                  "whitespace-nowrap flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-[13px] font-medium transition-all",
-                  "disabled:cursor-not-allowed disabled:opacity-50",
-                  billingCycle === "yearly"
-                    ? "bg-[#1E1E24] text-[#EDEDF0]"
-                    : "text-[#6B6B70] hover:text-[#9B9B9F]"
-                )}
-                role="radio"
-                aria-checked={billingCycle === "yearly"}
-              >
-                Yearly
-                {hasYearlyPlans && (
-                  <span className="text-[10px] font-medium text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">Save 17%</span>
-                )}
-              </button>
-            </div>
-
-            <div className={cn("flex items-center gap-1 text-[10px] text-[#5B5B60] opacity-70", isPricingLoading && "animate-pulse")}>
-              <Lock className="h-2.5 w-2.5" />
-              <span>{isPricingLoading ? "Syncing..." : "Secured by Stripe"}</span>
-            </div>
-          </div>
-
-          {pricingIssues.length > 0 && (
-            <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-3.5 py-2.5 text-[12px] text-amber-200/90">
-              Some Stripe plans are currently unavailable. Only plans with configured live Stripe prices can be purchased.
-            </div>
-          )}
-
-          <div className="mt-4 grid grid-cols-1 gap-3.5 md:grid-cols-3">
-            {plans.map((plan, index) => {
-              const price = plan.id === "free" ? "$0" : formatCurrency(plan.amount, plan.currency)
-              const sublabel = plan.id === "free"
-                ? "No credit card required"
-                : !plan.isConfiguredForCycle
-                  ? "Not configured yet"
-                  : billingCycle === "monthly"
-                    ? "Billed monthly"
-                    : `Billed annually${plan.yearlySavings > 0 ? ` · Save ${formatCurrency(plan.yearlySavings, plan.currency)}` : ""}`
-
-              const planCopy = plan.id === "free"
-                ? "for small projects"
-                : plan.id === "pro"
-                  ? "for creators who need more room"
-                  : "for teams and heavier use"
-
-              return (
-                <motion.div
-                  key={plan.id}
-                  custom={index}
-                  initial="hidden"
-                  animate="visible"
-                  variants={cardVariants}
+            <motion.div variants={modalItemVariants} className="mt-4 flex items-center gap-3">
+              <div className="flex gap-0.5 p-0.5 bg-[#141419] border border-white/[0.06] rounded-lg" role="radiogroup" aria-label="Billing cycle">
+                <button
+                  onClick={() => setBillingCycle("monthly")}
                   className={cn(
-                    "relative flex flex-col rounded-xl p-4 transition-colors",
-                    plan.badge
-                      ? "bg-[#17171C] border border-white/[0.11]"
-                      : "bg-[#141419] border border-white/[0.06] hover:border-white/[0.08]"
+                    "whitespace-nowrap px-3.5 py-1.5 rounded-md text-[13px] font-medium transition-all",
+                    billingCycle === "monthly"
+                      ? "bg-[#1E1E24] text-[#EDEDF0]"
+                      : "text-[#6B6B70] hover:text-[#9B9B9F]"
                   )}
+                  role="radio"
+                  aria-checked={billingCycle === "monthly"}
                 >
-                  {plan.badge && (
-                    <div className="absolute -top-1.5 left-4 rounded-full bg-[#C8C8CC] px-1.5 py-px text-[9px] font-medium text-[#0d0d10]">
-                      {plan.badge}
-                    </div>
+                  Monthly
+                </button>
+                <button
+                  onClick={() => setBillingCycle("yearly")}
+                  disabled={!hasYearlyPlans}
+                  className={cn(
+                    "whitespace-nowrap flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-[13px] font-medium transition-all",
+                    "disabled:cursor-not-allowed disabled:opacity-50",
+                    billingCycle === "yearly"
+                      ? "bg-[#1E1E24] text-[#EDEDF0]"
+                      : "text-[#6B6B70] hover:text-[#9B9B9F]"
                   )}
+                  role="radio"
+                  aria-checked={billingCycle === "yearly"}
+                >
+                  Yearly
+                  {hasYearlyPlans && (
+                    <span className="text-[10px] font-medium text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">Save 17%</span>
+                  )}
+                </button>
+              </div>
 
-                  <h3 className={cn("text-[14px] font-semibold capitalize text-[#EDEDF0]", plan.badge && "mt-1")}>
-                    {plan.name}
-                  </h3>
+              <div className={cn("flex items-center gap-1 text-[10px] text-[#5B5B60] opacity-70", isPricingLoading && "animate-pulse")}>
+                <Lock className="h-2.5 w-2.5" />
+                <span>{isPricingLoading ? "Syncing..." : "Secured by Stripe"}</span>
+              </div>
+            </motion.div>
 
-                  <div className="mt-2 flex items-baseline gap-0.5">
-                    <span className="text-[38px] font-semibold tracking-tight text-[#EDEDF0] leading-none">{price}</span>
-                    {plan.id !== "free" && (
-                      <span className="text-[11px] text-[#5B5B60] ml-0.5">
-                        /{billingCycle === "monthly" ? "mo" : "yr"}
-                      </span>
+            {pricingIssues.length > 0 && (
+              <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-3.5 py-2.5 text-[12px] text-amber-200/90">
+                Some Stripe plans are currently unavailable. Only plans with configured live Stripe prices can be purchased.
+              </div>
+            )}
+
+            <div className="mt-4 grid grid-cols-1 gap-3.5 md:grid-cols-3">
+              {plans.map((plan, index) => {
+                const price = plan.id === "free" ? "$0" : formatCurrency(plan.amount, plan.currency)
+                const sublabel = plan.id === "free"
+                  ? "No credit card required"
+                  : !plan.isConfiguredForCycle
+                    ? "Not configured yet"
+                    : billingCycle === "monthly"
+                      ? "Billed monthly"
+                      : `Billed annually${plan.yearlySavings > 0 ? ` · Save ${formatCurrency(plan.yearlySavings, plan.currency)}` : ""}`
+
+                const planCopy = plan.id === "free"
+                  ? "for small projects"
+                  : plan.id === "pro"
+                    ? "for creators who need more room"
+                    : "for teams and heavier use"
+
+                return (
+                  <motion.div
+                    key={plan.id}
+                    custom={index}
+                    initial="hidden"
+                    animate="visible"
+                    variants={cardVariants}
+                    className={cn(
+                      "relative flex flex-col rounded-xl p-4 transition-colors",
+                      plan.badge
+                        ? "bg-[#17171C] border border-white/[0.11]"
+                        : "bg-[#141419] border border-white/[0.06] hover:border-white/[0.08]"
                     )}
-                  </div>
-
-                  <p className="mt-1 text-[13px] leading-relaxed text-[#8A8A90]">
-                    {planCopy}
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-[#6B6B70]">{sublabel}</p>
-
-                  <div className="mt-3 flex-1 space-y-1">
-                    {plan.features.map((feature) => (
-                      <div key={feature} className="flex items-start gap-2">
-                        <Check className={cn(
-                          "mt-0.5 h-3 w-3 flex-shrink-0",
-                          plan.badge ? "text-[#B5B5BA]" : "text-[#5B5B60]"
-                        )} />
-                        <span className="text-[13px] leading-tight text-[#B0B0B5]">{feature}</span>
+                  >
+                    {plan.badge && (
+                      <div className="absolute -top-1.5 left-4 rounded-full bg-[#C8C8CC] px-1.5 py-px text-[9px] font-medium text-[#0d0d10]">
+                        {plan.badge}
                       </div>
-                    ))}
-                  </div>
+                    )}
 
-                  {plan.isCurrentTier ? (
-                    <div className="mt-3 text-center text-[11px] font-medium text-[#6B6B70]">
-                      Current plan
-                    </div>
-                  ) : plan.id === "free" ? (
-                    <div className="mt-3 text-center text-[11px] font-medium text-[#6B6B70]">
-                      Included
-                    </div>
-                  ) : (
-                    <button
-                      className={cn(
-                        "mt-3 flex items-center justify-center gap-1 w-full rounded-md py-1.5 text-[12px] font-medium transition-all",
-                        plan.badge
-                          ? "bg-[#D8D8DB] text-[#1a1a1f] hover:bg-[#E0E0E3] hover:-translate-y-0.5 shadow-[0_1px_2px_rgba(0,0,0,0.15)]"
-                          : "bg-[#1E1E24] text-[#C0C0C5] border border-white/[0.06] hover:border-white/[0.10] hover:-translate-y-0.5"
+                    <h3 className={cn("text-[14px] font-semibold capitalize text-[#EDEDF0]", plan.badge && "mt-1")}>
+                      {plan.name}
+                    </h3>
+
+                    <div className="mt-2 flex items-baseline gap-0.5">
+                      <span className="text-[38px] font-semibold tracking-tight text-[#EDEDF0] leading-none">{price}</span>
+                      {plan.id !== "free" && (
+                        <span className="text-[11px] text-[#5B5B60] ml-0.5">
+                          /{billingCycle === "monthly" ? "mo" : "yr"}
+                        </span>
                       )}
-                      disabled={isLoading !== null || !plan.isConfiguredForCycle}
+                    </div>
+
+                    <p className="mt-1 text-[13px] leading-relaxed text-[#8A8A90]">
+                      {planCopy}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-[#6B6B70]">{sublabel}</p>
+
+                    <div className="mt-3 flex-1 space-y-1">
+                      {plan.features.map((feature) => (
+                        <div key={feature} className="flex items-start gap-2">
+                          <Check className={cn(
+                            "mt-0.5 h-3 w-3 flex-shrink-0",
+                            plan.badge ? "text-[#B5B5BA]" : "text-[#5B5B60]"
+                          )} />
+                          <span className="text-[13px] leading-tight text-[#B0B0B5]">{feature}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {plan.isCurrentTier ? (
+                      <div className="mt-3 text-center text-[11px] font-medium text-[#6B6B70]">
+                        Current plan
+                      </div>
+                    ) : plan.id === "free" ? (
+                      <div className="mt-3 text-center text-[11px] font-medium text-[#6B6B70]">
+                        Included
+                      </div>
+                    ) : (
+                      <button
+                        className={cn(
+                          "mt-3 flex items-center justify-center gap-1 w-full rounded-md py-1.5 text-[12px] font-medium transition-all",
+                          plan.badge
+                            ? "bg-[#D8D8DB] text-[#1a1a1f] hover:bg-[#E0E0E3] hover:-translate-y-0.5 shadow-[0_1px_2px_rgba(0,0,0,0.15)]"
+                            : "bg-[#1E1E24] text-[#C0C0C5] border border-white/[0.06] hover:border-white/[0.10] hover:-translate-y-0.5"
+                        )}
+                        disabled={isLoading !== null || !plan.isConfiguredForCycle}
+                        onClick={() => {
+                          if (plan.isConfiguredForCycle) {
+                            void onCheckout(plan.id as PaidSubscriptionTier)
+                          }
+                        }}
+                      >
+                        {isLoading === plan.id ? "Processing..." : !plan.isConfiguredForCycle ? "Unavailable" : `Upgrade to ${plan.name}`}
+                        {isLoading !== plan.id && plan.isConfiguredForCycle && (
+                          <ArrowRight className="h-3 w-3" />
+                        )}
+                      </button>
+                    )}
+                  </motion.div>
+                )
+              })}
+            </div>
+
+            <motion.div variants={modalItemVariants} className="mt-5">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-[13px] font-medium text-[#C0C0C5]">Need extra credits?</h3>
+                <span className="text-[10px] text-[#5B5B60]">Buy one-time credits for extra generations</span>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                {visibleTopupPackages.map((pkg) => (
+                  <div
+                    key={pkg.id}
+                    className={cn(
+                      "group rounded-lg border bg-[#141419] px-3 py-2 transition-colors hover:border-white/[0.10]",
+                      pkg.id === "topup_100" ? "border-white/[0.09]" : "border-white/[0.06]"
+                    )}
+                  >
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-[15px] font-semibold text-[#EDEDF0]">{pkg.credits}</span>
+                      <span className="text-[10px] text-[#5B5B60]">credits</span>
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-[#8A8A90]">
+                      {formatCurrency(pkg.price, "usd")} · {topupDescriptions[pkg.id] ?? "extra credits"}
+                    </p>
+                    <button
+                      className="mt-2 flex items-center justify-center gap-1 w-full rounded-md py-1.5 text-[12px] font-medium bg-[#1E1E24] text-[#C0C0C5] border border-white/[0.06] hover:border-white/[0.10] transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
+                      disabled={isLoading !== null || !pkg.available}
                       onClick={() => {
-                        if (plan.isConfiguredForCycle) {
-                          void onCheckout(plan.id as PaidSubscriptionTier)
+                        if (pkg.available) {
+                          void onTopupCheckout(pkg.id)
                         }
                       }}
                     >
-                      {isLoading === plan.id ? "Processing..." : !plan.isConfiguredForCycle ? "Unavailable" : `Upgrade to ${plan.name}`}
-                      {isLoading !== plan.id && plan.isConfiguredForCycle && (
-                        <ArrowRight className="h-3 w-3" />
-                      )}
+                      {isLoading === pkg.id ? "Processing..." : pkg.available ? "Buy" : "Unavailable"}
+                      {isLoading !== pkg.id && pkg.available && <ArrowRight className="h-3 w-3" />}
                     </button>
-                  )}
-                </motion.div>
-              )
-            })}
-          </div>
-
-          <div className="mt-5">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-[13px] font-medium text-[#C0C0C5]">Need extra credits?</h3>
-              <span className="text-[10px] text-[#5B5B60]">Buy one-time credits for extra generations</span>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              {visibleTopupPackages.map((pkg) => (
-                <div
-                  key={pkg.id}
-                  className={cn(
-                    "group rounded-lg border bg-[#141419] px-3 py-2 transition-colors hover:border-white/[0.10]",
-                    pkg.id === "topup_100" ? "border-white/[0.09]" : "border-white/[0.06]"
-                  )}
-                >
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-[15px] font-semibold text-[#EDEDF0]">{pkg.credits}</span>
-                    <span className="text-[10px] text-[#5B5B60]">credits</span>
                   </div>
-                  <p className="mt-0.5 text-[11px] text-[#8A8A90]">
-                    {formatCurrency(pkg.price, "usd")} · {topupDescriptions[pkg.id] ?? "extra credits"}
-                  </p>
-                  <button
-                    className="mt-2 flex items-center justify-center gap-1 w-full rounded-md py-1.5 text-[12px] font-medium bg-[#1E1E24] text-[#C0C0C5] border border-white/[0.06] hover:border-white/[0.10] transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
-                    disabled={isLoading !== null || !pkg.available}
-                    onClick={() => {
-                      if (pkg.available) {
-                        void onTopupCheckout(pkg.id)
-                      }
-                    }}
-                  >
-                    {isLoading === pkg.id ? "Processing..." : pkg.available ? "Buy" : "Unavailable"}
-                    {isLoading !== pkg.id && pkg.available && <ArrowRight className="h-3 w-3" />}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
         </div>
       </DialogContent>
     </Dialog>

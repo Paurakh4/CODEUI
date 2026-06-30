@@ -7,12 +7,18 @@ import {
   Loader2,
   PencilLine,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAccountModals } from "@/components/account-modal-provider";
 import { toast } from "sonner";
+import {
+  modalContainerVariants,
+  modalItemVariants,
+  modalHeaderVariants,
+} from "@/lib/modal-animations";
 
 function formatRelativeDate(date: string | Date): string {
   const d = new Date(date);
@@ -209,21 +215,26 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
             </p>
           </div>
         ) : (
-          <>
+          <motion.div
+            variants={modalContainerVariants}
+            initial="hidden"
+            animate="visible"
+            className="flex flex-col flex-1 min-h-0"
+          >
             <div className="overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-white/[0.04]">
               <div className="p-5 space-y-5">
                 {/* Header */}
-                <div>
+                <motion.div variants={modalHeaderVariants}>
                   <h1 className="text-lg font-bold tracking-tight text-[#E7E7E9]">
                     Profile
                   </h1>
                   <p className="text-[11px] text-[#9B9B9F] mt-0.5">
                     Manage your display name and account details.
                   </p>
-                </div>
+                </motion.div>
 
                 {/* Avatar + Name */}
-                <div className="flex items-center gap-3">
+                <motion.div variants={modalItemVariants} className="flex items-center gap-3">
                   <button type="button" className="group relative shrink-0 rounded-full">
                     <Avatar className="h-10 w-10 ring-2 ring-white/[0.06]">
                       {profile.image ? (
@@ -245,10 +256,10 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
                       {profile.email}
                     </p>
                   </div>
-                </div>
+                </motion.div>
 
                 {/* Display Name Input */}
-                <div className="relative">
+                <motion.div variants={modalItemVariants} className="relative">
                   <PencilLine className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#6B6B70]" />
                   <Input
                     id="profile-name"
@@ -257,10 +268,10 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
                     className="pl-9 h-10 text-[13px] bg-[#0E0E10] border-white/[0.06] text-[#E7E7E9] placeholder:text-[#6B6B70] rounded-lg focus-visible:ring-white/20"
                     placeholder="Display name"
                   />
-                </div>
+                </motion.div>
 
                 {/* Merged Plan + Credits card */}
-                <div className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4">
+                <motion.div variants={modalItemVariants} className="rounded-lg border border-white/[0.04] bg-[#0E0E10] p-4">
                   <p className="text-[10px] text-[#6B6B70] uppercase tracking-[0.05em] font-medium mb-1">
                     Current plan
                   </p>
@@ -279,10 +290,10 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
                   >
                     Manage subscription →
                   </button>
-                </div>
+                </motion.div>
 
                 {/* Recent Projects */}
-                <div>
+                <motion.div variants={modalItemVariants}>
                   <p className="text-[10px] text-[#6B6B70] uppercase tracking-[0.05em] font-medium mb-2">
                     Recent Projects
                   </p>
@@ -318,13 +329,16 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
                       ))
                     )}
                   </div>
-                </div>
+                </motion.div>
               </div>
             </div>
 
             {/* Sticky footer (only when dirty) */}
             {isDirty && (
-              <div className="border-t border-white/[0.04] px-5 py-3 flex justify-end">
+              <motion.div
+                variants={modalItemVariants}
+                className="border-t border-white/[0.04] px-5 py-3 flex justify-end"
+              >
                 <Button
                   onClick={handleSave}
                   disabled={isSaving}
@@ -336,9 +350,9 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
                   )}
                   Save
                 </Button>
-              </div>
+              </motion.div>
             )}
-          </>
+          </motion.div>
         )}
       </DialogContent>
     </Dialog>
