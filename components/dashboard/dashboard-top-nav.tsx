@@ -25,7 +25,7 @@ export function DashboardTopNav({
       <div className="flex items-center gap-1">
         <SidebarTrigger className="text-[#9B9B9F] hover:text-[#E7E7E9] hover:bg-[#1B1B1F] rounded-lg h-7 w-7" />
       </div>
-      <div className="flex items-center gap-3 sm:gap-5">
+      <div className="flex items-center gap-3 sm:gap-4">
         <Link
           href="/discover"
           className="hidden sm:flex text-[11px] text-[#9B9B9F]/80 hover:text-[#E7E7E9] transition-colors"
@@ -38,14 +38,13 @@ export function DashboardTopNav({
         >
           Feedback
         </button>
-        <div className="hidden sm:block w-px h-3.5 bg-white/[0.08]" />
         <button
           onClick={onOpenPricing}
           className="hidden sm:flex items-center text-[11px] font-medium text-[#E7E7E9] hover:text-white px-3 py-1 rounded-full bg-white/[0.06] border border-white/[0.1] hover:bg-white/[0.1] hover:border-white/[0.15] transition-colors"
         >
           {userTier === "free" ? "Upgrade" : "Manage plan"}
         </button>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           <div
             onClick={onOpenPricing}
             className="flex items-center gap-1.5 bg-[#0E0E10] hover:bg-[#1B1B1F] border border-white/[0.05] rounded-full px-2.5 py-1 h-auto transition-colors cursor-pointer"

@@ -499,7 +499,7 @@ export function DashboardSidebar({
       {/* Footer: Credits — quiet, integrated status */}
       {!isCollapsed && (
         <SidebarFooter className="p-2 pb-3 mt-auto">
-          <div className="px-1 space-y-1">
+          <div className="space-y-1">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-medium text-[#E7E7E9] tabular-nums">
                 {userTotalCredits} <span className="text-[#9B9B9F] font-normal">credits</span>
