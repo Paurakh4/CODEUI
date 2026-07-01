@@ -52,6 +52,41 @@ function getGreeting() {
   return "Good evening"
 }
 
+const ROTATING_WORDS = [
+  "new.",
+  "bold.",
+  "wild.",
+  "unreal.",
+  "ambitious.",
+  "unexpected.",
+  "yours.",
+]
+
+function RotatingText() {
+  const [index, setIndex] = useState(0)
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setIndex((prev) => (prev + 1) % ROTATING_WORDS.length)
+    }, 2400)
+    return () => clearInterval(id)
+  }, [])
+
+  return (
+    <>
+      or start something{" "}
+      <span className="inline-flex whitespace-nowrap italic" style={{ fontFamily: "'Instrument Serif', serif", color: "#C7FF3C" }}>
+        <span
+          key={index}
+          className="inline-block animate-[fade-in-up_0.4s_ease-out]"
+        >
+          {ROTATING_WORDS[index]}
+        </span>
+      </span>
+    </>
+  )
+}
+
 // ponytail: image payload caps — large data URLs bloat Mongo docs; upgrade path = upload to media library + store URL
 const MAX_IMAGES_PER_MESSAGE = 4
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024 // 5 MB
@@ -361,8 +396,12 @@ export function PromptInput({
             <span className="text-[11px] font-medium text-[#9B9B9F]/55">
               {getGreeting()}
             </span>
-            <h1 className="text-[24px] sm:text-[34px] font-normal tracking-tight text-white text-glow leading-tight">
-              {hasProjects ? "Continue building, or start something new." : "What do you want to create?"}
+            <h1 className="text-[24px] sm:text-[34px] font-normal tracking-tight text-white text-glow leading-tight whitespace-nowrap">
+              {hasProjects ? (
+                <>Continue building, <RotatingText /></>
+              ) : (
+                "What do you want to create?"
+              )}
             </h1>
           </div>
         )}
