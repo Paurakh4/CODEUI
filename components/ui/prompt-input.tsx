@@ -690,7 +690,10 @@ export function PromptInput({
                 onClick={isStartingProject ? undefined : () => onSend("Create a marketing site with a hero, feature highlights, pricing table, and FAQ section.")}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#0E0E10] border border-white/[0.05] text-xs text-[#E7E7E9] hover:bg-[#1B1B1F] hover:border-white/[0.08] transition-all duration-150 ease-out hover:scale-[1.02] focus-visible:outline-none"
               >
-                <Sparkles className="w-3.5 h-3.5" />
+                <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 14 14" className="w-3.5 h-3.5">
+                  <path d="M0 0h14v14H0z" fill="none" />
+                  <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" d="M9.933 13.092a56 56 0 0 0 2.016-.234a.99.99 0 0 0 .854-.861c.08-.643.159-1.312.223-1.997M4.068.908a56 56 0 0 0-2.016.234a.99.99 0 0 0-.855.86A66 66 0 0 0 .974 4M9.933.908c.69.066 1.365.148 2.016.234a.99.99 0 0 1 .854.86c.08.644.159 1.313.223 1.998m-8.958 9.092a59 59 0 0 1-2.016-.234a.99.99 0 0 1-.855-.861A66 66 0 0 1 .974 10M7 5.162V3.877m0 1.285c.787 0 1.604 0 2.329.094a1.406 1.406 0 0 1 1.216 1.184c.059.403.059.812.059 1.508c0 .697 0 1.106-.06 1.508A1.406 1.406 0 0 1 9.33 10.64c-.725.095-1.542.095-2.329.095c-.786 0-1.603 0-2.328-.095a1.406 1.406 0 0 1-1.216-1.184c-.059-.402-.059-.811-.059-1.508s0-1.105.059-1.508a1.406 1.406 0 0 1 1.216-1.184c.725-.094 1.542-.094 2.328-.094m1.296 2.98v-.388M5.7 8.142v-.388M7 3.864c.616 0 .963-.347.963-.963S7.616 1.94 7 1.94s-.962.347-.962.962s.347.963.962.963" />
+                </svg>
                 <span>Marketing</span>
               </button>
               <button

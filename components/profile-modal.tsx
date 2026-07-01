@@ -288,7 +288,7 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
                     onClick={showPricing}
                     className="mt-2 text-[11px] font-medium text-[#E7E7E9] hover:text-white transition-colors"
                   >
-                    Manage subscription →
+                    {profile.subscription.tier === "free" ? "Upgrade plan →" : "Manage subscription →"}
                   </button>
                 </motion.div>
 

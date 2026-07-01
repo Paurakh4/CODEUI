@@ -302,14 +302,7 @@
     font-synthesis-weight: none;
   }
 
-  /* Subtle global focus-visible style for keyboard accessibility */
-  :focus-visible {
-    outline: 1.5px solid var(--ring);
-    outline-offset: 1px;
-    border-radius: inherit;
-  }
-
-  /* Remove focus-visible for mouse-only interactions */
+  /* Remove outline on mouse-only focus; keyboard focus is handled per-component via Tailwind focus-visible:ring utilities */
   :focus:not(:focus-visible) {
     outline: none;
   }

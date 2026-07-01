@@ -20,10 +20,10 @@ import {
   Copy,
   Check,
   Zap,
-  Crown,
   Settings,
   Share,
 } from "lucide-react"
+import { CrownIcon } from "@/components/crown-icon"
 import { useState, useCallback, useEffect, useRef } from "react"
 import {
   Tooltip,
@@ -111,7 +111,7 @@ export function TopNav({
   const getTierBadge = () => {
     switch (userTier) {
       case "proplus":
-        return { icon: Crown, color: "text-amber-400", bg: "bg-amber-400/10" }
+        return { icon: CrownIcon, color: "text-[#E7E7E9]", bg: "bg-white/10" }
       case "pro":
         return { icon: Zap, color: "text-amber-500", bg: "bg-amber-500/10" }
       default:

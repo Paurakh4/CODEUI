@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { Crown, Zap } from "lucide-react"
+import { Zap } from "lucide-react"
+import { CrownIcon } from "@/components/crown-icon"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { UserMenu } from "@/components/user-menu"
 import type { SubscriptionTier } from "@/lib/pricing"
@@ -42,7 +43,7 @@ export function DashboardTopNav({
           onClick={onOpenPricing}
           className="hidden sm:flex items-center text-[11px] font-medium text-[#E7E7E9] hover:text-white px-3 py-1 rounded-full bg-white/[0.06] border border-white/[0.1] hover:bg-white/[0.1] hover:border-white/[0.15] transition-colors"
         >
-          Upgrade
+          {userTier === "free" ? "Upgrade" : "Manage plan"}
         </button>
         <div className="flex items-center gap-1.5">
           <div
@@ -50,7 +51,7 @@ export function DashboardTopNav({
             className="flex items-center gap-1.5 bg-[#0E0E10] hover:bg-[#1B1B1F] border border-white/[0.05] rounded-full px-2.5 py-1 h-auto transition-colors cursor-pointer"
           >
             {userTier === "proplus" ? (
-              <Crown className="w-3 h-3 text-[#E7E7E9]" />
+              <CrownIcon className="w-3 h-3 text-[#E7E7E9]" />
             ) : (
               <Zap className="w-3 h-3 text-[#9B9B9F]" />
             )}
